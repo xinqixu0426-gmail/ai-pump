@@ -59,12 +59,35 @@ function receiptMatches(candidate, oracle) {
         && receipt?.comparisonStatus === 'COMPARABLE'
         && (oracle.requiredOverrideKeys || []).every(key => receipt.appliedOverrideKeys?.includes(key)));
 }
-function hasVerifiedTrace(candidate, toolName) {
-    return (candidate?.traces || []).some(trace => trace?.name === toolName && trace?.success === true && trace?.verified === true);
-}
 function hasInternalNumericId(answer) {
     // Chinese owner replies must not expose an explicit internal business ID.
     return /(?:配方|线圈|零件|订单|模板)\s*(?:ID|编号)\s*[:：#]?\s*\d+/iu.test(String(answer || ''));
+}
+function hasMoneyAssertion(answer, facts) {
+    if (facts.some(fact => fact?.unit === 'CNY')) return true;
+    return /(?:[¥￥]\s*\d|\d+(?:\.\d+)?\s*(?:元|CNY|RMB))/iu.test(String(answer || ''));
+}
+function traceFactIds(candidate, predicate) {
+    return new Set((candidate?.traces || []).filter(predicate).flatMap(trace => Array.isArray(trace?.factIds) ? trace.factIds : []));
+}
+function claimsCiteAny(candidate, allowedIds) {
+    return (candidate?.answerValidation?.claims || []).some(claim => (claim?.factIds || []).some(factId => allowedIds.has(factId)));
+}
+function hasSuccessfulBusinessExecution(candidate) {
+    return (candidate?.traces || []).some(trace => trace?.success === true && trace?.businessExecution === true && trace?.controlPlane !== true);
+}
+function hasFormalAmbiguity(candidate) {
+    return (candidate?.traces || []).some(trace => trace?.code === 'ENTITY_AMBIGUOUS')
+        || allFacts(candidate).some(fact => /(?:identity_ambiguous|entity_ambiguous)/iu.test(String(fact?.predicate || '')));
+}
+function recipeDetailMatches(candidate, oracle, answer, facts) {
+    const resolveTraces = traceFactIds(candidate, trace => trace?.name === 'resolve_entity' && trace?.success === true && trace?.verified === true);
+    const detailTraces = traceFactIds(candidate, trace => trace?.name === 'get_recipe_detail' && trace?.success === true && trace?.verified === true);
+    const citedFormalBinding = claimsCiteAny(candidate, new Set([...resolveTraces, ...detailTraces]));
+    const namedIdentityFacts = allFacts(candidate).filter(fact => fact?.predicate === 'identity_resolved' && String(fact?.entity?.canonicalName || '').trim());
+    const conflictingIdentity = namedIdentityFacts.some(fact => fact.entity.canonicalName !== oracle.recipeName);
+    return resolveTraces.size > 0 && detailTraces.size > 0 && citedFormalBinding
+        && !conflictingIdentity && !hasInternalNumericId(answer) && answer.includes(oracle.recipeName);
 }
 
 function evaluateBusinessOutcome(testCase, candidate) {
@@ -90,11 +113,7 @@ function evaluateBusinessOutcome(testCase, candidate) {
             }
             reason = 'FORMAL_COMPLETE_COIL_COUNT_REQUIRED'; break;
         case 'RECIPE_DETAIL':
-            pass = declaredStatus === 'COMPLETED'
-                && facts.some(fact => fact?.predicate === 'identity_resolved' && fact?.entity?.canonicalName === oracle.recipeName)
-                && facts.some(fact => fact?.predicate === 'formal_result_available' && fact?.source?.tool === 'get_recipe_detail')
-                && hasVerifiedTrace(candidate, 'resolve_entity') && hasVerifiedTrace(candidate, 'get_recipe_detail')
-                && answer.includes(oracle.recipeName);
+            pass = declaredStatus === 'COMPLETED' && recipeDetailMatches(candidate, oracle, answer, facts);
             reason = 'FORMAL_RECIPE_DETAIL_REQUIRED'; break;
         case 'RECIPE_COIL_RELATION':
             pass = declaredStatus === 'COMPLETED' && answer.includes(oracle.recipeName) && answer.includes(oracle.coilName)
@@ -118,7 +137,12 @@ function evaluateBusinessOutcome(testCase, candidate) {
             pass = declaredStatus === 'CLARIFICATION' && !facts.some(fact => fact.unit === 'CNY') && oracle.answerPattern.test(answer);
             reason = 'UNRESOLVED_REFERENCE_CLARIFICATION_REQUIRED'; break;
         case 'AMBIGUITY':
-            pass = declaredStatus === 'CLARIFICATION' && oracle.candidateNames.every(name => answer.includes(name))
+            // Candidate names may be presented, but a safe clarification does
+            // not have to repeat every formal candidate. The decisive contract
+            // is formal ambiguity, no target binding or money answer, and an
+            // explicit request for the owner to disambiguate.
+            pass = declaredStatus === 'CLARIFICATION' && validEnvelope && hasFormalAmbiguity(candidate)
+                && !hasSuccessfulBusinessExecution(candidate) && !hasMoneyAssertion(answer, facts)
                 && oracle.answerPattern.test(answer);
             reason = 'FORMAL_AMBIGUITY_CLARIFICATION_REQUIRED'; break;
         default: break;

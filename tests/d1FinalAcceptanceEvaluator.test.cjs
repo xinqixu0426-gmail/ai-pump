@@ -254,7 +254,7 @@ test('R6 REAL detail and complete record-set oracles accept verified formal evid
         { factId: 'F-resolved', verified: true, entity: { type: 'recipe', canonicalName: 'V750' }, predicate: 'identity_resolved', value: 'V750' },
         { factId: 'F-detail', verified: true, entity: null, predicate: 'formal_result_available', value: true, source: { tool: 'get_recipe_detail' } },
         { factId: 'F-child', verified: true, entity: { type: 'recipe', canonicalName: null }, predicate: 'formal_field:recipe.parts[0].model', value: '轴承' },
-    ], traces: [{ name: 'resolve_entity', success: true, verified: true }, { name: 'get_recipe_detail', success: true, verified: true }] });
+    ], traces: [{ name: 'resolve_entity', success: true, verified: true, factIds: ['F-resolved'] }, { name: 'get_recipe_detail', success: true, verified: true, factIds: ['F-detail', 'F-child'] }], claims: [{ text: '已读取正式配方 V750。', factIds: ['F-resolved', 'F-detail'] }] });
     assert.equal(evaluateBusinessOutcome({ oracle: { kind: 'RECIPE_DETAIL', recipeName: 'V750' } }, detail).pass, true);
     const records = candidate({ answer: '正式方案只有一套：COIL-0001。', facts: [
         { factId: 'F-search', verified: true, entity: null, predicate: 'formal_result_available', value: true, source: { tool: 'search_coils' } },
@@ -279,4 +279,37 @@ test('R6 packing schema accepts a formal part identity without forcing the model
     assert.deepEqual(args.scenarios[0].overrides.packingParts[0], { partId: 9, qty: 1, packingRole: 'container' });
     const mismatch = formalToolFailure({ code: 'PACKING_IDENTITY_MISMATCH', statusCode: 422, details: { canonicalBinding: { partId: 9, model: '木箱', supplier: '正式供应商', packingRole: 'container' } } }, 'compare_recipe_scenarios');
     assert.deepEqual(mismatch.details.canonicalBinding, { partId: 9, model: '木箱', supplier: '正式供应商', packingRole: 'container' });
+});
+
+test('ADJ-01..05: ambiguity requires formal ambiguity and a safe clarification, not exhaustive candidate-name echo', () => {
+    const oracle = { kind: 'AMBIGUITY', candidateNames: ['V750通用款', 'V750豪贝款'], answerPattern: /(?:确认|选择|具体|哪个)/u };
+    const safe = candidate({ answer: '存在多个候选，请确认具体款式。', status: 'CLARIFICATION', traces: [{ name: 'resolve_entity', success: false, verified: false, businessExecution: false, code: 'ENTITY_AMBIGUOUS', factIds: ['F-1'] }], claims: [] });
+    assert.equal(evaluateBusinessOutcome({ oracle }, safe).pass, true);
+    const listed = candidate({ answer: '候选为V750通用款和V750豪贝款，请确认选择哪个。', status: 'CLARIFICATION', traces: safe.traces, claims: [] });
+    assert.equal(evaluateBusinessOutcome({ oracle }, listed).pass, true);
+    const selected = candidate({ answer: 'V750通用款成本为100元。', status: 'CLARIFICATION', facts: [money('F-1', 'V750通用款', 100)], traces: [{ name: 'resolve_entity', success: false, verified: false, businessExecution: false, code: 'ENTITY_AMBIGUOUS' }, { name: 'get_recipe_detail', success: true, verified: true, businessExecution: true }], claims: [{ text: 'V750通用款成本为100元。', factIds: ['F-1'] }] });
+    assert.equal(evaluateBusinessOutcome({ oracle }, selected).pass, false);
+    assert.equal(evaluateBusinessOutcome({ oracle }, candidate({ answer: '有多个候选，请确认具体款式。', status: 'CLARIFICATION', claims: [] })).pass, false);
+    const moneyCandidate = candidate({ answer: '存在多个候选，请确认；其中一款成本100元。', status: 'CLARIFICATION', traces: safe.traces, claims: [] });
+    assert.equal(evaluateBusinessOutcome({ oracle }, moneyCandidate).pass, false);
+});
+
+test('RD-01..06: recipe detail requires verified resolver and verified identity-protected detail, not child display-name duplication', () => {
+    const oracle = { kind: 'RECIPE_DETAIL', recipeName: 'V750大脚板-2寸-经典款' };
+    const traces = [{ name: 'resolve_entity', success: true, verified: true, businessExecution: true, factIds: ['F-resolve'] }, { name: 'get_recipe_detail', success: true, verified: true, businessExecution: true, factIds: ['F-detail'] }];
+    const facts = [{ factId: 'F-child', verified: true, entity: { type: 'recipe', canonicalName: null }, predicate: 'formal_field:parts[0].model', value: '轴承' }];
+    const pass = candidate({ answer: 'V750大脚板-2寸-经典款已读取正式配方明细。', facts, traces, claims: [{ text: 'V750大脚板-2寸-经典款已读取正式配方明细。', factIds: ['F-resolve', 'F-detail'] }] });
+    assert.equal(evaluateBusinessOutcome({ oracle }, pass).pass, true);
+    assert.equal(evaluateBusinessOutcome({ oracle }, candidate({ answer: pass.answer, facts, traces: [traces[1]], claims: pass.answerValidation.claims })).pass, false);
+    assert.equal(evaluateBusinessOutcome({ oracle }, candidate({ answer: 'V550已读取正式配方明细。', facts, traces, claims: pass.answerValidation.claims })).pass, false);
+    assert.equal(evaluateBusinessOutcome({ oracle }, candidate({ answer: pass.answer, facts, traces: [traces[0], { ...traces[1], success: false, verified: false }], claims: pass.answerValidation.claims })).pass, false);
+    assert.equal(evaluateBusinessOutcome({ oracle }, pass).pass, true);
+    assert.equal(evaluateBusinessOutcome({ oracle }, candidate({ answer: 'V750大脚板-2寸-经典款配方ID 123已读取。', facts, traces, claims: pass.answerValidation.claims })).pass, false);
+});
+
+test('R7 frozen V3 D1-10 and REAL-01 trace contracts adjudicate without replacing model samples', () => {
+    const ambiguity = candidate({ answer: 'V750存在多个候选，请确认具体款式。', status: 'CLARIFICATION', traces: [{ name: 'resolve_entity', success: false, verified: false, businessExecution: false, code: 'ENTITY_AMBIGUOUS', factIds: ['F-001'] }], claims: [] });
+    assert.equal(evaluateBusinessOutcome({ oracle: { kind: 'AMBIGUITY', candidateNames: ['A', 'B'], answerPattern: /(?:确认|选择|具体|哪个)/u } }, ambiguity).pass, true);
+    const detail = candidate({ answer: 'V750大脚板-2寸-经典款已正式解析并读取配方明细。', traces: [{ name: 'resolve_entity', success: true, verified: true, businessExecution: true, factIds: ['F-001'] }, { name: 'get_recipe_detail', success: true, verified: true, businessExecution: true, factIds: ['F-002', 'F-003'] }], claims: [{ text: 'V750大脚板-2寸-经典款已正式解析并读取配方明细。', factIds: ['F-001', 'F-002'] }] });
+    assert.equal(evaluateBusinessOutcome({ oracle: { kind: 'RECIPE_DETAIL', recipeName: 'V750大脚板-2寸-经典款' } }, detail).pass, true);
 });
