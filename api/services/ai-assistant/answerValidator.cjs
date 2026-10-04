@@ -168,7 +168,12 @@ function operationalQuantityMentions(clause) {
             .filter(index => index >= 0);
         const rightBoundary = rightCandidates.length ? Math.min(...rightCandidates) : clause.length;
         const context = clause.slice(leftBoundary + 1, rightBoundary).trim();
-        const unit = normalizeOperationalUnit(match[2]);
+        // Keep the formal normalized unit for fact matching, while retaining
+        // the source token for local grammar.  Both “项” and “台” normalize
+        // to count, but only the former is a collection-line marker.
+        const rawUnit = String(match[2] || '').trim();
+        const unit = normalizeOperationalUnit(rawUnit);
+        const collectionCountUnit = rawUnit === '项' || rawUnit === '条';
         const contextOffset = match.index - (leftBoundary + 1);
         const before = context.slice(0, contextOffset);
         const after = context.slice(contextOffset + match[0].length);
@@ -182,8 +187,9 @@ function operationalQuantityMentions(clause) {
         const identifierAdjacent = /[A-Za-z0-9_\-/—–]/.test(previousCharacter)
             || /[A-Za-z0-9_\-/—–]/.test(nextCharacter);
         let role = null;
-        if (!identifierAdjacent && unit === 'count'
+        if (!identifierAdjacent && collectionCountUnit
             && (/(?:缺料|短缺)(?:清单)?(?:共(?:有)?|有)?\s*$/u.test(before)
+                || /(?:缺|短缺)\s*$/u.test(before) && /^(?:物料|材料|零件|记录)/u.test(after)
                 || /(?:有|共)\s*$/u.test(before) && /(?:缺料|短缺|库存不足)/u.test(after)
                 || /(?:缺料|短缺|库存不足)/u.test(after))) role = 'SHORTAGE_LINE_COUNT';
         else if (!identifierAdjacent && /(?:缺|还差|短缺|不足)\s*$/u.test(before)) role = 'SHORTAGE';
@@ -200,7 +206,7 @@ function operationalQuantityMentions(clause) {
         // expression. It is still rejected when embedded in an identifier
         // token above, and it retains a strict unit requirement.
         else if (!identifierAdjacent && unit && /^\s*[\u4e00-\u9fff]/u.test(after)) role = 'REQUIRED';
-        if (role) matches.push({ value: Number(match[1]), unit, role, text: match[0], context });
+        if (role) matches.push({ value: Number(match[1]), rawUnit: rawUnit || null, unit, role, text: match[0], context });
     }
     return matches.filter(item => Number.isFinite(item.value));
 }

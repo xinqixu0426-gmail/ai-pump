@@ -153,6 +153,21 @@ test('IDQ-01..17: identifier fragments never become operational quantities while
     assert.deepEqual(roles('3.5米电缆，需求2.5kg。'), [[3.5, 'meter', 'REQUIRED'], [2.5, 'kg', 'REQUIRED']]);
 });
 
+test('LC-01..11: collection-line grammar retains raw units without converting ordinary count quantities into line counts', () => {
+    const roles = text => operationalQuantityMentions(text).map(item => [item.value, item.rawUnit, item.unit, item.role]);
+    assert.deepEqual(roles('缺1项物料。'), [[1, '项', 'count', 'SHORTAGE_LINE_COUNT']]);
+    assert.deepEqual(roles('缺2项零件。'), [[2, '项', 'count', 'SHORTAGE_LINE_COUNT']]);
+    assert.deepEqual(roles('缺2条物料记录。'), [[2, '条', 'count', 'SHORTAGE_LINE_COUNT']]);
+    assert.deepEqual(roles('有1项物料库存不足。'), [[1, '项', 'count', 'SHORTAGE_LINE_COUNT']]);
+    assert.deepEqual(roles('缺料1项。'), [[1, '项', 'count', 'SHORTAGE_LINE_COUNT']]);
+    assert.deepEqual(roles('缺3台水泵。'), [[3, '台', 'count', 'SHORTAGE']]);
+    assert.deepEqual(roles('缺3个轴承。'), [[3, '个', 'piece', 'SHORTAGE']]);
+    assert.deepEqual(roles('缺1项物料：D1-R1轴承-202缺3个。'), [[1, '项', 'count', 'SHORTAGE_LINE_COUNT'], [3, '个', 'piece', 'SHORTAGE']]);
+    assert.deepEqual(roles('D1-R1轴承-202、12-120-A、V750、COIL-0001、M5-D2-B2。'), []);
+    assert.deepEqual(roles('缺3个，计划采购3个。'), [[3, '个', 'piece', 'SHORTAGE'], [3, '个', 'piece', 'PLANNED_PURCHASE']]);
+    assert.deepEqual(roles('计划采购3个，已下单0个，已到货0个，已入库0个。'), [[3, '个', 'piece', 'PLANNED_PURCHASE'], [0, '个', 'piece', 'ORDERED'], [0, '个', 'piece', 'RECEIVED'], [0, '个', 'piece', 'STOCKED']]);
+});
+
 test('OV-09..15: validator keeps strict quantity entity, role, unit and collection checks', () => {
     const { ledger } = appendOperationalEvidence();
     const required = fact(ledger, 'required_quantity', 'REQUIRED');

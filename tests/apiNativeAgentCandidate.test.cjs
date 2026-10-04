@@ -158,6 +158,35 @@ test('R1-04..10: claimable facts retain entity and basis, duplicate evidence is 
     assert.deepEqual(catalog, [{ factId: 'F-001', entity: { type: 'recipe', canonicalName: 'V750-通用款' }, predicate: 'current_cost', value: 100, unit: 'CNY', basis: 'current', sourceTool: 'get_recipe_detail' }]);
 });
 
+test('R4 GR-01..03: every finalization repair retains the original-question goal invariant', async () => {
+    for (const failureCode of ['OPERATIONAL_QUANTITY_BINDING_MISMATCH', 'MONEY_CLAIM_BINDING_MISMATCH', 'COLLECTION_COMPLETENESS_MISMATCH']) {
+        const model = scripted([
+            { content: '', tool_calls: [toolCall('load-1', 'load_tools', { toolNames: ['get_all_recipes'] })] },
+            { content: '', tool_calls: [toolCall('read-1', 'get_all_recipes', {})] },
+            { content: 'draft awaiting finalization' },
+            { content: 'first-rejected-envelope' },
+            { content: 'repaired-envelope' },
+        ]);
+        let validations = 0;
+        const result = await runApiNativeAgentCandidate({ ...baseInput(), finalizationEnabled: true, completionReviewEnabled: false }, {
+            modelCall: model,
+            executeToolCall: async () => ({ success: true, verified: true, executionEvidence: { verified: true }, data: [{ id: 1, name: '正式配方' }] }),
+            validateAnswer: raw => {
+                validations += 1;
+                if (raw === 'first-rejected-envelope') return { valid: false, code: failureCode, detail: { code: failureCode }, answer: null, goals: [] };
+                return { valid: true, code: null, answer: '已取得正式结果。', claims: [{ text: '已取得正式结果。', factIds: ['F-001'] }], goals: [{ questionIndex: 0, status: 'COMPLETED', factIds: ['F-001'] }] };
+            },
+        });
+        assert.equal(result.answerValidation.valid, true, failureCode);
+        assert.equal(validations, 2, failureCode);
+        const repair = model.calls.flatMap(call => call.messages)
+            .map(message => message?.content || '').find(content => content.includes('Goal invariant for every repair'));
+        assert.match(repair, /Goal invariant for every repair/u, failureCode);
+        assert.match(repair, /\[0\]/u, failureCode);
+        assert.match(repair, /Do not create sub-goals/u, failureCode);
+    }
+});
+
 test('R1-20: a formally resolved coil ID safely hydrates official dimensions before the cost preview route', async () => {
     const requests = [];
     const internalFetch = async (url, options = {}) => {
