@@ -1,0 +1,46 @@
+{
+  "phase": "R6H4-C2",
+  "status": "BLOCKED",
+  "productFreezeCommit": "cdebfb5ef6f83a4c8b39e93f3f0dcc39077e2251",
+  "harnessFreezeCommit": "d09fbd711c02248b84d7f06a48d2500b9d53a086",
+  "authoritativeManifest": "planning/ai-native-api/M5-D2-B2-R6H4C13R-Freeze-Manifest.json",
+  "freezePre": "PASS",
+  "freezePost": "PASS",
+  "preModelGates": {
+    "npmTest": "PASS",
+    "verifyApiContract": "PASS",
+    "testDeepApi": "PASS",
+    "lint": "PASS",
+    "build": "PASS",
+    "testAiArchitecture": "PASS",
+    "verifyAiAssistantRelease": "PASS"
+  },
+  "runIds": {
+    "preGate": "r6c2-pre-20261005-01",
+    "domainBatch": "r6c2-domain-20261005-01",
+    "ragBatch": "r6c2-rag-20261005-01",
+    "targetedBatch": "r6c2-targeted-20261005-01",
+    "d1Batch": "r6c2-d1-20261005-01"
+  },
+  "domain": {
+    "completed": 12,
+    "semanticPass": 12,
+    "domainSelectionExact": 2,
+    "highRiskDomainMiss": 5,
+    "databaseMutations": 0,
+    "interruptedAttempts": [{ "caseKey": "D03", "attempt": 1, "recoveredOnAttempt": 2 }]
+  },
+  "rag": {
+    "caseKey": "RAG-01",
+    "completed": 0,
+    "startedAttempts": 2,
+    "checkpointWritten": false,
+    "classification": "PROVIDER_OR_ENVIRONMENT",
+    "blockedByFrozenRetryLimit": true
+  },
+  "unstartedSuites": ["targeted", "d1-protection"],
+  "sourceChanges": false,
+  "modelCallsAfterBlock": 0,
+  "assembler": "NOT_RUN",
+  "reason": "RAG-01 exhausted the frozen maximum of two infrastructure attempts without an immutable semantic checkpoint or JavaScript/provider error receipt. Domain semantic checkpoints completed, but their frozen domain-selection scorer recorded 2/12 exact and 5 high-risk misses; canonical assembly was not run."
+}

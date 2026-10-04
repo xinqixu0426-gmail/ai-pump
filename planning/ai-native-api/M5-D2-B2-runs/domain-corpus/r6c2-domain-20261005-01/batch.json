@@ -1,0 +1,38 @@
+{
+  "suite": "domain-corpus",
+  "batchRunId": "r6c2-domain-20261005-01",
+  "productFreezeCommit": "cdebfb5ef6f83a4c8b39e93f3f0dcc39077e2251",
+  "harnessFreezeCommit": "d09fbd711c02248b84d7f06a48d2500b9d53a086",
+  "apiIndexFingerprint": "10bee9d8a065ea2322fcaf14bdf21cee949d0f57da8c3d5133448c1ee7d09c61",
+  "authoritativeManifest": "/Users/dan/Documents/ai-native-pump-system/pump-cost-accounting-system/planning/ai-native-api/M5-D2-B2-R6H4C13R-Freeze-Manifest.json",
+  "expectedCaseKeys": [
+    "D01",
+    "D02",
+    "D03",
+    "D04",
+    "D05",
+    "D06",
+    "D07",
+    "D08",
+    "D09",
+    "D10",
+    "D11",
+    "D12"
+  ],
+  "expectedCaseCount": 12,
+  "caseInputHashes": {
+    "D01": "f926f93071171873fbacf76c202448ac31c818338e17a3b5c60cb58392870ebd",
+    "D02": "684dbbe6005bd158fc3f02587835a56bba51515b2ab69b84e5b7e090a20a0e88",
+    "D03": "8a037a2c5ac6284b51dd4c1d99460a732ea3a886ec90292e325712658e844354",
+    "D04": "ec6ab661eb41d7ef1d1f55fc9e7d3f696bc12cc2a3eece5b5878db4e95489abe",
+    "D05": "0a91c617354ea4185b6bfb0852b9708a2702da34e65cf2d09f5405e471109fda",
+    "D06": "31a7b4e9fcf177fb38d357c609e0f0c8fdda19e068ac0dee183af6f2e0f763d4",
+    "D07": "bb5446d38855200ed834b370241f85c25875f5af211abd2815ecd650cfa57258",
+    "D08": "aeefe2178d1ca1f50afbdcf386b93fbc27a345b65cec20c36e6532f74f47a1a3",
+    "D09": "d7ed7585531f0b68090adbf3cea9163b537cd6dad9edacca566aa3a81d96a748",
+    "D10": "221f4754b7fc81deb9b3b97f7c8382f3e21247c88263b785438e75fd40a7e42e",
+    "D11": "4842329fefb97144b4b8e00f50a3c8a78a0b974704a89b42dd4d802ac4d1ae82",
+    "D12": "1e86eb77c625585ecf958ea3e999ff21cf843d981f92c6f4aaba9c5a8213afaa"
+  },
+  "createdAt": "2026-10-04T17:31:36.952Z"
+}

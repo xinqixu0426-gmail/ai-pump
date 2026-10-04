@@ -1,0 +1,42 @@
+{
+  "suite": "targeted",
+  "batchRunId": "r6c2-targeted-20261005-01",
+  "productFreezeCommit": "cdebfb5ef6f83a4c8b39e93f3f0dcc39077e2251",
+  "harnessFreezeCommit": "d09fbd711c02248b84d7f06a48d2500b9d53a086",
+  "apiIndexFingerprint": "10bee9d8a065ea2322fcaf14bdf21cee949d0f57da8c3d5133448c1ee7d09c61",
+  "authoritativeManifest": "/Users/dan/Documents/ai-native-pump-system/pump-cost-accounting-system/planning/ai-native-api/M5-D2-B2-R6H4C13R-Freeze-Manifest.json",
+  "expectedCaseKeys": [
+    "W1-06-01",
+    "W1-06-02",
+    "W1-06-03",
+    "W1-06-04",
+    "W1-06-05",
+    "SHORTAGE_ONLY-01",
+    "SHORTAGE_ONLY-02",
+    "SHORTAGE_ONLY-03",
+    "PENDING_PURCHASE-01",
+    "PENDING_PURCHASE-02",
+    "PENDING_PURCHASE-03",
+    "ORDER_PRODUCTS-01",
+    "ORDER_PRODUCTS-02",
+    "ORDER_PRODUCTS-03"
+  ],
+  "expectedCaseCount": 14,
+  "caseInputHashes": {
+    "W1-06-01": "8b1473f592735025a6a01533a99f477ecf3784d4d1db8d6cc4ed0ca1635b0679",
+    "W1-06-02": "0e810d5360018caa1ba70462232ed380415850904b98952e4a612d9927f749a7",
+    "W1-06-03": "fe4804d58b673ed84ca675d9b787049ececad02c668091678f0aa36bb87e51fc",
+    "W1-06-04": "000ca8d5724848860077e08d4142ce77361ec9f5d35df26e28cbc4a293b7fda2",
+    "W1-06-05": "1c69dfee2c5dc175b291d86a0e90cfa79d00e39b12e55bc87c35e4657987481c",
+    "SHORTAGE_ONLY-01": "3acf681eea04dfbef8a7564eaff9e30de40bfad91821684eed7fa9087d1ecadc",
+    "SHORTAGE_ONLY-02": "2b08e34fdc9b84f646f94a0a099f336e1d312c7e96e78f384a70dbcc4597f919",
+    "SHORTAGE_ONLY-03": "65b4b50b1f602b119873157d72aa2d4c9b0aad5bd4bffed1cc6662f7f626fd82",
+    "PENDING_PURCHASE-01": "ab2a70f6fa07da953ddf7b9bc0bb84fea39c1e50f926522ef36cfd6becbf8af6",
+    "PENDING_PURCHASE-02": "b1d5c3119fbb9fe8aab32b45252ed42959b4e2ceea88fb833b2fdbac894ff78c",
+    "PENDING_PURCHASE-03": "53e02db71d5dfb38e70cca87ba9c73aaf53e0952f6988322c2cb13778140562a",
+    "ORDER_PRODUCTS-01": "075dc23a5726412e54f57838024b3bb4ded56bb0330388071187808cf1d52e23",
+    "ORDER_PRODUCTS-02": "79435ab4560b0200f7ce17342eb5bdc8eaa0644e01262560a0f22fa58813d7ba",
+    "ORDER_PRODUCTS-03": "109ac9f78c8a1d129c5c2569526a88635eb37c7f60151239e8ddd0ba3a58a5ba"
+  },
+  "createdAt": "2026-10-04T17:31:37.195Z"
+}

@@ -1,0 +1,10 @@
+{
+  "suite": "domain-corpus",
+  "batchRunId": "r6c2-domain-20261005-01",
+  "caseKey": "D03",
+  "attemptNumber": 2,
+  "status": "STARTED",
+  "productFreezeCommit": "cdebfb5ef6f83a4c8b39e93f3f0dcc39077e2251",
+  "harnessFreezeCommit": "d09fbd711c02248b84d7f06a48d2500b9d53a086",
+  "startedAt": "2026-10-04T17:33:52.551Z"
+}

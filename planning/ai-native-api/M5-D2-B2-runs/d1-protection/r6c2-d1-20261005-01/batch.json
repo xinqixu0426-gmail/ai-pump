@@ -1,0 +1,22 @@
+{
+  "suite": "d1-protection",
+  "batchRunId": "r6c2-d1-20261005-01",
+  "productFreezeCommit": "cdebfb5ef6f83a4c8b39e93f3f0dcc39077e2251",
+  "harnessFreezeCommit": "d09fbd711c02248b84d7f06a48d2500b9d53a086",
+  "apiIndexFingerprint": "10bee9d8a065ea2322fcaf14bdf21cee949d0f57da8c3d5133448c1ee7d09c61",
+  "authoritativeManifest": "/Users/dan/Documents/ai-native-pump-system/pump-cost-accounting-system/planning/ai-native-api/M5-D2-B2-R6H4C13R-Freeze-Manifest.json",
+  "expectedCaseKeys": [
+    "D1-03",
+    "D1-07",
+    "D1-08",
+    "D1-10"
+  ],
+  "expectedCaseCount": 4,
+  "caseInputHashes": {
+    "D1-03": "d10513983f41f36f8b450fc7ffc24c4860d54f8860f0be6410c4d33ecbd3df2b",
+    "D1-07": "af6b25a95576eac1649cda736d815e44d5fb3f5c13432993913511c2a27c5a85",
+    "D1-08": "a026ec6c5ea5637507d7bdeb5ff5405ed1248f72cb389a0ce2edf1678c9c4ad5",
+    "D1-10": "ab1c9c7b3678098592f070885f8ecb3cde5e0123f5dee50905a7d103c16246ec"
+  },
+  "createdAt": "2026-10-04T17:31:37.411Z"
+}

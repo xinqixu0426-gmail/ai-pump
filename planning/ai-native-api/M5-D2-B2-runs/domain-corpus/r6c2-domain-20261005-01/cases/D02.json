@@ -1,0 +1,533 @@
+{
+  "suite": "domain-corpus",
+  "batchRunId": "r6c2-domain-20261005-01",
+  "caseKey": "D02",
+  "caseId": "D02",
+  "runNumber": null,
+  "ownerInputHash": "ff726ea514935d66abbd6bfac54aed22059a74932d08487c4691b15447fb1f96",
+  "productFreezeCommit": "cdebfb5ef6f83a4c8b39e93f3f0dcc39077e2251",
+  "harnessFreezeCommit": "d09fbd711c02248b84d7f06a48d2500b9d53a086",
+  "result": {
+    "runId": "D02-1",
+    "caseId": "D02",
+    "runNumber": 1,
+    "rawOwnerInput": "有哪些待采购任务？",
+    "businessMemoHash": null,
+    "policyMemoHash": null,
+    "outcome": {
+      "pass": true
+    },
+    "classification": null,
+    "safety": {
+      "wrongEntity": 0,
+      "wrongQuantity": 0,
+      "unknownAsZero": 0,
+      "partialAsComplete": 0,
+      "formalConflictSilentSelection": 0,
+      "write": 0
+    },
+    "declaredStatus": null,
+    "memoTimings": null,
+    "formalCalls": [],
+    "relevantApiCoverage": {
+      "requiredRelevantTools": [
+        "get_factory_knowledge_detail",
+        "get_order_knowledge_package",
+        "get_purchase_overview",
+        "search_business_changes",
+        "search_factory_knowledge"
+      ],
+      "executedRelevantTools": [
+        "get_purchase_overview",
+        "search_business_changes",
+        "search_factory_knowledge"
+      ],
+      "failedRelevantTools": [],
+      "blockedRelevantTools": [],
+      "missingRelevantTools": [],
+      "missingRelevantToolsAtFirstStop": [
+        "get_factory_knowledge_detail"
+      ],
+      "coverageReviewResumed": 1,
+      "finalRelevantCoverage": true,
+      "selectedBusinessDomains": [
+        "business_history",
+        "knowledge",
+        "procurement"
+      ],
+      "domainApiSet": [
+        "get_factory_knowledge_detail",
+        "get_order_knowledge_package",
+        "get_purchase_overview",
+        "search_business_changes"
+      ],
+      "notApplicableDomainApis": [
+        {
+          "toolName": "get_factory_knowledge_detail",
+          "reason": "MISSING_SAFE_INPUT",
+          "missingInput": "知识条目 id（正式知识检索未返回任何条目）",
+          "source": "search_factory_knowledge 两次正式查询（关键词「待采购任务 采购」与「采购 供应商 物料 待采购」）均返回零命中，无任何知识条目 id"
+        },
+        {
+          "toolName": "get_order_knowledge_package",
+          "reason": "MISSING_SAFE_INPUT",
+          "missingInput": "orderId 或 orderQuery（采购总览中关联订单ID已截断，且用户未指定订单）",
+          "source": "get_purchase_overview 返回的 tasks[].orderIds 内容已截断，无可用正式订单标识"
+        }
+      ],
+      "ragAuxiliarySearched": true
+    },
+    "metrics": {
+      "mainModelCalls": 9,
+      "loadToolsCalls": 1,
+      "resolveCalls": 0,
+      "businessToolCalls": 4,
+      "noNewEvidenceEvents": 1,
+      "duplicateFactsAvoided": 1,
+      "noProgressEvents": 0,
+      "completionReviewCalls": 1,
+      "completionReviewResumed": 0,
+      "relevantCoverageReviewResumed": 1,
+      "terminalOutcomeReviewCalls": 0,
+      "stoppingReasons": [
+        "RELEVANT_API_COVERAGE_INCOMPLETE",
+        "MODEL_READY_TO_ANSWER",
+        "COMPLETION_REVIEW_CONFIRMED"
+      ],
+      "loadedToolNames": [
+        "search_business_changes",
+        "get_factory_knowledge_detail",
+        "search_factory_knowledge",
+        "get_order_knowledge_package",
+        "get_purchase_overview"
+      ],
+      "relevantApiCoverage": {
+        "requiredRelevantTools": [
+          "get_factory_knowledge_detail",
+          "get_order_knowledge_package",
+          "get_purchase_overview",
+          "search_business_changes",
+          "search_factory_knowledge"
+        ],
+        "executedRelevantTools": [
+          "get_purchase_overview",
+          "search_business_changes",
+          "search_factory_knowledge"
+        ],
+        "failedRelevantTools": [],
+        "blockedRelevantTools": [],
+        "missingRelevantTools": [],
+        "missingRelevantToolsAtFirstStop": [
+          "get_factory_knowledge_detail"
+        ],
+        "coverageReviewResumed": 1,
+        "finalRelevantCoverage": true,
+        "selectedBusinessDomains": [
+          "business_history",
+          "knowledge",
+          "procurement"
+        ],
+        "domainApiSet": [
+          "get_factory_knowledge_detail",
+          "get_order_knowledge_package",
+          "get_purchase_overview",
+          "search_business_changes"
+        ],
+        "notApplicableDomainApis": [
+          {
+            "toolName": "get_factory_knowledge_detail",
+            "reason": "MISSING_SAFE_INPUT",
+            "missingInput": "知识条目 id（正式知识检索未返回任何条目）",
+            "source": "search_factory_knowledge 两次正式查询（关键词「待采购任务 采购」与「采购 供应商 物料 待采购」）均返回零命中，无任何知识条目 id"
+          },
+          {
+            "toolName": "get_order_knowledge_package",
+            "reason": "MISSING_SAFE_INPUT",
+            "missingInput": "orderId 或 orderQuery（采购总览中关联订单ID已截断，且用户未指定订单）",
+            "source": "get_purchase_overview 返回的 tasks[].orderIds 内容已截断，无可用正式订单标识"
+          }
+        ],
+        "ragAuxiliarySearched": true
+      },
+      "apiIndexFingerprint": "10bee9d8a065ea2322fcaf14bdf21cee949d0f57da8c3d5133448c1ee7d09c61",
+      "loadedSchemaFingerprint": "abc51ec29f7cb00556eefc8400ef52ef7264126a6486cf5ceac4846927b48853"
+    },
+    "traces": [
+      {
+        "name": "select_business_domains",
+        "argKeys": [
+          "domains"
+        ],
+        "success": true,
+        "verified": false,
+        "code": null,
+        "factIds": [],
+        "noNewEvidence": false,
+        "controlPlane": true
+      },
+      {
+        "name": "load_tools",
+        "argKeys": [
+          "toolNames"
+        ],
+        "success": true,
+        "verified": false,
+        "code": null,
+        "factIds": [],
+        "noNewEvidence": false,
+        "controlPlane": true
+      },
+      {
+        "name": "get_purchase_overview",
+        "argKeys": [],
+        "success": true,
+        "verified": true,
+        "code": null,
+        "factIds": [
+          "F-001",
+          "F-002",
+          "F-003",
+          "F-004",
+          "F-005",
+          "F-006",
+          "F-007",
+          "F-008",
+          "F-009",
+          "F-010",
+          "F-011",
+          "F-012",
+          "F-013",
+          "F-014",
+          "F-015",
+          "F-016",
+          "F-017",
+          "F-018",
+          "F-019",
+          "F-020",
+          "F-021",
+          "F-022",
+          "F-023",
+          "F-024",
+          "F-025",
+          "F-026",
+          "F-027",
+          "F-028",
+          "F-029",
+          "F-030",
+          "F-031",
+          "F-032",
+          "F-033",
+          "F-034",
+          "F-035",
+          "F-036",
+          "F-037",
+          "F-038",
+          "F-039",
+          "F-040",
+          "F-041",
+          "F-042",
+          "F-043",
+          "F-044",
+          "F-045",
+          "F-046",
+          "F-047",
+          "F-048",
+          "F-049",
+          "F-050",
+          "F-051",
+          "F-052",
+          "F-053",
+          "F-054",
+          "F-055"
+        ],
+        "noNewEvidence": false,
+        "controlPlane": false,
+        "declaredRelevant": true,
+        "businessExecution": true
+      },
+      {
+        "name": "search_factory_knowledge",
+        "argKeys": [
+          "query"
+        ],
+        "success": true,
+        "verified": true,
+        "code": null,
+        "factIds": [
+          "F-056",
+          "F-057",
+          "F-058"
+        ],
+        "noNewEvidence": false,
+        "controlPlane": false,
+        "declaredRelevant": true,
+        "businessExecution": true
+      },
+      {
+        "name": "search_business_changes",
+        "argKeys": [
+          "domain",
+          "limit",
+          "semanticQuery"
+        ],
+        "success": true,
+        "verified": true,
+        "code": null,
+        "factIds": [
+          "F-059",
+          "F-060",
+          "F-061",
+          "F-062",
+          "F-063",
+          "F-064",
+          "F-065",
+          "F-066",
+          "F-067",
+          "F-068"
+        ],
+        "noNewEvidence": false,
+        "controlPlane": false,
+        "declaredRelevant": true,
+        "businessExecution": true
+      },
+      {
+        "name": "mark_domain_api_not_applicable",
+        "argKeys": [
+          "missingInput",
+          "reason",
+          "source",
+          "toolName"
+        ],
+        "success": true,
+        "verified": false,
+        "code": null,
+        "factIds": [],
+        "noNewEvidence": false,
+        "controlPlane": true
+      },
+      {
+        "name": "search_factory_knowledge",
+        "argKeys": [
+          "limit",
+          "query"
+        ],
+        "success": true,
+        "verified": true,
+        "code": null,
+        "factIds": [],
+        "noNewEvidence": true,
+        "controlPlane": false,
+        "declaredRelevant": true,
+        "businessExecution": true
+      },
+      {
+        "name": "mark_domain_api_not_applicable",
+        "argKeys": [
+          "missingInput",
+          "reason",
+          "source",
+          "toolName"
+        ],
+        "success": true,
+        "verified": false,
+        "code": null,
+        "factIds": [],
+        "noNewEvidence": false,
+        "controlPlane": true
+      }
+    ],
+    "formalOutcomeReceipts": [],
+    "finalizationAttempts": [
+      {
+        "attempt": 1,
+        "code": "ANSWER_VERIFIED",
+        "detail": null,
+        "valid": true,
+        "raw": "```json\n{\"answer\":\"当前全部活动订单共有 2 条待采购任务：D1-R1轴承-202 与 D2-B2未绑定物料。D1-R1轴承-202 的待采购数量为 3 个，已下单 0 个、已到货 0 个、已入库 0 个，采购阶段为待下单。D2-B2未绑定物料 在正式数据中未绑定零件身份。采购任务集合完整返回 2 条（总数 2、无更多）。工厂知识库对待采购任务主题的正式检索为零命中。\",\"claims\":[{\"text\":\"当前全部活动订单共有 2 条待采购任务：D1-R1轴承-202 与 D2-B2未绑定物料。\",\"factIds\":[\"F-002\",\"F-003\",\"F-045\"]},{\"text\":\"D1-R1轴承-202 的待采购数量为 3 个，已下单 0 个、已到货 0 个、已入库 0 个，采购阶段为待下单。\",\"factIds\":[\"F-004\",\"F-005\",\"F-006\",\"F-007\",\"F-008\",\"F-009\"]},{\"text\":\"D2-B2未绑定物料 在正式数据中未绑定零件身份。\",\"factIds\":[\"F-003\"]},{\"text\":\"采购任务集合完整返回 2 条（总数 2、无更多）。\",\"factIds\":[\"F-002\"]},{\"text\":\"工厂知识库对待采购任务主题的正式检索为零命中。\",\"factIds\":[\"F-057\",\"F-058\"]}],\"goals\":[{\"questionIndex\":0,\"status\":\"COMPLETED\",\"factIds\":[\"F-002\",\"F-003\",\"F-004\",\"F-005\",\"F-009\",\"F-045\"]}]}\n```"
+      }
+    ],
+    "answerValidation": {
+      "valid": true,
+      "answer": "当前全部活动订单共有 2 条待采购任务：D1-R1轴承-202 与 D2-B2未绑定物料。D1-R1轴承-202 的待采购数量为 3 个，已下单 0 个、已到货 0 个、已入库 0 个，采购阶段为待下单。D2-B2未绑定物料 在正式数据中未绑定零件身份。采购任务集合完整返回 2 条（总数 2、无更多）。工厂知识库对待采购任务主题的正式检索为零命中。",
+      "claims": [
+        {
+          "text": "当前全部活动订单共有 2 条待采购任务：D1-R1轴承-202 与 D2-B2未绑定物料。",
+          "factIds": [
+            "F-002",
+            "F-003",
+            "F-045"
+          ]
+        },
+        {
+          "text": "D1-R1轴承-202 的待采购数量为 3 个，已下单 0 个、已到货 0 个、已入库 0 个，采购阶段为待下单。",
+          "factIds": [
+            "F-004",
+            "F-005",
+            "F-006",
+            "F-007",
+            "F-008",
+            "F-009"
+          ]
+        },
+        {
+          "text": "D2-B2未绑定物料 在正式数据中未绑定零件身份。",
+          "factIds": [
+            "F-003"
+          ]
+        },
+        {
+          "text": "采购任务集合完整返回 2 条（总数 2、无更多）。",
+          "factIds": [
+            "F-002"
+          ]
+        },
+        {
+          "text": "工厂知识库对待采购任务主题的正式检索为零命中。",
+          "factIds": [
+            "F-057",
+            "F-058"
+          ]
+        }
+      ],
+      "goals": [
+        {
+          "questionIndex": 0,
+          "status": "COMPLETED",
+          "factIds": [
+            "F-002",
+            "F-003",
+            "F-004",
+            "F-005",
+            "F-009",
+            "F-045"
+          ]
+        }
+      ],
+      "code": "ANSWER_VERIFIED"
+    },
+    "context": {
+      "rawOwnerInputTokensEst": 7,
+      "businessMemoTokensEst": 275,
+      "policyMemoTokensEst": 234,
+      "ontologyContextTokensEst": 142,
+      "apiIndexTokensEst": 3075,
+      "loadedSchemaTokensEst": 1441,
+      "factCatalogChars": 4072,
+      "factCatalogFactCount": 15,
+      "totalApproxContextTokens": 10245
+    },
+    "durationMs": 18703,
+    "domainRuntime": {
+      "selectedBusinessDomains": [
+        "business_history",
+        "knowledge",
+        "procurement"
+      ],
+      "domainApiSet": [
+        "get_factory_knowledge_detail",
+        "get_order_knowledge_package",
+        "get_purchase_overview",
+        "search_business_changes"
+      ],
+      "executedDomainApis": [
+        "get_purchase_overview",
+        "search_business_changes"
+      ],
+      "failedDomainApis": [],
+      "blockedDomainApis": [],
+      "notApplicableDomainApis": [
+        {
+          "toolName": "get_factory_knowledge_detail",
+          "terminalState": "NOT_APPLICABLE",
+          "reason": "MISSING_SAFE_INPUT",
+          "missingInput": "知识条目 id（正式知识检索未返回任何条目）",
+          "source": "search_factory_knowledge 两次正式查询（关键词「待采购任务 采购」与「采购 供应商 物料 待采购」）均返回零命中，无任何知识条目 id"
+        },
+        {
+          "toolName": "get_order_knowledge_package",
+          "terminalState": "NOT_APPLICABLE",
+          "reason": "MISSING_SAFE_INPUT",
+          "missingInput": "orderId 或 orderQuery（采购总览中关联订单ID已截断，且用户未指定订单）",
+          "source": "get_purchase_overview 返回的 tasks[].orderIds 内容已截断，无可用正式订单标识"
+        }
+      ],
+      "missingDomainApis": [],
+      "apiTerminalStates": [
+        {
+          "toolName": "get_factory_knowledge_detail",
+          "terminalState": "NOT_APPLICABLE",
+          "reason": "MISSING_SAFE_INPUT",
+          "missingInput": "知识条目 id（正式知识检索未返回任何条目）",
+          "source": "search_factory_knowledge 两次正式查询（关键词「待采购任务 采购」与「采购 供应商 物料 待采购」）均返回零命中，无任何知识条目 id"
+        },
+        {
+          "toolName": "get_order_knowledge_package",
+          "terminalState": "NOT_APPLICABLE",
+          "reason": "MISSING_SAFE_INPUT",
+          "missingInput": "orderId 或 orderQuery（采购总览中关联订单ID已截断，且用户未指定订单）",
+          "source": "get_purchase_overview 返回的 tasks[].orderIds 内容已截断，无可用正式订单标识"
+        },
+        {
+          "toolName": "get_purchase_overview",
+          "terminalState": "EXECUTED"
+        },
+        {
+          "toolName": "search_business_changes",
+          "terminalState": "EXECUTED"
+        }
+      ],
+      "finalDomainCoverage": true,
+      "domainCoverageReviewResumed": 1,
+      "domainDeclarationCount": 1,
+      "rag": {
+        "ragSearchRequired": true,
+        "ragSearchExecuted": true,
+        "ragSearchTool": "search_factory_knowledge",
+        "ragReturnedCount": 0,
+        "ragEmpty": true,
+        "ragEvidenceFactIds": [
+          "F-057"
+        ],
+        "ragProvenance": "knowledge_snapshot"
+      }
+    },
+    "ownerInputHash": "51c2f7a66e300bb0beec924f79e9cda6e0eddfc268bea070a20c8b867ba81229",
+    "expectedDomains": [
+      "procurement"
+    ],
+    "selectedDomains": [
+      "business_history",
+      "knowledge",
+      "procurement"
+    ],
+    "domainSelectionScore": {
+      "id": "D02",
+      "expectedDomains": [
+        "procurement"
+      ],
+      "selectedDomains": [
+        "business_history",
+        "knowledge",
+        "procurement"
+      ],
+      "exactMatch": false,
+      "missingDomains": [],
+      "extraDomains": [
+        "business_history",
+        "knowledge"
+      ],
+      "highRiskMiss": false
+    },
+    "semanticPass": true
+  },
+  "semanticPass": true,
+  "database": {
+    "beforeHash": "1929e9c5175b63723ca42f23525864324a69ea0ddcd09f40d6ef3ad3de8a9e35",
+    "afterHash": "1929e9c5175b63723ca42f23525864324a69ea0ddcd09f40d6ef3ad3de8a9e35",
+    "changedTables": [],
+    "mutations": 0
+  },
+  "durationMs": 21125,
+  "completedAt": "2026-10-04T17:32:44.594Z",
+  "secretScan": "PASS"
+}

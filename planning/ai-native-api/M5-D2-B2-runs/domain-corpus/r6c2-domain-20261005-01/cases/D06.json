@@ -1,0 +1,1172 @@
+{
+  "suite": "domain-corpus",
+  "batchRunId": "r6c2-domain-20261005-01",
+  "caseKey": "D06",
+  "caseId": "D06",
+  "runNumber": null,
+  "ownerInputHash": "239ac3d2b37cdeffc877b9d8f25dafc4470bcc276716fc6d5a276e4dfcd2e945",
+  "productFreezeCommit": "cdebfb5ef6f83a4c8b39e93f3f0dcc39077e2251",
+  "harnessFreezeCommit": "d09fbd711c02248b84d7f06a48d2500b9d53a086",
+  "result": {
+    "runId": "D06-1",
+    "caseId": "D06",
+    "runNumber": 1,
+    "rawOwnerInput": "查一下当前报价。",
+    "businessMemoHash": null,
+    "policyMemoHash": null,
+    "outcome": {
+      "pass": true
+    },
+    "classification": null,
+    "safety": {
+      "wrongEntity": 0,
+      "wrongQuantity": 0,
+      "unknownAsZero": 0,
+      "partialAsComplete": 0,
+      "formalConflictSilentSelection": 0,
+      "write": 0
+    },
+    "declaredStatus": null,
+    "memoTimings": null,
+    "formalCalls": [],
+    "relevantApiCoverage": {
+      "requiredRelevantTools": [
+        "compare_recipe_scenarios",
+        "compare_recipes",
+        "explain_cost_change",
+        "get_all_recipes",
+        "get_quotation_detail",
+        "get_recipe_detail",
+        "get_recipe_parts",
+        "get_recipe_technical_files",
+        "get_recipe_technical_profile",
+        "get_recipes_by_coil",
+        "get_recipes_by_part",
+        "get_template_detail",
+        "preview_profitability",
+        "preview_virtual_readiness",
+        "search_customer_history",
+        "search_customers",
+        "search_factory_knowledge",
+        "search_quotations",
+        "search_templates"
+      ],
+      "executedRelevantTools": [
+        "get_all_recipes",
+        "get_quotation_detail",
+        "search_factory_knowledge",
+        "search_quotations"
+      ],
+      "failedRelevantTools": [],
+      "blockedRelevantTools": [],
+      "missingRelevantTools": [],
+      "missingRelevantToolsAtFirstStop": [
+        "compare_recipe_scenarios",
+        "compare_recipes",
+        "preview_profitability",
+        "preview_virtual_readiness"
+      ],
+      "coverageReviewResumed": 1,
+      "finalRelevantCoverage": true,
+      "selectedBusinessDomains": [
+        "quotation",
+        "recipe"
+      ],
+      "domainApiSet": [
+        "compare_recipe_scenarios",
+        "compare_recipes",
+        "explain_cost_change",
+        "get_all_recipes",
+        "get_quotation_detail",
+        "get_recipe_detail",
+        "get_recipe_parts",
+        "get_recipe_technical_files",
+        "get_recipe_technical_profile",
+        "get_recipes_by_coil",
+        "get_recipes_by_part",
+        "get_template_detail",
+        "preview_profitability",
+        "preview_virtual_readiness",
+        "search_customer_history",
+        "search_customers",
+        "search_quotations",
+        "search_templates"
+      ],
+      "notApplicableDomainApis": [
+        {
+          "toolName": "compare_recipe_scenarios",
+          "reason": "MISSING_SAFE_INPUT",
+          "missingInput": "业主未指定配方ID，也未给出任何候选配置覆盖项",
+          "source": "业主原始请求“查一下当前报价”未涉及具体配方或配置试算；当前报价未关联任何配方"
+        },
+        {
+          "toolName": "compare_recipes",
+          "reason": "MISSING_SAFE_INPUT",
+          "missingInput": "业主未指定要对比的两个配方",
+          "source": "业主原始请求未提出任何配方对比需求"
+        },
+        {
+          "toolName": "explain_cost_change",
+          "reason": "FORMAL_CONTEXT_UNAVAILABLE",
+          "missingInput": "当前报价未关联任何配方，无可对比的两个配方",
+          "source": "get_quotation_detail(701)无配方基准"
+        },
+        {
+          "toolName": "get_recipe_detail",
+          "reason": "MISSING_SAFE_INPUT",
+          "missingInput": "报价701未关联任何配方ID，无可安全定位的配方",
+          "source": "get_quotation_detail(701)返回的报价无配方/配置基准"
+        },
+        {
+          "toolName": "get_recipe_parts",
+          "reason": "MISSING_SAFE_INPUT",
+          "missingInput": "无与当前报价绑定的配方ID",
+          "source": "get_quotation_detail(701)未返回配方关联"
+        },
+        {
+          "toolName": "get_recipe_technical_files",
+          "reason": "MISSING_SAFE_INPUT",
+          "missingInput": "无与当前报价绑定的配方ID",
+          "source": "get_quotation_detail(701)未返回配方关联"
+        },
+        {
+          "toolName": "get_recipe_technical_profile",
+          "reason": "MISSING_SAFE_INPUT",
+          "missingInput": "无与当前报价绑定的配方ID",
+          "source": "get_quotation_detail(701)未返回配方关联"
+        },
+        {
+          "toolName": "get_recipes_by_coil",
+          "reason": "MISSING_SAFE_INPUT",
+          "missingInput": "无与当前报价绑定的线圈方案ID",
+          "source": "get_quotation_detail(701)未返回线圈关联"
+        },
+        {
+          "toolName": "get_recipes_by_part",
+          "reason": "MISSING_SAFE_INPUT",
+          "missingInput": "无与当前报价绑定的零件ID",
+          "source": "get_quotation_detail(701)未返回零件关联"
+        },
+        {
+          "toolName": "get_template_detail",
+          "reason": "MISSING_SAFE_INPUT",
+          "missingInput": "无与当前报价绑定的模板ID或泵壳型号",
+          "source": "get_quotation_detail(701)未返回模板关联"
+        },
+        {
+          "toolName": "preview_profitability",
+          "reason": "MISSING_SAFE_INPUT",
+          "missingInput": "无正式配方基准、数量与单价，且当前报价无明细可作基础",
+          "source": "业主原始请求未提供配方/单价/数量；get_quotation_detail(701)明细为空"
+        },
+        {
+          "toolName": "preview_virtual_readiness",
+          "reason": "MISSING_SAFE_INPUT",
+          "missingInput": "无已正式绑定配方的情景，未给出生产数量",
+          "source": "业主原始请求未提出齐料预览需求；当前报价未关联配方"
+        },
+        {
+          "toolName": "search_customer_history",
+          "reason": "MISSING_SAFE_INPUT",
+          "missingInput": "未指名客户，无客户ID可安全解析",
+          "source": "业主原始请求未给出客户名称；需本轮唯一正式客户解析结果"
+        },
+        {
+          "toolName": "search_customers",
+          "reason": "MISSING_SAFE_INPUT",
+          "missingInput": "业主未指名客户，查询客户列表与“当前报价”问题无关",
+          "source": "业主原始请求“查一下当前报价”未给出客户名称"
+        },
+        {
+          "toolName": "search_templates",
+          "reason": "MISSING_SAFE_INPUT",
+          "missingInput": "当前报价未给出任何泵壳型号或模板描述，无法安全筛选",
+          "source": "get_quotation_detail(701)无模板/泵壳关键词"
+        }
+      ],
+      "ragAuxiliarySearched": true
+    },
+    "metrics": {
+      "mainModelCalls": 11,
+      "loadToolsCalls": 0,
+      "resolveCalls": 0,
+      "businessToolCalls": 4,
+      "noNewEvidenceEvents": 0,
+      "duplicateFactsAvoided": 0,
+      "noProgressEvents": 0,
+      "completionReviewCalls": 1,
+      "completionReviewResumed": 0,
+      "relevantCoverageReviewResumed": 1,
+      "terminalOutcomeReviewCalls": 0,
+      "stoppingReasons": [
+        "RELEVANT_API_COVERAGE_INCOMPLETE",
+        "MODEL_READY_TO_ANSWER",
+        "COMPLETION_REVIEW_CONFIRMED"
+      ],
+      "loadedToolNames": [
+        "search_factory_knowledge",
+        "get_quotation_detail",
+        "search_customer_history",
+        "search_customers",
+        "search_quotations",
+        "explain_cost_change",
+        "get_all_recipes",
+        "get_recipe_detail",
+        "get_recipe_parts",
+        "get_recipe_technical_files",
+        "get_recipe_technical_profile",
+        "get_recipes_by_coil",
+        "get_recipes_by_part",
+        "get_template_detail",
+        "search_templates",
+        "compare_recipe_scenarios",
+        "compare_recipes",
+        "preview_profitability",
+        "preview_virtual_readiness"
+      ],
+      "relevantApiCoverage": {
+        "requiredRelevantTools": [
+          "compare_recipe_scenarios",
+          "compare_recipes",
+          "explain_cost_change",
+          "get_all_recipes",
+          "get_quotation_detail",
+          "get_recipe_detail",
+          "get_recipe_parts",
+          "get_recipe_technical_files",
+          "get_recipe_technical_profile",
+          "get_recipes_by_coil",
+          "get_recipes_by_part",
+          "get_template_detail",
+          "preview_profitability",
+          "preview_virtual_readiness",
+          "search_customer_history",
+          "search_customers",
+          "search_factory_knowledge",
+          "search_quotations",
+          "search_templates"
+        ],
+        "executedRelevantTools": [
+          "get_all_recipes",
+          "get_quotation_detail",
+          "search_factory_knowledge",
+          "search_quotations"
+        ],
+        "failedRelevantTools": [],
+        "blockedRelevantTools": [],
+        "missingRelevantTools": [],
+        "missingRelevantToolsAtFirstStop": [
+          "compare_recipe_scenarios",
+          "compare_recipes",
+          "preview_profitability",
+          "preview_virtual_readiness"
+        ],
+        "coverageReviewResumed": 1,
+        "finalRelevantCoverage": true,
+        "selectedBusinessDomains": [
+          "quotation",
+          "recipe"
+        ],
+        "domainApiSet": [
+          "compare_recipe_scenarios",
+          "compare_recipes",
+          "explain_cost_change",
+          "get_all_recipes",
+          "get_quotation_detail",
+          "get_recipe_detail",
+          "get_recipe_parts",
+          "get_recipe_technical_files",
+          "get_recipe_technical_profile",
+          "get_recipes_by_coil",
+          "get_recipes_by_part",
+          "get_template_detail",
+          "preview_profitability",
+          "preview_virtual_readiness",
+          "search_customer_history",
+          "search_customers",
+          "search_quotations",
+          "search_templates"
+        ],
+        "notApplicableDomainApis": [
+          {
+            "toolName": "compare_recipe_scenarios",
+            "reason": "MISSING_SAFE_INPUT",
+            "missingInput": "业主未指定配方ID，也未给出任何候选配置覆盖项",
+            "source": "业主原始请求“查一下当前报价”未涉及具体配方或配置试算；当前报价未关联任何配方"
+          },
+          {
+            "toolName": "compare_recipes",
+            "reason": "MISSING_SAFE_INPUT",
+            "missingInput": "业主未指定要对比的两个配方",
+            "source": "业主原始请求未提出任何配方对比需求"
+          },
+          {
+            "toolName": "explain_cost_change",
+            "reason": "FORMAL_CONTEXT_UNAVAILABLE",
+            "missingInput": "当前报价未关联任何配方，无可对比的两个配方",
+            "source": "get_quotation_detail(701)无配方基准"
+          },
+          {
+            "toolName": "get_recipe_detail",
+            "reason": "MISSING_SAFE_INPUT",
+            "missingInput": "报价701未关联任何配方ID，无可安全定位的配方",
+            "source": "get_quotation_detail(701)返回的报价无配方/配置基准"
+          },
+          {
+            "toolName": "get_recipe_parts",
+            "reason": "MISSING_SAFE_INPUT",
+            "missingInput": "无与当前报价绑定的配方ID",
+            "source": "get_quotation_detail(701)未返回配方关联"
+          },
+          {
+            "toolName": "get_recipe_technical_files",
+            "reason": "MISSING_SAFE_INPUT",
+            "missingInput": "无与当前报价绑定的配方ID",
+            "source": "get_quotation_detail(701)未返回配方关联"
+          },
+          {
+            "toolName": "get_recipe_technical_profile",
+            "reason": "MISSING_SAFE_INPUT",
+            "missingInput": "无与当前报价绑定的配方ID",
+            "source": "get_quotation_detail(701)未返回配方关联"
+          },
+          {
+            "toolName": "get_recipes_by_coil",
+            "reason": "MISSING_SAFE_INPUT",
+            "missingInput": "无与当前报价绑定的线圈方案ID",
+            "source": "get_quotation_detail(701)未返回线圈关联"
+          },
+          {
+            "toolName": "get_recipes_by_part",
+            "reason": "MISSING_SAFE_INPUT",
+            "missingInput": "无与当前报价绑定的零件ID",
+            "source": "get_quotation_detail(701)未返回零件关联"
+          },
+          {
+            "toolName": "get_template_detail",
+            "reason": "MISSING_SAFE_INPUT",
+            "missingInput": "无与当前报价绑定的模板ID或泵壳型号",
+            "source": "get_quotation_detail(701)未返回模板关联"
+          },
+          {
+            "toolName": "preview_profitability",
+            "reason": "MISSING_SAFE_INPUT",
+            "missingInput": "无正式配方基准、数量与单价，且当前报价无明细可作基础",
+            "source": "业主原始请求未提供配方/单价/数量；get_quotation_detail(701)明细为空"
+          },
+          {
+            "toolName": "preview_virtual_readiness",
+            "reason": "MISSING_SAFE_INPUT",
+            "missingInput": "无已正式绑定配方的情景，未给出生产数量",
+            "source": "业主原始请求未提出齐料预览需求；当前报价未关联配方"
+          },
+          {
+            "toolName": "search_customer_history",
+            "reason": "MISSING_SAFE_INPUT",
+            "missingInput": "未指名客户，无客户ID可安全解析",
+            "source": "业主原始请求未给出客户名称；需本轮唯一正式客户解析结果"
+          },
+          {
+            "toolName": "search_customers",
+            "reason": "MISSING_SAFE_INPUT",
+            "missingInput": "业主未指名客户，查询客户列表与“当前报价”问题无关",
+            "source": "业主原始请求“查一下当前报价”未给出客户名称"
+          },
+          {
+            "toolName": "search_templates",
+            "reason": "MISSING_SAFE_INPUT",
+            "missingInput": "当前报价未给出任何泵壳型号或模板描述，无法安全筛选",
+            "source": "get_quotation_detail(701)无模板/泵壳关键词"
+          }
+        ],
+        "ragAuxiliarySearched": true
+      },
+      "apiIndexFingerprint": "10bee9d8a065ea2322fcaf14bdf21cee949d0f57da8c3d5133448c1ee7d09c61",
+      "loadedSchemaFingerprint": "827c2bb7b69095b678b298b1914252a5d22fb794552ea239b9d40fc156b74352"
+    },
+    "traces": [
+      {
+        "name": "select_business_domains",
+        "argKeys": [
+          "domains"
+        ],
+        "success": true,
+        "verified": false,
+        "code": null,
+        "factIds": [],
+        "noNewEvidence": false,
+        "controlPlane": true
+      },
+      {
+        "name": "search_quotations",
+        "argKeys": [],
+        "success": true,
+        "verified": true,
+        "code": null,
+        "factIds": [
+          "F-001",
+          "F-002",
+          "F-003",
+          "F-004",
+          "F-005",
+          "F-006",
+          "F-007",
+          "F-008",
+          "F-009",
+          "F-010"
+        ],
+        "noNewEvidence": false,
+        "controlPlane": false,
+        "declaredRelevant": true,
+        "businessExecution": true
+      },
+      {
+        "name": "search_factory_knowledge",
+        "argKeys": [
+          "entryType",
+          "query"
+        ],
+        "success": true,
+        "verified": true,
+        "code": null,
+        "factIds": [
+          "F-011",
+          "F-012",
+          "F-013"
+        ],
+        "noNewEvidence": false,
+        "controlPlane": false,
+        "declaredRelevant": true,
+        "businessExecution": true
+      },
+      {
+        "name": "get_quotation_detail",
+        "argKeys": [
+          "quotationId"
+        ],
+        "success": true,
+        "verified": true,
+        "code": null,
+        "factIds": [
+          "F-014",
+          "F-015",
+          "F-016",
+          "F-017",
+          "F-018",
+          "F-019",
+          "F-020",
+          "F-021",
+          "F-022",
+          "F-023",
+          "F-024",
+          "F-025",
+          "F-026",
+          "F-027",
+          "F-028",
+          "F-029",
+          "F-030"
+        ],
+        "noNewEvidence": false,
+        "controlPlane": false,
+        "declaredRelevant": true,
+        "businessExecution": true
+      },
+      {
+        "name": "get_all_recipes",
+        "argKeys": [],
+        "success": true,
+        "verified": true,
+        "code": null,
+        "factIds": [
+          "F-031",
+          "F-032",
+          "F-033",
+          "F-034",
+          "F-035",
+          "F-036",
+          "F-037",
+          "F-038",
+          "F-039",
+          "F-040",
+          "F-041",
+          "F-042",
+          "F-043",
+          "F-044",
+          "F-045",
+          "F-046",
+          "F-047",
+          "F-048",
+          "F-049",
+          "F-050",
+          "F-051",
+          "F-052",
+          "F-053",
+          "F-054",
+          "F-055",
+          "F-056",
+          "F-057",
+          "F-058",
+          "F-059",
+          "F-060",
+          "F-061",
+          "F-062",
+          "F-063",
+          "F-064",
+          "F-065",
+          "F-066",
+          "F-067",
+          "F-068",
+          "F-069",
+          "F-070",
+          "F-071",
+          "F-072",
+          "F-073",
+          "F-074",
+          "F-075",
+          "F-076",
+          "F-077",
+          "F-078",
+          "F-079",
+          "F-080",
+          "F-081",
+          "F-082",
+          "F-083",
+          "F-084",
+          "F-085",
+          "F-086",
+          "F-087",
+          "F-088",
+          "F-089",
+          "F-090",
+          "F-091",
+          "F-092",
+          "F-093",
+          "F-094",
+          "F-095",
+          "F-096",
+          "F-097",
+          "F-098",
+          "F-099",
+          "F-100",
+          "F-101",
+          "F-102",
+          "F-103",
+          "F-104",
+          "F-105",
+          "F-106",
+          "F-107",
+          "F-108",
+          "F-109",
+          "F-110",
+          "F-111"
+        ],
+        "noNewEvidence": false,
+        "controlPlane": false,
+        "declaredRelevant": true,
+        "businessExecution": true
+      },
+      {
+        "name": "mark_domain_api_not_applicable",
+        "argKeys": [
+          "missingInput",
+          "reason",
+          "source",
+          "toolName"
+        ],
+        "success": true,
+        "verified": false,
+        "code": null,
+        "factIds": [],
+        "noNewEvidence": false,
+        "controlPlane": true
+      },
+      {
+        "name": "mark_domain_api_not_applicable",
+        "argKeys": [
+          "missingInput",
+          "reason",
+          "source",
+          "toolName"
+        ],
+        "success": true,
+        "verified": false,
+        "code": null,
+        "factIds": [],
+        "noNewEvidence": false,
+        "controlPlane": true
+      },
+      {
+        "name": "mark_domain_api_not_applicable",
+        "argKeys": [
+          "missingInput",
+          "reason",
+          "source",
+          "toolName"
+        ],
+        "success": true,
+        "verified": false,
+        "code": null,
+        "factIds": [],
+        "noNewEvidence": false,
+        "controlPlane": true
+      },
+      {
+        "name": "mark_domain_api_not_applicable",
+        "argKeys": [
+          "missingInput",
+          "reason",
+          "source",
+          "toolName"
+        ],
+        "success": true,
+        "verified": false,
+        "code": null,
+        "factIds": [],
+        "noNewEvidence": false,
+        "controlPlane": true
+      },
+      {
+        "name": "mark_domain_api_not_applicable",
+        "argKeys": [
+          "missingInput",
+          "reason",
+          "source",
+          "toolName"
+        ],
+        "success": true,
+        "verified": false,
+        "code": null,
+        "factIds": [],
+        "noNewEvidence": false,
+        "controlPlane": true
+      },
+      {
+        "name": "mark_domain_api_not_applicable",
+        "argKeys": [
+          "missingInput",
+          "reason",
+          "source",
+          "toolName"
+        ],
+        "success": true,
+        "verified": false,
+        "code": null,
+        "factIds": [],
+        "noNewEvidence": false,
+        "controlPlane": true
+      },
+      {
+        "name": "mark_domain_api_not_applicable",
+        "argKeys": [
+          "missingInput",
+          "reason",
+          "source",
+          "toolName"
+        ],
+        "success": true,
+        "verified": false,
+        "code": null,
+        "factIds": [],
+        "noNewEvidence": false,
+        "controlPlane": true
+      },
+      {
+        "name": "mark_domain_api_not_applicable",
+        "argKeys": [
+          "missingInput",
+          "reason",
+          "source",
+          "toolName"
+        ],
+        "success": true,
+        "verified": false,
+        "code": null,
+        "factIds": [],
+        "noNewEvidence": false,
+        "controlPlane": true
+      },
+      {
+        "name": "mark_domain_api_not_applicable",
+        "argKeys": [
+          "missingInput",
+          "reason",
+          "source",
+          "toolName"
+        ],
+        "success": true,
+        "verified": false,
+        "code": null,
+        "factIds": [],
+        "noNewEvidence": false,
+        "controlPlane": true
+      },
+      {
+        "name": "mark_domain_api_not_applicable",
+        "argKeys": [
+          "missingInput",
+          "reason",
+          "source",
+          "toolName"
+        ],
+        "success": true,
+        "verified": false,
+        "code": null,
+        "factIds": [],
+        "noNewEvidence": false,
+        "controlPlane": true
+      },
+      {
+        "name": "mark_domain_api_not_applicable",
+        "argKeys": [
+          "missingInput",
+          "reason",
+          "source",
+          "toolName"
+        ],
+        "success": true,
+        "verified": false,
+        "code": null,
+        "factIds": [],
+        "noNewEvidence": false,
+        "controlPlane": true
+      },
+      {
+        "name": "mark_domain_api_not_applicable",
+        "argKeys": [
+          "missingInput",
+          "reason",
+          "source",
+          "toolName"
+        ],
+        "success": true,
+        "verified": false,
+        "code": null,
+        "factIds": [],
+        "noNewEvidence": false,
+        "controlPlane": true
+      },
+      {
+        "name": "mark_domain_api_not_applicable",
+        "argKeys": [
+          "missingInput",
+          "reason",
+          "source",
+          "toolName"
+        ],
+        "success": true,
+        "verified": false,
+        "code": null,
+        "factIds": [],
+        "noNewEvidence": false,
+        "controlPlane": true
+      },
+      {
+        "name": "mark_domain_api_not_applicable",
+        "argKeys": [
+          "missingInput",
+          "reason",
+          "source",
+          "toolName"
+        ],
+        "success": true,
+        "verified": false,
+        "code": null,
+        "factIds": [],
+        "noNewEvidence": false,
+        "controlPlane": true
+      },
+      {
+        "name": "mark_domain_api_not_applicable",
+        "argKeys": [
+          "missingInput",
+          "reason",
+          "source",
+          "toolName"
+        ],
+        "success": true,
+        "verified": false,
+        "code": null,
+        "factIds": [],
+        "noNewEvidence": false,
+        "controlPlane": true
+      }
+    ],
+    "formalOutcomeReceipts": [],
+    "finalizationAttempts": [
+      {
+        "attempt": 1,
+        "code": "ANSWER_VERIFIED",
+        "detail": null,
+        "valid": true,
+        "raw": "{\"answer\":\"系统当前仅登记 1 份正式报价，编号为 701，客户为“Shadow客户甲”，状态为“报价中”，报价明细为空、无任何报价条目。该报价合计成本为 0 元，合计售价为 0 元，备注为空，未转为订单。公司业务模型并未把“报价”定义为独立业务对象，也未定义“当前”的业务含义，因此“当前报价”本身没有正式定义。本次为只读查看，未修改任何配方或业务状态。\",\"claims\":[{\"text\":\"系统当前仅登记 1 份正式报价，编号为 701，客户为“Shadow客户甲”，状态为“报价中”，报价明细为空、无任何报价条目。\",\"factIds\":[\"F-001\",\"F-014\"]},{\"text\":\"该报价合计成本为 0 元，合计售价为 0 元，备注为空，未转为订单。\",\"factIds\":[\"F-007\",\"F-021\"]},{\"text\":\"公司业务模型并未把“报价”定义为独立业务对象，也未定义“当前”的业务含义，因此“当前报价”本身没有正式定义。\",\"factIds\":[\"F-011\",\"F-012\"]},{\"text\":\"本次为只读查看，未修改任何配方或业务状态。\",\"factIds\":[\"F-014\"]}],\"goals\":[{\"questionIndex\":0,\"status\":\"COMPLETED\",\"factIds\":[\"F-001\",\"F-007\",\"F-014\",\"F-021\"]}]}"
+      }
+    ],
+    "answerValidation": {
+      "valid": true,
+      "answer": "系统当前仅登记 1 份正式报价，编号为 701，客户为“Shadow客户甲”，状态为“报价中”，报价明细为空、无任何报价条目。该报价合计成本为 0 元，合计售价为 0 元，备注为空，未转为订单。公司业务模型并未把“报价”定义为独立业务对象，也未定义“当前”的业务含义，因此“当前报价”本身没有正式定义。本次为只读查看，未修改任何配方或业务状态。",
+      "claims": [
+        {
+          "text": "系统当前仅登记 1 份正式报价，编号为 701，客户为“Shadow客户甲”，状态为“报价中”，报价明细为空、无任何报价条目。",
+          "factIds": [
+            "F-001",
+            "F-014"
+          ]
+        },
+        {
+          "text": "该报价合计成本为 0 元，合计售价为 0 元，备注为空，未转为订单。",
+          "factIds": [
+            "F-007",
+            "F-021"
+          ]
+        },
+        {
+          "text": "公司业务模型并未把“报价”定义为独立业务对象，也未定义“当前”的业务含义，因此“当前报价”本身没有正式定义。",
+          "factIds": [
+            "F-011",
+            "F-012"
+          ]
+        },
+        {
+          "text": "本次为只读查看，未修改任何配方或业务状态。",
+          "factIds": [
+            "F-014"
+          ]
+        }
+      ],
+      "goals": [
+        {
+          "questionIndex": 0,
+          "status": "COMPLETED",
+          "factIds": [
+            "F-001",
+            "F-007",
+            "F-014",
+            "F-021"
+          ]
+        }
+      ],
+      "code": "ANSWER_VERIFIED"
+    },
+    "context": {
+      "rawOwnerInputTokensEst": 6,
+      "businessMemoTokensEst": 477,
+      "policyMemoTokensEst": 95,
+      "ontologyContextTokensEst": 142,
+      "apiIndexTokensEst": 3075,
+      "loadedSchemaTokensEst": 5148,
+      "factCatalogChars": 1769,
+      "factCatalogFactCount": 12,
+      "totalApproxContextTokens": 12055
+    },
+    "durationMs": 26733,
+    "domainRuntime": {
+      "selectedBusinessDomains": [
+        "quotation",
+        "recipe"
+      ],
+      "domainApiSet": [
+        "compare_recipe_scenarios",
+        "compare_recipes",
+        "explain_cost_change",
+        "get_all_recipes",
+        "get_quotation_detail",
+        "get_recipe_detail",
+        "get_recipe_parts",
+        "get_recipe_technical_files",
+        "get_recipe_technical_profile",
+        "get_recipes_by_coil",
+        "get_recipes_by_part",
+        "get_template_detail",
+        "preview_profitability",
+        "preview_virtual_readiness",
+        "search_customer_history",
+        "search_customers",
+        "search_quotations",
+        "search_templates"
+      ],
+      "executedDomainApis": [
+        "get_all_recipes",
+        "get_quotation_detail",
+        "search_quotations"
+      ],
+      "failedDomainApis": [],
+      "blockedDomainApis": [],
+      "notApplicableDomainApis": [
+        {
+          "toolName": "compare_recipe_scenarios",
+          "terminalState": "NOT_APPLICABLE",
+          "reason": "MISSING_SAFE_INPUT",
+          "missingInput": "业主未指定配方ID，也未给出任何候选配置覆盖项",
+          "source": "业主原始请求“查一下当前报价”未涉及具体配方或配置试算；当前报价未关联任何配方"
+        },
+        {
+          "toolName": "compare_recipes",
+          "terminalState": "NOT_APPLICABLE",
+          "reason": "MISSING_SAFE_INPUT",
+          "missingInput": "业主未指定要对比的两个配方",
+          "source": "业主原始请求未提出任何配方对比需求"
+        },
+        {
+          "toolName": "explain_cost_change",
+          "terminalState": "NOT_APPLICABLE",
+          "reason": "FORMAL_CONTEXT_UNAVAILABLE",
+          "missingInput": "当前报价未关联任何配方，无可对比的两个配方",
+          "source": "get_quotation_detail(701)无配方基准"
+        },
+        {
+          "toolName": "get_recipe_detail",
+          "terminalState": "NOT_APPLICABLE",
+          "reason": "MISSING_SAFE_INPUT",
+          "missingInput": "报价701未关联任何配方ID，无可安全定位的配方",
+          "source": "get_quotation_detail(701)返回的报价无配方/配置基准"
+        },
+        {
+          "toolName": "get_recipe_parts",
+          "terminalState": "NOT_APPLICABLE",
+          "reason": "MISSING_SAFE_INPUT",
+          "missingInput": "无与当前报价绑定的配方ID",
+          "source": "get_quotation_detail(701)未返回配方关联"
+        },
+        {
+          "toolName": "get_recipe_technical_files",
+          "terminalState": "NOT_APPLICABLE",
+          "reason": "MISSING_SAFE_INPUT",
+          "missingInput": "无与当前报价绑定的配方ID",
+          "source": "get_quotation_detail(701)未返回配方关联"
+        },
+        {
+          "toolName": "get_recipe_technical_profile",
+          "terminalState": "NOT_APPLICABLE",
+          "reason": "MISSING_SAFE_INPUT",
+          "missingInput": "无与当前报价绑定的配方ID",
+          "source": "get_quotation_detail(701)未返回配方关联"
+        },
+        {
+          "toolName": "get_recipes_by_coil",
+          "terminalState": "NOT_APPLICABLE",
+          "reason": "MISSING_SAFE_INPUT",
+          "missingInput": "无与当前报价绑定的线圈方案ID",
+          "source": "get_quotation_detail(701)未返回线圈关联"
+        },
+        {
+          "toolName": "get_recipes_by_part",
+          "terminalState": "NOT_APPLICABLE",
+          "reason": "MISSING_SAFE_INPUT",
+          "missingInput": "无与当前报价绑定的零件ID",
+          "source": "get_quotation_detail(701)未返回零件关联"
+        },
+        {
+          "toolName": "get_template_detail",
+          "terminalState": "NOT_APPLICABLE",
+          "reason": "MISSING_SAFE_INPUT",
+          "missingInput": "无与当前报价绑定的模板ID或泵壳型号",
+          "source": "get_quotation_detail(701)未返回模板关联"
+        },
+        {
+          "toolName": "preview_profitability",
+          "terminalState": "NOT_APPLICABLE",
+          "reason": "MISSING_SAFE_INPUT",
+          "missingInput": "无正式配方基准、数量与单价，且当前报价无明细可作基础",
+          "source": "业主原始请求未提供配方/单价/数量；get_quotation_detail(701)明细为空"
+        },
+        {
+          "toolName": "preview_virtual_readiness",
+          "terminalState": "NOT_APPLICABLE",
+          "reason": "MISSING_SAFE_INPUT",
+          "missingInput": "无已正式绑定配方的情景，未给出生产数量",
+          "source": "业主原始请求未提出齐料预览需求；当前报价未关联配方"
+        },
+        {
+          "toolName": "search_customer_history",
+          "terminalState": "NOT_APPLICABLE",
+          "reason": "MISSING_SAFE_INPUT",
+          "missingInput": "未指名客户，无客户ID可安全解析",
+          "source": "业主原始请求未给出客户名称；需本轮唯一正式客户解析结果"
+        },
+        {
+          "toolName": "search_customers",
+          "terminalState": "NOT_APPLICABLE",
+          "reason": "MISSING_SAFE_INPUT",
+          "missingInput": "业主未指名客户，查询客户列表与“当前报价”问题无关",
+          "source": "业主原始请求“查一下当前报价”未给出客户名称"
+        },
+        {
+          "toolName": "search_templates",
+          "terminalState": "NOT_APPLICABLE",
+          "reason": "MISSING_SAFE_INPUT",
+          "missingInput": "当前报价未给出任何泵壳型号或模板描述，无法安全筛选",
+          "source": "get_quotation_detail(701)无模板/泵壳关键词"
+        }
+      ],
+      "missingDomainApis": [],
+      "apiTerminalStates": [
+        {
+          "toolName": "compare_recipe_scenarios",
+          "terminalState": "NOT_APPLICABLE",
+          "reason": "MISSING_SAFE_INPUT",
+          "missingInput": "业主未指定配方ID，也未给出任何候选配置覆盖项",
+          "source": "业主原始请求“查一下当前报价”未涉及具体配方或配置试算；当前报价未关联任何配方"
+        },
+        {
+          "toolName": "compare_recipes",
+          "terminalState": "NOT_APPLICABLE",
+          "reason": "MISSING_SAFE_INPUT",
+          "missingInput": "业主未指定要对比的两个配方",
+          "source": "业主原始请求未提出任何配方对比需求"
+        },
+        {
+          "toolName": "explain_cost_change",
+          "terminalState": "NOT_APPLICABLE",
+          "reason": "FORMAL_CONTEXT_UNAVAILABLE",
+          "missingInput": "当前报价未关联任何配方，无可对比的两个配方",
+          "source": "get_quotation_detail(701)无配方基准"
+        },
+        {
+          "toolName": "get_all_recipes",
+          "terminalState": "EXECUTED"
+        },
+        {
+          "toolName": "get_quotation_detail",
+          "terminalState": "EXECUTED"
+        },
+        {
+          "toolName": "get_recipe_detail",
+          "terminalState": "NOT_APPLICABLE",
+          "reason": "MISSING_SAFE_INPUT",
+          "missingInput": "报价701未关联任何配方ID，无可安全定位的配方",
+          "source": "get_quotation_detail(701)返回的报价无配方/配置基准"
+        },
+        {
+          "toolName": "get_recipe_parts",
+          "terminalState": "NOT_APPLICABLE",
+          "reason": "MISSING_SAFE_INPUT",
+          "missingInput": "无与当前报价绑定的配方ID",
+          "source": "get_quotation_detail(701)未返回配方关联"
+        },
+        {
+          "toolName": "get_recipe_technical_files",
+          "terminalState": "NOT_APPLICABLE",
+          "reason": "MISSING_SAFE_INPUT",
+          "missingInput": "无与当前报价绑定的配方ID",
+          "source": "get_quotation_detail(701)未返回配方关联"
+        },
+        {
+          "toolName": "get_recipe_technical_profile",
+          "terminalState": "NOT_APPLICABLE",
+          "reason": "MISSING_SAFE_INPUT",
+          "missingInput": "无与当前报价绑定的配方ID",
+          "source": "get_quotation_detail(701)未返回配方关联"
+        },
+        {
+          "toolName": "get_recipes_by_coil",
+          "terminalState": "NOT_APPLICABLE",
+          "reason": "MISSING_SAFE_INPUT",
+          "missingInput": "无与当前报价绑定的线圈方案ID",
+          "source": "get_quotation_detail(701)未返回线圈关联"
+        },
+        {
+          "toolName": "get_recipes_by_part",
+          "terminalState": "NOT_APPLICABLE",
+          "reason": "MISSING_SAFE_INPUT",
+          "missingInput": "无与当前报价绑定的零件ID",
+          "source": "get_quotation_detail(701)未返回零件关联"
+        },
+        {
+          "toolName": "get_template_detail",
+          "terminalState": "NOT_APPLICABLE",
+          "reason": "MISSING_SAFE_INPUT",
+          "missingInput": "无与当前报价绑定的模板ID或泵壳型号",
+          "source": "get_quotation_detail(701)未返回模板关联"
+        },
+        {
+          "toolName": "preview_profitability",
+          "terminalState": "NOT_APPLICABLE",
+          "reason": "MISSING_SAFE_INPUT",
+          "missingInput": "无正式配方基准、数量与单价，且当前报价无明细可作基础",
+          "source": "业主原始请求未提供配方/单价/数量；get_quotation_detail(701)明细为空"
+        },
+        {
+          "toolName": "preview_virtual_readiness",
+          "terminalState": "NOT_APPLICABLE",
+          "reason": "MISSING_SAFE_INPUT",
+          "missingInput": "无已正式绑定配方的情景，未给出生产数量",
+          "source": "业主原始请求未提出齐料预览需求；当前报价未关联配方"
+        },
+        {
+          "toolName": "search_customer_history",
+          "terminalState": "NOT_APPLICABLE",
+          "reason": "MISSING_SAFE_INPUT",
+          "missingInput": "未指名客户，无客户ID可安全解析",
+          "source": "业主原始请求未给出客户名称；需本轮唯一正式客户解析结果"
+        },
+        {
+          "toolName": "search_customers",
+          "terminalState": "NOT_APPLICABLE",
+          "reason": "MISSING_SAFE_INPUT",
+          "missingInput": "业主未指名客户，查询客户列表与“当前报价”问题无关",
+          "source": "业主原始请求“查一下当前报价”未给出客户名称"
+        },
+        {
+          "toolName": "search_quotations",
+          "terminalState": "EXECUTED"
+        },
+        {
+          "toolName": "search_templates",
+          "terminalState": "NOT_APPLICABLE",
+          "reason": "MISSING_SAFE_INPUT",
+          "missingInput": "当前报价未给出任何泵壳型号或模板描述，无法安全筛选",
+          "source": "get_quotation_detail(701)无模板/泵壳关键词"
+        }
+      ],
+      "finalDomainCoverage": true,
+      "domainCoverageReviewResumed": 1,
+      "domainDeclarationCount": 1,
+      "rag": {
+        "ragSearchRequired": true,
+        "ragSearchExecuted": true,
+        "ragSearchTool": "search_factory_knowledge",
+        "ragReturnedCount": 0,
+        "ragEmpty": true,
+        "ragEvidenceFactIds": [
+          "F-012"
+        ],
+        "ragProvenance": "knowledge_snapshot"
+      }
+    },
+    "ownerInputHash": "578f5ece525baa2fdec5d386b9121b318fdba4ea3a93faeb4f6cfb2b40d65d34",
+    "expectedDomains": [
+      "quotation"
+    ],
+    "selectedDomains": [
+      "quotation",
+      "recipe"
+    ],
+    "domainSelectionScore": {
+      "id": "D06",
+      "expectedDomains": [
+        "quotation"
+      ],
+      "selectedDomains": [
+        "quotation",
+        "recipe"
+      ],
+      "exactMatch": false,
+      "missingDomains": [],
+      "extraDomains": [
+        "recipe"
+      ],
+      "highRiskMiss": false
+    },
+    "semanticPass": true
+  },
+  "semanticPass": true,
+  "database": {
+    "beforeHash": "e1c644c395d45ae85b78be0fa036d451bc9459a5d8079c0a3655beae62ada41d",
+    "afterHash": "e1c644c395d45ae85b78be0fa036d451bc9459a5d8079c0a3655beae62ada41d",
+    "changedTables": [],
+    "mutations": 0
+  },
+  "durationMs": 29690,
+  "completedAt": "2026-10-04T17:36:32.582Z",
+  "secretScan": "PASS"
+}

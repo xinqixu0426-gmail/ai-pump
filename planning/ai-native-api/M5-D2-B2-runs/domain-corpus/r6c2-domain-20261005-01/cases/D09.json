@@ -1,0 +1,512 @@
+{
+  "suite": "domain-corpus",
+  "batchRunId": "r6c2-domain-20261005-01",
+  "caseKey": "D09",
+  "caseId": "D09",
+  "runNumber": null,
+  "ownerInputHash": "e64ddd04a8893c4e6de4cbc88d9f07246872a90c1ee48738be745c992a7e3951",
+  "productFreezeCommit": "cdebfb5ef6f83a4c8b39e93f3f0dcc39077e2251",
+  "harnessFreezeCommit": "d09fbd711c02248b84d7f06a48d2500b9d53a086",
+  "result": {
+    "runId": "D09-1",
+    "caseId": "D09",
+    "runNumber": 1,
+    "rawOwnerInput": "这个客户以前有哪些报价和订单？",
+    "businessMemoHash": null,
+    "policyMemoHash": null,
+    "outcome": {
+      "pass": true
+    },
+    "classification": null,
+    "safety": {
+      "wrongEntity": 0,
+      "wrongQuantity": 0,
+      "unknownAsZero": 0,
+      "partialAsComplete": 0,
+      "formalConflictSilentSelection": 0,
+      "write": 0
+    },
+    "declaredStatus": null,
+    "memoTimings": null,
+    "formalCalls": [],
+    "relevantApiCoverage": {
+      "requiredRelevantTools": [
+        "explain_cost_change",
+        "get_quotation_detail",
+        "search_customer_history",
+        "search_customers",
+        "search_factory_knowledge",
+        "search_quotations"
+      ],
+      "executedRelevantTools": [
+        "get_quotation_detail",
+        "search_customers",
+        "search_factory_knowledge",
+        "search_quotations"
+      ],
+      "failedRelevantTools": [
+        "explain_cost_change"
+      ],
+      "blockedRelevantTools": [],
+      "missingRelevantTools": [],
+      "missingRelevantToolsAtFirstStop": [
+        "explain_cost_change",
+        "get_quotation_detail"
+      ],
+      "coverageReviewResumed": 1,
+      "finalRelevantCoverage": true,
+      "selectedBusinessDomains": [
+        "quotation"
+      ],
+      "domainApiSet": [
+        "explain_cost_change",
+        "get_quotation_detail",
+        "search_customer_history",
+        "search_customers",
+        "search_quotations"
+      ],
+      "notApplicableDomainApis": [
+        {
+          "toolName": "search_customer_history",
+          "reason": "FORMAL_IDENTITY_UNAVAILABLE",
+          "missingInput": "唯一可确认的客户身份（customerId）——“这个客户”无法唯一解析",
+          "source": "resolve_entity(customer,\"这个客户\") 返回 NOT_FOUND 且无候选；正式客户列表存在 2 个候选（Shadow客户甲、Shadow空客户），不得猜选"
+        }
+      ],
+      "ragAuxiliarySearched": true
+    },
+    "metrics": {
+      "mainModelCalls": 11,
+      "loadToolsCalls": 1,
+      "resolveCalls": 1,
+      "businessToolCalls": 5,
+      "noNewEvidenceEvents": 0,
+      "duplicateFactsAvoided": 0,
+      "noProgressEvents": 0,
+      "completionReviewCalls": 1,
+      "completionReviewResumed": 1,
+      "relevantCoverageReviewResumed": 1,
+      "terminalOutcomeReviewCalls": 0,
+      "stoppingReasons": [
+        "RELEVANT_API_COVERAGE_INCOMPLETE",
+        "MODEL_READY_TO_ANSWER",
+        "COMPLETION_REVIEW_RESUMED",
+        "COMPLETION_REVIEW_CONFIRMED"
+      ],
+      "loadedToolNames": [
+        "search_factory_knowledge",
+        "get_quotation_detail",
+        "search_customer_history",
+        "search_customers",
+        "search_quotations",
+        "explain_cost_change"
+      ],
+      "relevantApiCoverage": {
+        "requiredRelevantTools": [
+          "explain_cost_change",
+          "get_quotation_detail",
+          "search_customer_history",
+          "search_customers",
+          "search_factory_knowledge",
+          "search_quotations"
+        ],
+        "executedRelevantTools": [
+          "get_quotation_detail",
+          "search_customers",
+          "search_factory_knowledge",
+          "search_quotations"
+        ],
+        "failedRelevantTools": [
+          "explain_cost_change"
+        ],
+        "blockedRelevantTools": [],
+        "missingRelevantTools": [],
+        "missingRelevantToolsAtFirstStop": [
+          "explain_cost_change",
+          "get_quotation_detail"
+        ],
+        "coverageReviewResumed": 1,
+        "finalRelevantCoverage": true,
+        "selectedBusinessDomains": [
+          "quotation"
+        ],
+        "domainApiSet": [
+          "explain_cost_change",
+          "get_quotation_detail",
+          "search_customer_history",
+          "search_customers",
+          "search_quotations"
+        ],
+        "notApplicableDomainApis": [
+          {
+            "toolName": "search_customer_history",
+            "reason": "FORMAL_IDENTITY_UNAVAILABLE",
+            "missingInput": "唯一可确认的客户身份（customerId）——“这个客户”无法唯一解析",
+            "source": "resolve_entity(customer,\"这个客户\") 返回 NOT_FOUND 且无候选；正式客户列表存在 2 个候选（Shadow客户甲、Shadow空客户），不得猜选"
+          }
+        ],
+        "ragAuxiliarySearched": true
+      },
+      "apiIndexFingerprint": "10bee9d8a065ea2322fcaf14bdf21cee949d0f57da8c3d5133448c1ee7d09c61",
+      "loadedSchemaFingerprint": "873fd22ee841d9a85724c2dab822c86a48b568ed4b6742fc09610b8a0ae1c5a1"
+    },
+    "traces": [
+      {
+        "name": "select_business_domains",
+        "argKeys": [
+          "domains"
+        ],
+        "success": true,
+        "verified": false,
+        "code": null,
+        "factIds": [],
+        "noNewEvidence": false,
+        "controlPlane": true
+      },
+      {
+        "name": "load_tools",
+        "argKeys": [
+          "toolNames"
+        ],
+        "success": false,
+        "verified": false,
+        "code": "TOOL_SCHEMA_NOT_DISCOVERABLE",
+        "factIds": [],
+        "noNewEvidence": false,
+        "controlPlane": true
+      },
+      {
+        "name": "resolve_entity",
+        "argKeys": [
+          "entityType",
+          "mention"
+        ],
+        "success": false,
+        "verified": false,
+        "code": "ENTITY_NOT_FOUND",
+        "factIds": [
+          "F-001"
+        ],
+        "noNewEvidence": false,
+        "controlPlane": false,
+        "businessExecution": false
+      },
+      {
+        "name": "search_customers",
+        "argKeys": [
+          "limit"
+        ],
+        "success": true,
+        "verified": true,
+        "code": null,
+        "factIds": [
+          "F-002",
+          "F-003",
+          "F-004",
+          "F-005",
+          "F-006",
+          "F-007",
+          "F-008",
+          "F-009",
+          "F-010",
+          "F-011",
+          "F-012"
+        ],
+        "noNewEvidence": false,
+        "controlPlane": false,
+        "declaredRelevant": true,
+        "businessExecution": true
+      },
+      {
+        "name": "search_factory_knowledge",
+        "argKeys": [
+          "entryType",
+          "query"
+        ],
+        "success": true,
+        "verified": true,
+        "code": null,
+        "factIds": [
+          "F-013",
+          "F-014",
+          "F-015"
+        ],
+        "noNewEvidence": false,
+        "controlPlane": false,
+        "declaredRelevant": true,
+        "businessExecution": true
+      },
+      {
+        "name": "search_quotations",
+        "argKeys": [
+          "limit"
+        ],
+        "success": true,
+        "verified": true,
+        "code": null,
+        "factIds": [
+          "F-016",
+          "F-017",
+          "F-018",
+          "F-019",
+          "F-020",
+          "F-021",
+          "F-022",
+          "F-023",
+          "F-024",
+          "F-025"
+        ],
+        "noNewEvidence": false,
+        "controlPlane": false,
+        "declaredRelevant": true,
+        "businessExecution": true
+      },
+      {
+        "name": "mark_domain_api_not_applicable",
+        "argKeys": [
+          "missingInput",
+          "reason",
+          "source",
+          "toolName"
+        ],
+        "success": true,
+        "verified": false,
+        "code": null,
+        "factIds": [],
+        "noNewEvidence": false,
+        "controlPlane": true
+      },
+      {
+        "name": "get_quotation_detail",
+        "argKeys": [
+          "quotationId"
+        ],
+        "success": true,
+        "verified": true,
+        "code": null,
+        "factIds": [
+          "F-026",
+          "F-027",
+          "F-028",
+          "F-029",
+          "F-030",
+          "F-031",
+          "F-032",
+          "F-033",
+          "F-034",
+          "F-035",
+          "F-036",
+          "F-037",
+          "F-038",
+          "F-039",
+          "F-040",
+          "F-041",
+          "F-042"
+        ],
+        "noNewEvidence": false,
+        "controlPlane": false,
+        "declaredRelevant": true,
+        "businessExecution": true
+      },
+      {
+        "name": "explain_cost_change",
+        "argKeys": [
+          "recipe1",
+          "recipe2"
+        ],
+        "success": false,
+        "verified": false,
+        "code": "RECIPE_SELECTOR_NOT_FOUND",
+        "factIds": [],
+        "noNewEvidence": false,
+        "controlPlane": false,
+        "declaredRelevant": true,
+        "businessExecution": false
+      },
+      {
+        "name": "mark_domain_api_not_applicable",
+        "argKeys": [
+          "missingInput",
+          "reason",
+          "source",
+          "toolName"
+        ],
+        "success": true,
+        "verified": false,
+        "code": null,
+        "factIds": [],
+        "noNewEvidence": false,
+        "controlPlane": true
+      }
+    ],
+    "formalOutcomeReceipts": [],
+    "finalizationAttempts": [
+      {
+        "attempt": 1,
+        "code": "ANSWER_VERIFIED",
+        "detail": null,
+        "valid": true,
+        "raw": "{\"answer\":\"您问的“这个客户”目前无法唯一确认，因此我不能给出该客户的历史报价与订单清单。用“这个客户”在正式客户身份中解析，结果为未找到且无候选。正式客户列表共有 2 位客户：Shadow空客户、Shadow客户甲；存在多个候选，按规范不能替您猜选任何一位。\",\"claims\":[{\"text\":\"您问的“这个客户”目前无法唯一确认，因此我不能给出该客户的历史报价与订单清单。\",\"factIds\":[\"F-001\"]},{\"text\":\"用“这个客户”在正式客户身份中解析，结果为未找到且无候选。\",\"factIds\":[\"F-001\"]},{\"text\":\"正式客户列表共有 2 位客户：Shadow空客户、Shadow客户甲；存在多个候选，按规范不能替您猜选任何一位。\",\"factIds\":[\"F-002\",\"F-004\",\"F-009\"]}],\"goals\":[{\"questionIndex\":0,\"status\":\"CLARIFICATION\",\"factIds\":[\"F-001\",\"F-002\",\"F-004\",\"F-009\"]}]}"
+      }
+    ],
+    "answerValidation": {
+      "valid": true,
+      "answer": "您问的“这个客户”目前无法唯一确认，因此我不能给出该客户的历史报价与订单清单。用“这个客户”在正式客户身份中解析，结果为未找到且无候选。正式客户列表共有 2 位客户：Shadow空客户、Shadow客户甲；存在多个候选，按规范不能替您猜选任何一位。",
+      "claims": [
+        {
+          "text": "您问的“这个客户”目前无法唯一确认，因此我不能给出该客户的历史报价与订单清单。",
+          "factIds": [
+            "F-001"
+          ]
+        },
+        {
+          "text": "用“这个客户”在正式客户身份中解析，结果为未找到且无候选。",
+          "factIds": [
+            "F-001"
+          ]
+        },
+        {
+          "text": "正式客户列表共有 2 位客户：Shadow空客户、Shadow客户甲；存在多个候选，按规范不能替您猜选任何一位。",
+          "factIds": [
+            "F-002",
+            "F-004",
+            "F-009"
+          ]
+        }
+      ],
+      "goals": [
+        {
+          "questionIndex": 0,
+          "status": "CLARIFICATION",
+          "factIds": [
+            "F-001",
+            "F-002",
+            "F-004",
+            "F-009"
+          ]
+        }
+      ],
+      "code": "ANSWER_VERIFIED"
+    },
+    "context": {
+      "rawOwnerInputTokensEst": 12,
+      "businessMemoTokensEst": 469,
+      "policyMemoTokensEst": 160,
+      "ontologyContextTokensEst": 142,
+      "apiIndexTokensEst": 3075,
+      "loadedSchemaTokensEst": 1415,
+      "factCatalogChars": 1629,
+      "factCatalogFactCount": 11,
+      "totalApproxContextTokens": 9204
+    },
+    "durationMs": 21457,
+    "domainRuntime": {
+      "selectedBusinessDomains": [
+        "quotation"
+      ],
+      "domainApiSet": [
+        "explain_cost_change",
+        "get_quotation_detail",
+        "search_customer_history",
+        "search_customers",
+        "search_quotations"
+      ],
+      "executedDomainApis": [
+        "get_quotation_detail",
+        "search_customers",
+        "search_quotations"
+      ],
+      "failedDomainApis": [
+        "explain_cost_change"
+      ],
+      "blockedDomainApis": [],
+      "notApplicableDomainApis": [
+        {
+          "toolName": "search_customer_history",
+          "terminalState": "NOT_APPLICABLE",
+          "reason": "FORMAL_IDENTITY_UNAVAILABLE",
+          "missingInput": "唯一可确认的客户身份（customerId）——“这个客户”无法唯一解析",
+          "source": "resolve_entity(customer,\"这个客户\") 返回 NOT_FOUND 且无候选；正式客户列表存在 2 个候选（Shadow客户甲、Shadow空客户），不得猜选"
+        }
+      ],
+      "missingDomainApis": [],
+      "apiTerminalStates": [
+        {
+          "toolName": "explain_cost_change",
+          "terminalState": "FAILED"
+        },
+        {
+          "toolName": "get_quotation_detail",
+          "terminalState": "EXECUTED"
+        },
+        {
+          "toolName": "search_customer_history",
+          "terminalState": "NOT_APPLICABLE",
+          "reason": "FORMAL_IDENTITY_UNAVAILABLE",
+          "missingInput": "唯一可确认的客户身份（customerId）——“这个客户”无法唯一解析",
+          "source": "resolve_entity(customer,\"这个客户\") 返回 NOT_FOUND 且无候选；正式客户列表存在 2 个候选（Shadow客户甲、Shadow空客户），不得猜选"
+        },
+        {
+          "toolName": "search_customers",
+          "terminalState": "EXECUTED"
+        },
+        {
+          "toolName": "search_quotations",
+          "terminalState": "EXECUTED"
+        }
+      ],
+      "finalDomainCoverage": true,
+      "domainCoverageReviewResumed": 1,
+      "domainDeclarationCount": 1,
+      "rag": {
+        "ragSearchRequired": true,
+        "ragSearchExecuted": true,
+        "ragSearchTool": "search_factory_knowledge",
+        "ragReturnedCount": 0,
+        "ragEmpty": true,
+        "ragEvidenceFactIds": [
+          "F-014"
+        ],
+        "ragProvenance": "knowledge_snapshot"
+      }
+    },
+    "ownerInputHash": "54e5f727be67e0638e3339b3740cdcb81dde85f4279cbb0d593c61f0528ec2d6",
+    "expectedDomains": [
+      "business_history",
+      "quotation",
+      "order"
+    ],
+    "selectedDomains": [
+      "quotation"
+    ],
+    "domainSelectionScore": {
+      "id": "D09",
+      "expectedDomains": [
+        "business_history",
+        "order",
+        "quotation"
+      ],
+      "selectedDomains": [
+        "quotation"
+      ],
+      "exactMatch": false,
+      "missingDomains": [
+        "business_history",
+        "order"
+      ],
+      "extraDomains": [],
+      "highRiskMiss": true
+    },
+    "semanticPass": true
+  },
+  "semanticPass": true,
+  "database": {
+    "beforeHash": "9a0539f4f9081de9af440c9c0856879e7e655a747ad2aabe77d034d461506d91",
+    "afterHash": "9a0539f4f9081de9af440c9c0856879e7e655a747ad2aabe77d034d461506d91",
+    "changedTables": [],
+    "mutations": 0
+  },
+  "durationMs": 24037,
+  "completedAt": "2026-10-04T17:38:08.599Z",
+  "secretScan": "PASS"
+}
