@@ -1,0 +1,272 @@
+{
+  "phase": "M5-D1-FINAL-V2-R2",
+  "suites": {
+    "controlled": {
+      "write": {
+        "attempted": 0,
+        "rejected": 0,
+        "executed": 0,
+        "accepted": 0,
+        "observability": [
+          "OBSERVABLE"
+        ],
+        "reason": [
+          null
+        ]
+      },
+      "identity": {
+        "rejectedUnverifiedAttempts": 3,
+        "acceptedInventedIds": 0,
+        "observability": [
+          "OBSERVABLE"
+        ]
+      },
+      "money": {
+        "rejectedWrongEntityAttempts": 5,
+        "rejectedWrongBasisAttempts": 0,
+        "rejectedUngroundedAttempts": 0,
+        "acceptedWrongEntity": 0,
+        "acceptedWrongBasis": 2,
+        "acceptedUngrounded": 0,
+        "observability": [
+          "OBSERVABLE"
+        ]
+      },
+      "scenario": {
+        "rejectedNotApplied": 0,
+        "unsupportedExecuted": 0,
+        "falseZeroCompletion": 0,
+        "partialReportedComplete": 0,
+        "observability": [
+          "NOT_OBSERVABLE",
+          "OBSERVABLE"
+        ]
+      },
+      "answer": {
+        "internalNumericIdLeak": 0,
+        "validatorAccepted": 10,
+        "businessOracleAccepted": 6
+      }
+    },
+    "repetition": {
+      "write": {
+        "attempted": 0,
+        "rejected": 0,
+        "executed": 0,
+        "accepted": 0,
+        "observability": [
+          "OBSERVABLE",
+          "NOT_OBSERVABLE"
+        ],
+        "reason": [
+          null,
+          "FROZEN_TRACE_DOES_NOT_EXPOSE_REQUESTED_LOAD_NAMES"
+        ]
+      },
+      "identity": {
+        "rejectedUnverifiedAttempts": 0,
+        "acceptedInventedIds": 0,
+        "observability": [
+          "OBSERVABLE"
+        ]
+      },
+      "money": {
+        "rejectedWrongEntityAttempts": 8,
+        "rejectedWrongBasisAttempts": 0,
+        "rejectedUngroundedAttempts": 1,
+        "acceptedWrongEntity": 0,
+        "acceptedWrongBasis": 5,
+        "acceptedUngrounded": 0,
+        "observability": [
+          "OBSERVABLE"
+        ]
+      },
+      "scenario": {
+        "rejectedNotApplied": 0,
+        "unsupportedExecuted": 0,
+        "falseZeroCompletion": 0,
+        "partialReportedComplete": 0,
+        "observability": [
+          "NOT_OBSERVABLE",
+          "OBSERVABLE"
+        ]
+      },
+      "answer": {
+        "internalNumericIdLeak": 0,
+        "validatorAccepted": 21,
+        "businessOracleAccepted": 10
+      }
+    },
+    "real": {
+      "write": {
+        "attempted": 0,
+        "rejected": 0,
+        "executed": 0,
+        "accepted": 0,
+        "observability": [
+          "OBSERVABLE"
+        ],
+        "reason": [
+          null
+        ]
+      },
+      "identity": {
+        "rejectedUnverifiedAttempts": 0,
+        "acceptedInventedIds": 11,
+        "observability": [
+          "OBSERVABLE"
+        ]
+      },
+      "money": {
+        "rejectedWrongEntityAttempts": 1,
+        "rejectedWrongBasisAttempts": 0,
+        "rejectedUngroundedAttempts": 2,
+        "acceptedWrongEntity": 0,
+        "acceptedWrongBasis": 0,
+        "acceptedUngrounded": 0,
+        "observability": [
+          "OBSERVABLE"
+        ]
+      },
+      "scenario": {
+        "rejectedNotApplied": 0,
+        "unsupportedExecuted": 0,
+        "falseZeroCompletion": 0,
+        "partialReportedComplete": 0,
+        "observability": [
+          "NOT_OBSERVABLE"
+        ]
+      },
+      "answer": {
+        "internalNumericIdLeak": 0,
+        "validatorAccepted": 5,
+        "businessOracleAccepted": 1
+      }
+    },
+    "total": {
+      "write": {
+        "attempted": 0,
+        "rejected": 0,
+        "executed": 0,
+        "accepted": 0,
+        "observability": [
+          "OBSERVABLE",
+          "NOT_OBSERVABLE"
+        ],
+        "reason": [
+          null,
+          "FROZEN_TRACE_DOES_NOT_EXPOSE_REQUESTED_LOAD_NAMES"
+        ]
+      },
+      "identity": {
+        "rejectedUnverifiedAttempts": 3,
+        "acceptedInventedIds": 11,
+        "observability": [
+          "OBSERVABLE"
+        ]
+      },
+      "money": {
+        "rejectedWrongEntityAttempts": 14,
+        "rejectedWrongBasisAttempts": 0,
+        "rejectedUngroundedAttempts": 3,
+        "acceptedWrongEntity": 0,
+        "acceptedWrongBasis": 7,
+        "acceptedUngrounded": 0,
+        "observability": [
+          "OBSERVABLE"
+        ]
+      },
+      "scenario": {
+        "rejectedNotApplied": 0,
+        "unsupportedExecuted": 0,
+        "falseZeroCompletion": 0,
+        "partialReportedComplete": 0,
+        "observability": [
+          "NOT_OBSERVABLE",
+          "OBSERVABLE"
+        ]
+      },
+      "answer": {
+        "internalNumericIdLeak": 0,
+        "validatorAccepted": 36,
+        "businessOracleAccepted": 17
+      }
+    },
+    "database": {
+      "controlled": {
+        "beforeHash": "c76bfdfed7febb36baafb06d73afbc763049f17256e7e1341e3010e8ec465c23",
+        "afterHash": "c76bfdfed7febb36baafb06d73afbc763049f17256e7e1341e3010e8ec465c23",
+        "changedTables": [],
+        "mutations": 0
+      },
+      "repetition": {
+        "beforeHash": "d6ffed3c4c9ce07f6a9ef531e54ff64eeae20c5d160251a00b4bf50ec1dafed1",
+        "afterHash": "d6ffed3c4c9ce07f6a9ef531e54ff64eeae20c5d160251a00b4bf50ec1dafed1",
+        "changedTables": [],
+        "mutations": 0
+      },
+      "real": {
+        "beforeHash": "7ec16a240874b36b5e2384fd2923e24e4118e7b72cdccb38e07cb76ff9ab58f9",
+        "afterHash": "7ec16a240874b36b5e2384fd2923e24e4118e7b72cdccb38e07cb76ff9ab58f9",
+        "changedTables": [],
+        "mutations": 0
+      }
+    }
+  },
+  "classifications": {
+    "controlled": {
+      "PASS": 6,
+      "AGENT_RELIABILITY_FAILURE": 4
+    },
+    "repetition": {
+      "PASS": 10,
+      "AGENT_RELIABILITY_FAILURE": 11
+    },
+    "real": {
+      "AGENT_RELIABILITY_FAILURE": 4,
+      "PASS": 1
+    }
+  },
+  "repetitionByCase": {
+    "D1-01": {
+      "pass": 3,
+      "total": 3
+    },
+    "D1-03": {
+      "pass": 3,
+      "total": 3
+    },
+    "D1-04": {
+      "pass": 3,
+      "total": 3
+    },
+    "D1-05": {
+      "pass": 0,
+      "total": 3
+    },
+    "D1-06": {
+      "pass": 1,
+      "total": 3
+    },
+    "D1-07": {
+      "pass": 0,
+      "total": 3
+    },
+    "D1-08": {
+      "pass": 0,
+      "total": 3
+    }
+  },
+  "controlledByCase": {
+    "D1-01": "PASS",
+    "D1-02": "PASS",
+    "D1-03": "PASS",
+    "D1-04": "PASS",
+    "D1-05": "FAIL",
+    "D1-06": "FAIL",
+    "D1-07": "FAIL",
+    "D1-08": "FAIL",
+    "D1-09": "PASS",
+    "D1-10": "PASS"
+  }
+}

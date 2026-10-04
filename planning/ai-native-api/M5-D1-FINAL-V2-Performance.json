@@ -1,0 +1,63 @@
+{
+  "phase": "M5-D1-FINAL-V2-R2",
+  "source": "derivePerformance(serialized Final V2 runs)",
+  "allRuns": {
+    "averageMainModelCalls": 6.944444444444445,
+    "medianMainModelCalls": 7,
+    "averageBusinessToolCalls": 2.5833333333333335,
+    "maxBusinessToolCalls": 7,
+    "averageLoadedTools": 3.2777777777777777,
+    "maxLoadedTools": 6,
+    "medianDurationMs": 13046,
+    "p95DurationMs": 17295
+  },
+  "controlled": {
+    "averageMainModelCalls": 7.3,
+    "medianMainModelCalls": 7,
+    "averageBusinessToolCalls": 2.8,
+    "maxBusinessToolCalls": 5,
+    "averageLoadedTools": 3.2,
+    "maxLoadedTools": 5,
+    "medianDurationMs": 14130,
+    "p95DurationMs": 17757
+  },
+  "repetition": {
+    "averageMainModelCalls": 6.809523809523809,
+    "medianMainModelCalls": 6,
+    "averageBusinessToolCalls": 2.5238095238095237,
+    "maxBusinessToolCalls": 4,
+    "averageLoadedTools": 3.5714285714285716,
+    "maxLoadedTools": 6,
+    "medianDurationMs": 12742,
+    "p95DurationMs": 16638
+  },
+  "real": {
+    "averageMainModelCalls": 6.8,
+    "medianMainModelCalls": 7,
+    "averageBusinessToolCalls": 2.4,
+    "maxBusinessToolCalls": 7,
+    "averageLoadedTools": 2.2,
+    "maxLoadedTools": 3,
+    "medianDurationMs": 12840,
+    "p95DurationMs": 16771
+  },
+  "modelCalls": {
+    "businessAgent": 36,
+    "policyAgent": 36,
+    "mainAgent": 250,
+    "finalizationAttempts": 53,
+    "totalModelCallsExcludingFinalizationDoubleCount": 322,
+    "transportRetries": 0
+  },
+  "completionReview": {
+    "calls": 35,
+    "resumed": 0,
+    "resumedAndCompleted": 0
+  },
+  "finalization": {
+    "firstPassValid": 19,
+    "validAfterRepair": 14,
+    "fallbackCount": 3,
+    "formalResultObtainedButDeliveryFailed": 0
+  }
+}

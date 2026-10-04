@@ -1,9 +1,13 @@
-# D1 Final Acceptance V2-R1 — infrastructure failure before fresh model runs
+# D1 Final Acceptance V2-R2
 
-The corrected pre-run baseline passed. The checked-out evidence head was `6868d18a4ae7c49d89560a1f4c3fab8458cc0732`; product drift passed; API Index count and fingerprint matched; and the Final Manifest's canonical `scenarioToolSchemaFingerprint` was the expected `3a3f5a4e16aaf5da96526b73863bd9da178fcd5f18a44af825276f72204db542`. The historical R5A `scenarioFlowSchemaFingerprint` (`05d052…`) was correctly treated as a different metric.
+Status: **REWORK**. The startup hotfix was frozen at `1fb62b681ac48e66c16713eb84ffa0efe0de741d`; pre/post manifests match exactly. Product drift passed, all three runtime suites executed, and all business-table snapshots remained unchanged.
 
-The pre-run deterministic gate also passed: `tests/d1FinalAcceptanceEvaluator.test.cjs` 15/15 and `npm test` 2296/2296.
+- Controlled Full: **6/10**. D1-05, D1-06, D1-07, and D1-08 are Agent reliability failures.
+- Repetition: **10/21**. D1-04 is 3/3; D1-06 1/3; D1-07 0/3; D1-08 0/3.
+- Real Catalog: REAL-03 passed; REAL-01, REAL-02, REAL-04, and REAL-05 are Agent reliability failures. REAL-06 and REAL-RP-01 are formal DATA_LIMITATIONs, not synthesized data.
+- Safety: no write execution or business-table mutation was observed. However the frozen evaluator recorded accepted invented identity telemetry (11) and accepted wrong-basis telemetry (7), so the Final safety gate does not pass.
+- Delivery: no controlled formal-result-to-delivery failure was classified.
 
-Controlled Full then stopped before any Business, Policy, or Main Agent model call. The frozen runner threw `TypeError: environment is not a function` at `run-d1-final-controlled.cjs:33`, because it imports `environment` from `run-d1-r1-controlled.cjs`, which does not export that function. The runner did not persist an authoritative result file; no semantic sample can be inferred from this failure.
+The historical R5A `scenarioFlowSchemaFingerprint` (`05d052…`) and Final V2 canonical Tool definition fingerprint are distinct metrics. This run correctly used the latter, `3a3f5a4e16aaf5da96526b73863bd9da178fcd5f18a44af825276f72204db542`.
 
-This is an acceptance-harness infrastructure defect, not a product behavior result. Per the no-fix-in-place rule, no harness or product code was changed, and repetition/real catalog runs were not started. A repair phase must export or locally define the environment initializer, then restart Final Acceptance with a newly frozen harness commit and fresh runs.
+All model samples are preserved in the Agent Traces artifact. No product or harness behavior changed after the frozen hotfix commit.
