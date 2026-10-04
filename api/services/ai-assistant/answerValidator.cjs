@@ -153,12 +153,6 @@ function operationalQuantityMentions(clause) {
     const expression = /(\d+(?:\.\d+)?)\s*(个|件|套|项|条|台|米|m\b|kg\b|千克|公斤|piece(?:s)?|set(?:s)?|count|meter(?:s)?|metre(?:s)?|kilogram(?:s)?)?/gi;
     let match;
     while ((match = expression.exec(clause))) {
-        // Do not treat a product/model identifier such as "D1轴承" as an
-        // operational quantity just because the same local phrase later says
-        // "缺3个".  Bare quantities still remain fail-closed when they are
-        // expressed as a quantity assertion (for example, "缺3").
-        const nextCharacter = clause[match.index + match[0].length] || '';
-        if (!match[2] && /[A-Za-z\u4e00-\u9fff]/.test(nextCharacter)) continue;
         // Operational statements commonly contain several quantities.  A
         // role must come from this quantity's local phrase, not another
         // comma-separated quantity elsewhere in the sentence.
@@ -175,17 +169,37 @@ function operationalQuantityMentions(clause) {
         const rightBoundary = rightCandidates.length ? Math.min(...rightCandidates) : clause.length;
         const context = clause.slice(leftBoundary + 1, rightBoundary).trim();
         const unit = normalizeOperationalUnit(match[2]);
+        const contextOffset = match.index - (leftBoundary + 1);
+        const before = context.slice(0, contextOffset);
+        const after = context.slice(contextOffset + match[0].length);
+        const previousCharacter = clause[match.index - 1] || '';
+        const nextCharacter = clause[match.index + match[0].length] || '';
+        // A number embedded in a code is not an operational quantity.  This
+        // is lexical rather than a model-name blacklist: the guard covers
+        // alphanumeric, underscore, dash and slash identifier segments.  A
+        // recognized unit may follow a natural-language quantity, but never
+        // rescues an identifier token such as PART-608个.
+        const identifierAdjacent = /[A-Za-z0-9_\-/—–]/.test(previousCharacter)
+            || /[A-Za-z0-9_\-/—–]/.test(nextCharacter);
         let role = null;
-        if (unit === 'count' && /(?:缺料|短缺)(?:清单)?(?:共|有)?\s*\d+\s*(?:项|条)|(?:有|共)\s*\d+\s*(?:项|条).*(?:缺料|短缺|库存不足)|(?:缺料|短缺)(?:清单)?\s*\d+\s*(?:项|条)/.test(context)) role = 'SHORTAGE_LINE_COUNT';
-        else if (/(?:缺|短缺|不足)/.test(context)) role = 'SHORTAGE';
-        else if (/(?:已入库|入库)/.test(context)) role = 'STOCKED';
-        else if (/(?:已到货|到货)/.test(context)) role = 'RECEIVED';
-        else if (/(?:已下单|下单)/.test(context)) role = 'ORDERED';
-        else if (/(?:待采购|待下单)/.test(context)) role = 'PENDING_PURCHASE';
-        else if (/(?:计划采购|计划)/.test(context)) role = 'PLANNED_PURCHASE';
-        else if (/(?:可用|库存)/.test(context)) role = 'AVAILABLE';
-        else if (/(?:需要|需用|需求|required)/i.test(context)) role = 'REQUIRED';
-        else if (/(?:订单.*(?:数量|台)|数量.*订单)/.test(context)) role = 'ORDER_LINE';
+        if (!identifierAdjacent && unit === 'count'
+            && (/(?:缺料|短缺)(?:清单)?(?:共(?:有)?|有)?\s*$/u.test(before)
+                || /(?:有|共)\s*$/u.test(before) && /(?:缺料|短缺|库存不足)/u.test(after)
+                || /(?:缺料|短缺|库存不足)/u.test(after))) role = 'SHORTAGE_LINE_COUNT';
+        else if (!identifierAdjacent && /(?:缺|还差|短缺|不足)\s*$/u.test(before)) role = 'SHORTAGE';
+        else if (!identifierAdjacent && /^(?:个|件|套|米|kg|千克|公斤)?\s*(?:缺口|短缺|不足)/iu.test(after)) role = 'SHORTAGE';
+        else if (!identifierAdjacent && /(?:已入库|入库)\s*$/u.test(before)) role = 'STOCKED';
+        else if (!identifierAdjacent && /(?:已到货|到货)\s*$/u.test(before)) role = 'RECEIVED';
+        else if (!identifierAdjacent && /(?:已下单|下单)\s*$/u.test(before)) role = 'ORDERED';
+        else if (!identifierAdjacent && /(?:待采购|待下单)\s*$/u.test(before)) role = 'PENDING_PURCHASE';
+        else if (!identifierAdjacent && /(?:计划采购|计划)\s*$/u.test(before)) role = 'PLANNED_PURCHASE';
+        else if (!identifierAdjacent && /(?:可用|库存)\s*$/u.test(before)) role = 'AVAILABLE';
+        else if (!identifierAdjacent && /(?:需要|需用|需求)(?:数量)?\s*$/u.test(before)) role = 'REQUIRED';
+        else if (!identifierAdjacent && /(?:订单数量|产品数量)\s*$/u.test(before)) role = 'ORDER_LINE';
+        // A measured noun phrase such as "5米电缆" is a local quantity
+        // expression. It is still rejected when embedded in an identifier
+        // token above, and it retains a strict unit requirement.
+        else if (!identifierAdjacent && unit && /^\s*[\u4e00-\u9fff]/u.test(after)) role = 'REQUIRED';
         if (role) matches.push({ value: Number(match[1]), unit, role, text: match[0], context });
     }
     return matches.filter(item => Number.isFinite(item.value));

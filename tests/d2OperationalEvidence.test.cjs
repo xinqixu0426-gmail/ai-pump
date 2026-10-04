@@ -103,6 +103,18 @@ test('OV-01..08: operational quantity parsing binds every value to its local rol
     assert.deepEqual(roles('有1项缺料，轴承-A缺3个。'), [[1, 'count', 'SHORTAGE_LINE_COUNT'], [3, 'piece', 'SHORTAGE']]);
 });
 
+test('IDQ-01..17: identifier fragments never become operational quantities while local quantity grammar remains strict', () => {
+    const roles = text => operationalQuantityMentions(text).map(item => [item.value, item.unit, item.role]);
+    for (const identifier of ['D1-R1轴承-202', '12-120-A', 'V750', 'COIL-0001', 'M5-D2-B2', 'D2-B2未绑定物料', 'ABC_123', 'PART-608', '2026-10-04']) {
+        assert.deepEqual(roles(identifier), [], identifier);
+    }
+    assert.deepEqual(roles('缺口物料为 D1-R1轴承-202，需求10个，可用7个，缺3个。'), [[10, 'piece', 'REQUIRED'], [7, 'piece', 'AVAILABLE'], [3, 'piece', 'SHORTAGE']]);
+    assert.deepEqual(roles('D1-R1轴承-202计划采购3个，已下单0个，已到货0个，已入库0个。'), [[3, 'piece', 'PLANNED_PURCHASE'], [0, 'piece', 'ORDERED'], [0, 'piece', 'RECEIVED'], [0, 'piece', 'STOCKED']]);
+    assert.deepEqual(roles('ORDER-A有1项缺料：D1-R1轴承-202缺3个。'), [[1, 'count', 'SHORTAGE_LINE_COUNT'], [3, 'piece', 'SHORTAGE']]);
+    assert.deepEqual(roles('V750-通用款做10台需要D1-R1轴承-202共20个。'), [[10, 'count', 'REQUIRED']], 'only a locally grammatical quantity may be recognized');
+    assert.deepEqual(roles('3.5米电缆，需求2.5kg。'), [[3.5, 'meter', 'REQUIRED'], [2.5, 'kg', 'REQUIRED']]);
+});
+
 test('OV-09..15: validator keeps strict quantity entity, role, unit and collection checks', () => {
     const { ledger } = appendOperationalEvidence();
     const required = fact(ledger, 'required_quantity', 'REQUIRED');
