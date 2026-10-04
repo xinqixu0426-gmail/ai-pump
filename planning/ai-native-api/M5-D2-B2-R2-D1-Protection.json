@@ -1,0 +1,5 @@
+{
+  "status": "NOT_RUN",
+  "reason": "R2 targeted acceptance produced five fresh semantic failures after the parser commit was frozen. The no-fix-in-place rule stops further model samples, including D1 protection.",
+  "plannedCases": ["D1-03", "D1-07", "D1-08", "D1-10"]
+}

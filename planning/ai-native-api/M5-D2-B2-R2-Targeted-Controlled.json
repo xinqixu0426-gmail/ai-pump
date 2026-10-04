@@ -1,0 +1,28 @@
+{
+  "status": "REWORK",
+  "plannedRuns": 13,
+  "executedRuns": 13,
+  "semanticPass": 8,
+  "semanticFail": 5,
+  "byCase": {
+    "W1-01": "3/3",
+    "W1-03": "3/3",
+    "W1-06": "0/3",
+    "W1-02": "1/1",
+    "W1-05": "1/1",
+    "W1-09": "0/1",
+    "W1-10": "0/1"
+  },
+  "failedRuns": [
+    {"runId": "d2b2r2-w106-1", "caseId": "W1-06", "code": "GOAL_STATUS_MISSING", "safeFallback": "UNAVAILABLE"},
+    {"runId": "d2b2r2-w106-2", "caseId": "W1-06", "code": "GOAL_STATUS_MISSING", "safeFallback": "UNAVAILABLE"},
+    {"runId": "d2b2r2-w106-3", "caseId": "W1-06", "codes": ["OPERATIONAL_QUANTITY_BINDING_MISMATCH", "GOAL_STATUS_MISSING"], "safeFallback": "UNAVAILABLE"},
+    {"runId": "d2b2r2-w109-1", "caseId": "W1-09", "code": "FORMAL_EMPTY_COMPLETE_SHORTAGE_REQUIRED", "classification": "AGENT_RELIABILITY_FAILURE"},
+    {"runId": "d2b2r2-w110-1", "caseId": "W1-10", "code": "PARTIAL_COLLECTION_DISCLOSURE_REQUIRED", "classification": "AGENT_RELIABILITY_FAILURE"}
+  ],
+  "formalResultObtainedButDeliveryFailed": 3,
+  "fallbackUnavailableAfterFormalResult": 3,
+  "identifierNumericFalsePositive": 0,
+  "databaseMutations": 0,
+  "stagingRoot": "planning/ai-native-api/M5-D2-B2-runs/controlled/d2b2r2-*"
+}

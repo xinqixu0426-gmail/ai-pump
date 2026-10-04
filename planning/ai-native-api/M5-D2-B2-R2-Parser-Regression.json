@@ -1,0 +1,30 @@
+{
+  "status": "PASS",
+  "identifierFragmentsIgnored": {
+    "D1-R1轴承-202": "PASS",
+    "12-120-A": "PASS",
+    "V750": "PASS",
+    "COIL-0001": "PASS",
+    "M5-D2-B2": "PASS",
+    "ABC_123": "PASS",
+    "PART-608": "PASS",
+    "2026-10-04": "PASS"
+  },
+  "operationalGrammar": {
+    "mixedShortage": [[10, "piece", "REQUIRED"], [7, "piece", "AVAILABLE"], [3, "piece", "SHORTAGE"]],
+    "mixedPurchase": [[3, "piece", "PLANNED_PURCHASE"], [0, "piece", "ORDERED"], [0, "piece", "RECEIVED"], [0, "piece", "STOCKED"]],
+    "lineCountPlusShortage": [[1, "count", "SHORTAGE_LINE_COUNT"], [3, "piece", "SHORTAGE"]],
+    "decimal": [[3.5, "meter", "REQUIRED"], [2.5, "kg", "REQUIRED"]]
+  },
+  "strictValidation": {
+    "wrongRoleRejected": true,
+    "wrongEntityRejected": true,
+    "wrongUnitRejected": true,
+    "missingUnitRejected": true,
+    "sameValueDifferentRoles": "PASS",
+    "zeroRoleCollision": "PASS",
+    "unknownNumericNeverZero": "PASS"
+  },
+  "testCommand": "node --test tests/d2OperationalEvidence.test.cjs tests/d2B2AcceptanceHarness.test.cjs",
+  "result": "13/13 deterministic tests passed"
+}

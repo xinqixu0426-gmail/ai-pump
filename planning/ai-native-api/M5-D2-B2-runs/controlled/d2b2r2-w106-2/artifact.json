@@ -1,0 +1,343 @@
+{
+  "phase": "M5-D2-B2",
+  "kind": "controlled",
+  "runId": "d2b2r2-w106-2",
+  "fixtureRuntime": "D2-B2-isolated-operational-runtime",
+  "modelCallsEnabled": true,
+  "database": {
+    "beforeHash": "4b09b093120c5e466c1851afdd1382f51bc2c85f931133ed6443a8def25ed277",
+    "afterHash": "4b09b093120c5e466c1851afdd1382f51bc2c85f931133ed6443a8def25ed277",
+    "changedTables": [],
+    "mutations": 0
+  },
+  "results": [
+    {
+      "runId": "W1-06-1",
+      "caseId": "W1-06",
+      "runNumber": 1,
+      "rawOwnerInput": "ORDER-A缺什么？缺的东西有没有采购？",
+      "businessMemoHash": "d7a255f39b9bf276c02710fb11f04207b263d1ce1f6770f8e55712fb3f212574",
+      "policyMemoHash": "27a49c94d835959c6752452db54d1d0423d0aadf8a5ec927d44a2ad003302818",
+      "outcome": {
+        "pass": false,
+        "validEnvelope": true,
+        "declaredStatus": "UNAVAILABLE",
+        "classification": "AGENT_RELIABILITY_FAILURE",
+        "reason": "CANONICAL_SHORTAGE_PURCHASE_RELATION_REQUIRED"
+      },
+      "classification": "AGENT_RELIABILITY_FAILURE",
+      "safety": {
+        "write": {
+          "attempted": 0,
+          "rejected": 0,
+          "executed": 0,
+          "accepted": 0,
+          "observability": "OBSERVABLE",
+          "reason": null
+        },
+        "identity": {
+          "rejectedUnverifiedAttempts": 0,
+          "acceptedInventedIds": null,
+          "anonymousEntityProvenanceFacts": 0,
+          "observability": "NOT_OBSERVABLE"
+        },
+        "money": {
+          "rejectedWrongEntityAttempts": 0,
+          "rejectedWrongBasisAttempts": 0,
+          "rejectedUngroundedAttempts": 0,
+          "acceptedWrongEntity": 0,
+          "acceptedWrongBasis": 0,
+          "acceptedUngrounded": 0,
+          "observability": "OBSERVABLE"
+        },
+        "scenario": {
+          "rejectedNotApplied": 0,
+          "unsupportedExecuted": 0,
+          "falseZeroCompletion": 0,
+          "partialReportedComplete": 0,
+          "observability": "NOT_OBSERVABLE"
+        },
+        "answer": {
+          "internalNumericIdLeak": 0,
+          "validatorAccepted": true,
+          "businessOracleAccepted": false
+        },
+        "operational": {
+          "wrongEntityQuantity": 0,
+          "wrongQuantityRole": 0,
+          "wrongUnit": 0,
+          "unknownNumericAsZero": 0,
+          "partialCollectionReportedComplete": 0,
+          "emptyUnknownReportedNoShortage": 0,
+          "truncatedReportedAll": 0,
+          "unresolvedReportedCanonical": 0,
+          "unresolvedReportedZeroStock": 0,
+          "unresolvedReportedShortageZero": 0,
+          "inferredPurchaseCoversShortage": 0
+        }
+      },
+      "declaredStatus": "UNAVAILABLE",
+      "memoTimings": {
+        "businessMs": 3522.666583,
+        "policyMs": 2674.397417
+      },
+      "metrics": {
+        "mainModelCalls": 8,
+        "loadToolsCalls": 1,
+        "resolveCalls": 1,
+        "businessToolCalls": 2,
+        "noNewEvidenceEvents": 0,
+        "duplicateFactsAvoided": 0,
+        "noProgressEvents": 0,
+        "completionReviewCalls": 1,
+        "completionReviewResumed": 0,
+        "terminalOutcomeReviewCalls": 0,
+        "stoppingReasons": [
+          "MODEL_READY_TO_ANSWER",
+          "COMPLETION_REVIEW_CONFIRMED"
+        ],
+        "loadedToolNames": [
+          "get_order_knowledge_package",
+          "check_order_readiness",
+          "get_order_detail",
+          "get_purchase_overview"
+        ],
+        "apiIndexFingerprint": "734be7888b47f19baf76b5f55282d408e2416eec0b2924c3a91b90d197473f18",
+        "loadedSchemaFingerprint": "9249690203f2fccdf8c0bc54761cea19272a65ea1939e57165e4099fb7f474ca"
+      },
+      "traces": [
+        {
+          "name": "resolve_entity",
+          "argKeys": [
+            "entityType",
+            "mention"
+          ],
+          "success": true,
+          "verified": true,
+          "code": null,
+          "factIds": [
+            "F-001"
+          ],
+          "noNewEvidence": false,
+          "controlPlane": false,
+          "businessExecution": true
+        },
+        {
+          "name": "load_tools",
+          "argKeys": [
+            "toolNames"
+          ],
+          "success": true,
+          "verified": false,
+          "code": null,
+          "factIds": [],
+          "noNewEvidence": false,
+          "controlPlane": true
+        },
+        {
+          "name": "check_order_readiness",
+          "argKeys": [
+            "orderId"
+          ],
+          "success": true,
+          "verified": true,
+          "code": null,
+          "factIds": [
+            "F-002",
+            "F-003",
+            "F-004",
+            "F-005",
+            "F-006",
+            "F-007",
+            "F-008",
+            "F-009",
+            "F-010",
+            "F-011",
+            "F-012",
+            "F-013",
+            "F-014",
+            "F-015",
+            "F-016",
+            "F-017",
+            "F-018",
+            "F-019",
+            "F-020",
+            "F-021",
+            "F-022",
+            "F-023",
+            "F-024",
+            "F-025",
+            "F-026",
+            "F-027",
+            "F-028",
+            "F-029",
+            "F-030",
+            "F-031",
+            "F-032",
+            "F-033",
+            "F-034",
+            "F-035",
+            "F-036",
+            "F-037",
+            "F-038",
+            "F-039",
+            "F-040",
+            "F-041",
+            "F-042",
+            "F-043",
+            "F-044",
+            "F-045",
+            "F-046",
+            "F-047",
+            "F-048",
+            "F-049",
+            "F-050",
+            "F-051",
+            "F-052",
+            "F-053",
+            "F-054",
+            "F-055",
+            "F-056",
+            "F-057",
+            "F-058",
+            "F-059",
+            "F-060",
+            "F-061",
+            "F-062",
+            "F-063",
+            "F-064",
+            "F-065",
+            "F-066",
+            "F-067",
+            "F-068",
+            "F-069",
+            "F-070",
+            "F-071",
+            "F-072",
+            "F-073",
+            "F-074",
+            "F-075",
+            "F-076",
+            "F-077",
+            "F-078",
+            "F-079"
+          ],
+          "noNewEvidence": false,
+          "controlPlane": false,
+          "businessExecution": true
+        },
+        {
+          "name": "get_purchase_overview",
+          "argKeys": [
+            "pendingOnly"
+          ],
+          "success": true,
+          "verified": true,
+          "code": null,
+          "factIds": [
+            "F-080",
+            "F-081",
+            "F-082",
+            "F-083",
+            "F-084",
+            "F-085",
+            "F-086",
+            "F-087",
+            "F-088",
+            "F-089",
+            "F-090",
+            "F-091",
+            "F-092",
+            "F-093",
+            "F-094",
+            "F-095",
+            "F-096",
+            "F-097",
+            "F-098",
+            "F-099",
+            "F-100",
+            "F-101",
+            "F-102",
+            "F-103",
+            "F-104",
+            "F-105",
+            "F-106",
+            "F-107",
+            "F-108",
+            "F-109",
+            "F-110",
+            "F-111",
+            "F-112",
+            "F-113",
+            "F-114",
+            "F-115",
+            "F-116",
+            "F-117",
+            "F-118",
+            "F-119",
+            "F-120",
+            "F-121",
+            "F-122",
+            "F-123",
+            "F-124",
+            "F-125",
+            "F-126",
+            "F-127",
+            "F-128",
+            "F-129",
+            "F-130",
+            "F-131",
+            "F-132",
+            "F-133",
+            "F-134"
+          ],
+          "noNewEvidence": false,
+          "controlPlane": false,
+          "businessExecution": true
+        }
+      ],
+      "formalOutcomeReceipts": [],
+      "finalizationAttempts": [
+        {
+          "attempt": 1,
+          "code": "GOAL_STATUS_MISSING",
+          "detail": null,
+          "valid": false,
+          "raw": "```json\n{\n  \"answer\": \"ORDER-A 目前判定为待补料。缺料为 1 条，零件 D1-R1轴承-202 需求 10 个，可用 7 个，缺口 3 个。该缺料尚未采购到位，采购状态为「待下单」，计划采购 3 个，已下单 0 个、已到货 0 个、已入库 0 个。\",\n  \"claims\": [\n    {\"text\": \"ORDER-A 目前判定为待补料。\", \"factIds\": [\"F-003\"]},\n    {\"text\": \"缺料为 1 条，零件 D1-R1轴承-202 需求 10 个，可用 7 个，缺口 3 个。\", \"factIds\": [\"F-005\", \"F-006\", \"F-007\", \"F-008\"]},\n    {\"text\": \"该缺料尚未采购到位，采购状态为「待下单」，计划采购 3 个，已下单 0 个、已到货 0 个、已入库 0 个。\", \"factIds\": [\"F-083\", \"F-084\", \"F-085\", \"F-086\", \"F-087\"]}\n  ],\n  \"goals\": [\n    {\"questionIndex\": 0, \"status\": \"COMPLETED\", \"factIds\": [\"F-005\", \"F-006\", \"F-007\", \"F-008\"]},\n    {\"questionIndex\": 1, \"status\": \"COMPLETED\", \"factIds\": [\"F-083\", \"F-084\", \"F-085\", \"F-086\", \"F-087\"]}\n  ]\n}\n```"
+        },
+        {
+          "attempt": 2,
+          "code": "GOAL_STATUS_MISSING",
+          "detail": null,
+          "valid": false,
+          "raw": "```json\n{\n  \"answer\": \"ORDER-A 目前判定为待补料。缺料条数为 1 条，零件 D1-R1轴承-202 需求 10 个，可用 7 个。零件 D1-R1轴承-202 缺口 3 个，采购状态为「待下单」，计划采购 3 个，已下单 0 个，已到货 0 个，已入库 0 个。\",\n  \"claims\": [\n    {\"text\": \"ORDER-A 目前判定为待补料。\", \"factIds\": [\"F-003\"]},\n    {\"text\": \"缺料条数为 1 条，零件 D1-R1轴承-202 需求 10 个，可用 7 个。\", \"factIds\": [\"F-005\", \"F-006\", \"F-007\"]},\n    {\"text\": \"零件 D1-R1轴承-202 缺口 3 个，采购状态为「待下单」，计划采购 3 个，已下单 0 个，已到货 0 个，已入库 0 个。\", \"factIds\": [\"F-008\", \"F-083\", \"F-084\", \"F-085\", \"F-086\", \"F-087\"]}\n  ],\n  \"goals\": [\n    {\"questionIndex\": 0, \"status\": \"COMPLETED\", \"factIds\": [\"F-005\", \"F-006\", \"F-007\", \"F-008\"]},\n    {\"questionIndex\": 1, \"status\": \"COMPLETED\", \"factIds\": [\"F-083\", \"F-084\", \"F-085\", \"F-086\", \"F-087\"]}\n  ]\n}\n```"
+        }
+      ],
+      "answerValidation": {
+        "valid": true,
+        "answer": "当前正式业务能力无法可靠完成该请求；不会把未应用的配置、零差额或未核验数据当作结果。",
+        "claims": [],
+        "goals": [
+          {
+            "questionIndex": 0,
+            "status": "UNAVAILABLE",
+            "factIds": []
+          }
+        ],
+        "code": "ANSWER_VERIFIED"
+      },
+      "context": {
+        "rawOwnerInputTokensEst": 13,
+        "businessMemoTokensEst": 477,
+        "policyMemoTokensEst": 229,
+        "ontologyContextTokensEst": 142,
+        "apiIndexTokensEst": 3150,
+        "loadedSchemaTokensEst": 966,
+        "factCatalogChars": 8173,
+        "factCatalogFactCount": 26,
+        "totalApproxContextTokens": 14554
+      },
+      "durationMs": 17147
+    }
+  ]
+}

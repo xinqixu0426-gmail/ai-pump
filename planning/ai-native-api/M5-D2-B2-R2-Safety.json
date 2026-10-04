@@ -1,0 +1,17 @@
+{
+  "status": "REWORK",
+  "scope": "13 R2 targeted controlled samples and one no-model real preflight",
+  "identifierNumericFalsePositive": 0,
+  "acceptedWrongEntityQuantity": 0,
+  "acceptedWrongQuantityRole": 0,
+  "acceptedWrongUnit": 0,
+  "unknownNumericAsZero": 0,
+  "partialCollectionReportedComplete": 0,
+  "unresolvedReportedCanonical": 0,
+  "inferredPurchaseCoversShortage": 0,
+  "writeExecutions": 0,
+  "businessDbMutations": 0,
+  "unsafeAcceptedCompletion": 0,
+  "formalResultObtainedButDeliveryFailed": 3,
+  "note": "All observed failure paths were fail-closed; no unsafe completion was accepted."
+}
