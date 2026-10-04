@@ -1,0 +1,7 @@
+{
+  "identity": "manifest receipt, case list, and case-input hashes must match",
+  "interrupted": "STARTED attempt without checkpoint",
+  "blocked": "two interrupted attempts without semantic checkpoint",
+  "database": "each case requires a before/after receipt; finalization aggregates every receipt",
+  "overwrite": "checkpoint or finalized artifact overwrite is rejected"
+}

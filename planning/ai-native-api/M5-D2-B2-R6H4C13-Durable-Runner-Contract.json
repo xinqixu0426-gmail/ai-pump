@@ -1,0 +1,8 @@
+{
+  "finalArtifactContract": "unchanged suite-level 12/4/14/4 artifacts",
+  "checkpoint": "one immutable atomic file per frozen case slot",
+  "attempts": "STARTED receipt before execution; interrupted retry limited to two infrastructure attempts",
+  "completedSemanticFailure": "immutable and cannot rerun",
+  "resume": "mechanically skips completed slots in frozen order",
+  "suiteFinalization": "reads checkpoints only and does not call a model"
+}

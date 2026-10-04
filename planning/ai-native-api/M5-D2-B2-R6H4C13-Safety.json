@@ -1,0 +1,8 @@
+{
+  "modelCalls": 0,
+  "businessExecutions": 0,
+  "databaseMutations": 0,
+  "secretScan": "PASS",
+  "unknownToolAccess": "unchanged fail closed",
+  "semanticFailures": "preserved rather than rerun"
+}
