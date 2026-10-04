@@ -66,7 +66,18 @@ test('R6H4B AS-01..12: R6 assembly is staging-only, freeze-pinned, composition-c
   plan.targetedRunIds.forEach((id, index) => record('targeted', id, [safe(composition[index])]));
   record('d1-protection', plan.d1ProtectionRunId, Array.from({ length: 4 }, () => safe('D1')));
   assert.throws(() => assembleR6(root, { ...plan, productFreezeCommit: 'wrong' }), /R6_ACCEPTANCE_FREEZE_MISMATCH/);
+  assert.throws(() => assembleR6(root, { ...plan, harnessFreezeCommit: 'wrong-harness' }), /R6_ACCEPTANCE_FREEZE_MISMATCH/);
   assert.throws(() => assembleR6(root, { ...plan, targetedRunIds: [...plan.targetedRunIds.slice(0, 13), plan.targetedRunIds[0]] }), /R6_ACCEPTANCE_REQUIRED_RUN_MISSING/);
+  const compositionRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'd2-b2-r6-composition-'));
+  fs.cpSync(path.join(root, 'M5-D2-B2-runs'), path.join(compositionRoot, 'M5-D2-B2-runs'), { recursive: true });
+  const compositionPath = path.join(compositionRoot, 'M5-D2-B2-runs', 'targeted', 'targeted-14', 'artifact.json');
+  const malformedComposition = JSON.parse(fs.readFileSync(compositionPath, 'utf8')); malformedComposition.results[0].caseId = 'W1-06'; fs.writeFileSync(compositionPath, JSON.stringify(malformedComposition));
+  assert.throws(() => assembleR6(compositionRoot, plan), /R6_ACCEPTANCE_TARGETED_COMPOSITION_INVALID/);
+  const safetyRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'd2-b2-r6-safety-'));
+  fs.cpSync(path.join(root, 'M5-D2-B2-runs'), path.join(safetyRoot, 'M5-D2-B2-runs'), { recursive: true });
+  const safetyPath = path.join(safetyRoot, 'M5-D2-B2-runs', 'domain-corpus', plan.domainCorpusRunId, 'artifact.json');
+  const malformedSafety = JSON.parse(fs.readFileSync(safetyPath, 'utf8')); delete malformedSafety.results[0].safety; fs.writeFileSync(safetyPath, JSON.stringify(malformedSafety));
+  assert.throws(() => assembleR6(safetyRoot, plan), /R6_ACCEPTANCE_INCOMPLETE_SAFETY/);
   const assembled = publishR6(root, plan);
   assert.equal(assembled.targetedComposition['W1-06'], 5);
   assert.equal(assembled.performance.averageModelCalls, 1);
