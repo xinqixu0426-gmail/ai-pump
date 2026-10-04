@@ -50,9 +50,13 @@ test('AG-07..11: write/deferred/not-loaded calls fail closed while a second load
         { content: '', tool_calls: [toolCall('bad-write', 'update_recipe', { recipeId: 1 })] },
         { content: '', tool_calls: [toolCall('load-1', 'load_tools', { toolNames: ['search_coils'] })] },
         { content: '', tool_calls: [toolCall('load-2', 'load_tools', { toolNames: ['calculate_coil_cost'] })] },
+        { content: '', tool_calls: [toolCall('read-1', 'search_coils', { spec: '12' })] },
+        { content: '', tool_calls: [toolCall('read-2', 'calculate_coil_cost', { spec: '12', sheets: 120, material: '钢带', slotType: '小眼' })] },
         { content: JSON.stringify({ answer: '请明确需要查询的线圈。', claims: [], goals: [{ questionIndex: 0, status: 'CLARIFICATION', factIds: [] }] }) },
     ]);
-    const result = await runApiNativeAgentCandidate(baseInput(), { modelCall: model });
+    const result = await runApiNativeAgentCandidate(baseInput(), { modelCall: model,
+        executeToolCall: async () => ({ success: true, verified: true, executionEvidence: { verified: true }, data: [] }),
+    });
     assert.equal(result.traces[0].code, 'TOOL_NOT_LOADED');
     assert.deepEqual(result.metrics.loadedToolNames, ['search_coils', 'calculate_coil_cost']);
     assert.equal(result.metrics.loadToolsCalls, 2);
@@ -60,6 +64,38 @@ test('AG-07..11: write/deferred/not-loaded calls fail closed while a second load
     const session = createToolSchemaSession();
     assert.equal(session.load(['preview_recipe_cost']).code, 'TOOL_SCHEMA_NOT_DISCOVERABLE');
     assert.equal(session.load(['update_recipe']).code, 'TOOL_SCHEMA_NOT_DISCOVERABLE');
+});
+
+test('RC-01..08: Main-Agent declared relevant tools are mechanically covered without a router', async () => {
+    const model = scripted([
+        { content: '', tool_calls: [toolCall('load-ab', 'load_tools', { toolNames: ['get_all_recipes', 'search_coils'] })] },
+        { content: '', tool_calls: [toolCall('read-a', 'get_all_recipes', {})] },
+        { content: 'premature answer' },
+        { content: '', tool_calls: [toolCall('read-b', 'search_coils', { spec: '12' })] },
+        { content: JSON.stringify({ answer: '已取得正式目录。', claims: [{ text: '已取得正式目录。', factIds: ['F-001'] }], goals: [{ questionIndex: 0, status: 'COMPLETED', factIds: ['F-001'] }] }) },
+    ]);
+    const result = await runApiNativeAgentCandidate(baseInput(), {
+        modelCall: model,
+        executeToolCall: async name => ({ success: true, verified: true, executionEvidence: { verified: true }, data: name === 'search_coils' ? [] : [{ id: 1, name: '正式配方' }] }),
+    });
+    assert.deepEqual(result.relevantApiCoverage.requiredRelevantTools, ['get_all_recipes', 'search_coils']);
+    assert.deepEqual(result.relevantApiCoverage.executedRelevantTools, ['get_all_recipes', 'search_coils']);
+    assert.deepEqual(result.relevantApiCoverage.missingRelevantToolsAtFirstStop, ['search_coils']);
+    assert.equal(result.relevantApiCoverage.coverageReviewResumed, 1);
+    assert.equal(result.relevantApiCoverage.finalRelevantCoverage, true);
+    assert.ok(model.calls.some(call => call.messages.some(message => /RELEVANT_API_COVERAGE_INCOMPLETE/.test(String(message.content || '')))));
+    assert.equal(result.traces.filter(trace => trace.declaredRelevant).length, 2);
+
+    const single = scripted([
+        { content: '', tool_calls: [toolCall('load-a', 'load_tools', { toolNames: ['get_all_recipes'] })] },
+        { content: '', tool_calls: [toolCall('read-a', 'get_all_recipes', {})] },
+        { content: JSON.stringify({ answer: '已取得正式目录。', claims: [{ text: '已取得正式目录。', factIds: ['F-001'] }], goals: [{ questionIndex: 0, status: 'COMPLETED', factIds: ['F-001'] }] }) },
+    ]);
+    const singleResult = await runApiNativeAgentCandidate(baseInput(), { modelCall: single,
+        executeToolCall: async () => ({ success: true, verified: true, executionEvidence: { verified: true }, data: [{ id: 1, name: '正式配方' }] }),
+    });
+    assert.equal(singleResult.relevantApiCoverage.finalRelevantCoverage, true);
+    assert.equal(singleResult.relevantApiCoverage.coverageReviewResumed, 0);
 });
 
 test('AG-04 and AG-12: loaded runtime definition is compatible with existing Agent execution and nested scenarios have distinct dedup keys', async () => {

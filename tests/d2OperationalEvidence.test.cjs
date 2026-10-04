@@ -56,6 +56,53 @@ test('W1-01..18: verified formal operational results preserve identity, quantity
     assert.equal(ledger.facts.some(item => item.predicate === 'purchase_coverage'), false);
 });
 
+test('R5 EV-01..10: direct and knowledge-package producers share canonical operational predicates and preserve provenance', () => {
+    const fixture = createD2Wave1ControlledFixture();
+    const ledger = createFactLedger({ includeOperationalEvidenceFacts: true });
+    ledger.appendToolResult({ toolName: 'check_order_readiness', args: { orderId: 21 }, entityBindings: fixture.bindings,
+        result: { success: true, verified: true, data: fixture.orderReadiness } });
+    ledger.appendToolResult({ toolName: 'get_order_knowledge_package', args: { orderId: 21 }, entityBindings: fixture.bindings,
+        result: { success: true, verified: true, data: { order: fixture.orderDetail.order, readiness: fixture.orderReadiness } } });
+    ledger.appendToolResult({ toolName: 'get_order_detail', args: { orderId: 21 }, entityBindings: fixture.bindings,
+        result: { success: true, verified: true, data: fixture.orderDetail } });
+    const snapshot = ledger.snapshot();
+    const purchaseStatuses = snapshot.facts.filter(item => item.predicate === 'purchase_status' && item.entity?.canonicalName === '轴承-A');
+    assert.deepEqual(purchaseStatuses.map(item => item.value), ['待下单', '待下单']);
+    assert.deepEqual(purchaseStatuses.map(item => item.qualifiers.producer), ['order_readiness', 'order_knowledge_package.readiness']);
+    assert.equal(snapshot.facts.some(item => item.predicate === 'required_quantity' && item.qualifiers?.producer === 'order_knowledge_package.readiness'), true);
+    assert.equal(snapshot.facts.some(item => item.predicate === 'order_snapshot_recipe' && item.qualifiers?.producer === 'order_knowledge_package'), true);
+    assert.equal(snapshot.facts.some(item => item.predicate === 'collection_completeness' && item.qualifiers?.producer === 'order_knowledge_package' && item.qualifiers?.collectionRef === 'order_lines' && item.value === 'COMPLETE'), true);
+    assert.equal(snapshot.consistency.corroborated.some(item => item.semanticKey.includes('purchase_status')), true);
+    assert.equal(snapshot.consistency.conflicts.length, 0);
+});
+
+test('R5 CS-01..04: same-scope conflicts fail closed while different formal scope remains distinct', () => {
+    const fixture = createD2Wave1ControlledFixture();
+    const ledger = createFactLedger({ includeOperationalEvidenceFacts: true });
+    ledger.appendToolResult({ toolName: 'check_order_readiness', args: { orderId: 21 }, entityBindings: fixture.bindings,
+        result: { success: true, verified: true, data: fixture.orderReadiness } });
+    const conflicting = structuredClone(fixture.orderReadiness);
+    conflicting.shortages[0].procurementStage = '已到货';
+    ledger.appendToolResult({ toolName: 'get_order_knowledge_package', args: { orderId: 21 }, entityBindings: fixture.bindings,
+        result: { success: true, verified: true, data: { order: fixture.orderDetail.order, readiness: conflicting } } });
+    const snapshot = ledger.snapshot();
+    assert.equal(snapshot.consistency.conflicts.length > 0, true);
+    const conflict = snapshot.consistency.conflicts.find(item => item.semanticKey.includes('purchase_status'));
+    assert.ok(conflict); assert.equal(conflict.status, 'FORMAL_EVIDENCE_CONFLICT');
+    const catalog = renderClaimableFactsForModel(snapshot);
+    assert.equal(catalog.some(item => conflict.factIds.includes(item.factId)), false);
+    const rejected = validateAnswer(JSON.stringify({ answer: '轴承-A 当前采购阶段为待下单。', claims: [{ text: '轴承-A 当前采购阶段为待下单。', factIds: [conflict.factIds[0]] }], goals: [{ questionIndex: 0, status: 'COMPLETED', factIds: [conflict.factIds[0]] }] }), { ledger: snapshot, judge: { questions: ['采购阶段'] }, mode: 'READ' });
+    assert.equal(rejected.code, 'FORMAL_EVIDENCE_CONFLICT');
+
+    const scoped = createFactLedger({ includeOperationalEvidenceFacts: true });
+    scoped.appendToolResult({ toolName: 'check_order_readiness', args: { orderId: 21 }, entityBindings: fixture.bindings,
+        result: { success: true, verified: true, data: fixture.orderReadiness } });
+    const global = structuredClone(fixture.purchaseOverview);
+    global.tasks[0].procurementStage = '已到货';
+    scoped.appendToolResult({ toolName: 'get_purchase_overview', result: { success: true, verified: true, queryReceipt: { returnedCount: 1, totalCount: 1, truncated: false, possiblyTruncated: false }, data: global } });
+    assert.equal(scoped.snapshot().consistency.conflicts.length, 0, 'global purchase overview is not the same order-scoped event');
+});
+
 test('W1-19..23: validator fails closed for wrong operational entity, role, unit, and partial/all claims', () => {
     const { ledger } = appendOperationalEvidence();
     const shortage = fact(ledger, 'shortage_quantity', 'SHORTAGE');

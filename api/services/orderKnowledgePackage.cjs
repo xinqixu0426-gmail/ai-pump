@@ -93,6 +93,14 @@ function buildLiveOrder(record, accessors) {
         items,
         purchaseList,
         todos,
+        // These arrays are parsed from the complete order record in this
+        // read-only producer. State that result-scoped completeness explicitly
+        // so Native evidence never has to infer it from the visible rows.
+        collections: {
+            items: { returnedCount: items.length, totalCount: items.length, complete: true, hasMore: false },
+            purchaseList: { returnedCount: purchaseList.length, totalCount: purchaseList.length, complete: true, hasMore: false },
+            todos: { returnedCount: todos.length, totalCount: todos.length, complete: true, hasMore: false },
+        },
         totals: {
             totalUnits: totals.totalUnits,
             totalCost: roundMoney(totals.totalCost),

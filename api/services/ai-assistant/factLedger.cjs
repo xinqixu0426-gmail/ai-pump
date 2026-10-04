@@ -226,7 +226,7 @@ function materialEntity(row = {}) {
     return null;
 }
 
-function collectionCompletenessFact({ entity, collectionRef, source, base, complete, returnedCount, totalCount, hasMore = false }) {
+function collectionCompletenessFact({ entity, collectionRef, source, base, complete, returnedCount, totalCount, hasMore = false, context = {} }) {
     const normalizedReturned = finite(returnedCount);
     const normalizedTotal = finite(totalCount);
     const isComplete = complete === true && hasMore !== true
@@ -239,6 +239,7 @@ function collectionCompletenessFact({ entity, collectionRef, source, base, compl
             hasMore: hasMore === true || !isComplete,
             ...(normalizedReturned !== null ? { returnedCount: normalizedReturned } : {}),
             ...(normalizedTotal !== null ? { totalCount: normalizedTotal } : {}),
+            ...context,
         } });
 }
 
@@ -262,18 +263,116 @@ function unresolvedRequirementFact(row, { base, requirementRef, basis, context =
         ...(text(row.model) || text(row.name) ? { displayName: text(row.model) || text(row.name) } : {}), ...context } });
 }
 
+function orderScopeKey(order) {
+    const id = positiveId(order?.id);
+    return id ? `order:${id}` : null;
+}
+
+// A single producer-independent readiness adapter.  Direct readiness and
+// knowledge-package readiness are both formal live results, so they must use
+// the same vocabulary instead of silently drifting by tool name.
+function projectOrderReadinessEvidence(readiness, { base, order, producer, basis = 'FORMAL_ORDER_READINESS' }) {
+    if (!readiness || typeof readiness !== 'object') return [];
+    const facts = [];
+    const scopeKey = orderScopeKey(order) || orderScopeKey(readiness.order) || orderScopeKey(base.entity);
+    const context = { producer, orderContext: true, ...(scopeKey ? { scopeKey } : {}) };
+    const add = fact => facts.push(fact);
+    const collection = (collectionRef, metadata = {}) => add(collectionCompletenessFact({
+        entity: base.entity, collectionRef, source: producer, base,
+        complete: metadata.complete, returnedCount: metadata.returnedCount,
+        totalCount: metadata.totalCount, hasMore: metadata.hasMore, context,
+    }));
+    const quantities = (row, entity, requirementRef) => {
+        for (const fact of operationalQuantityFacts(row, { entity, base, requirementRef, basis, context: {
+            ...context, inventoryType: text(row.inventoryType), procurementStage: text(row.procurementStage),
+        }, fields: {
+            required_quantity: { field: 'requiredQty', role: 'REQUIRED' },
+            available_quantity: { field: 'availableQty', role: 'AVAILABLE' },
+            shortage_quantity: { field: 'shortageQty', role: 'SHORTAGE' },
+            purchase_quantity: { field: 'plannedQty', role: 'PLANNED_PURCHASE' },
+            purchase_quantity_ordered: { field: 'orderedQty', role: 'ORDERED' },
+            purchase_quantity_received: { field: 'receivedQty', role: 'RECEIVED' },
+            purchase_quantity_stocked: { field: 'stockedQty', role: 'STOCKED' },
+        } })) add(fact);
+    };
+    if (text(readiness.verdict)) add(makeFact({ entity: base.entity, predicate: 'readiness_status', value: text(readiness.verdict), basis,
+        capabilityId: base.capabilityId, tool: base.tool, qualifiers: { ...context, canProduce: readiness.canProduce === true,
+            shortageLineCount: finite(readiness.metrics?.shortageLineCount), unresolvedLineCount: finite(readiness.metrics?.unresolvedLineCount) } }));
+    const shortages = Array.isArray(readiness.shortages) ? readiness.shortages : [];
+    const metadata = readiness.collections?.shortages || { complete: true, returnedCount: shortages.length,
+        totalCount: finite(readiness.metrics?.shortageLineCount) };
+    collection('order_shortages', metadata);
+    const metric = finite(readiness.metrics?.shortageLineCount);
+    if (metric !== null) add(makeFact({ entity: base.entity, predicate: 'shortage_line_count', value: metric, unit: 'COUNT', basis,
+        capabilityId: base.capabilityId, tool: base.tool, qualifiers: { ...context, quantityRole: 'SHORTAGE_LINE_COUNT', collectionRef: 'order_shortages' } }));
+    for (const [index, row] of shortages.entries()) {
+        const requirementRef = `order_shortages:${index}`;
+        const entity = materialEntity(row);
+        if (!entity) {
+            add(unresolvedRequirementFact(row, { base, requirementRef, basis, context }));
+            continue;
+        }
+        // procurementStage is already calculated by the formal readiness
+        // producer.  The ledger copies it; it never derives a stage from the
+        // surrounding purchase quantities.
+        if (text(row.procurementStage)) add(makeFact({ entity, predicate: 'purchase_status', value: text(row.procurementStage), basis,
+            capabilityId: base.capabilityId, tool: base.tool, qualifiers: { ...context, requirementRef,
+                inventoryType: text(row.inventoryType) } }));
+        quantities(row, entity, requirementRef);
+    }
+    return facts;
+}
+
+// Both direct order detail and the live order section of a knowledge package
+// expose the same formal order structure. This projector deliberately keeps
+// historical recipe snapshots distinct from a current recipe relation.
+function projectOrderDetailEvidence(detail, { base, producer, basis = 'FORMAL_ORDER_DETAIL' }) {
+    if (!detail || typeof detail !== 'object') return [];
+    const facts = [];
+    const scopeKey = orderScopeKey(detail) || orderScopeKey(base.entity);
+    const context = { producer, orderContext: true, ...(scopeKey ? { scopeKey } : {}) };
+    const add = fact => facts.push(fact);
+    const collection = (collectionRef, metadata) => {
+        if (!metadata || metadata.complete === undefined) return;
+        add(collectionCompletenessFact({ entity: base.entity, collectionRef, source: producer, base,
+            complete: metadata.complete, returnedCount: metadata.returnedCount, totalCount: metadata.totalCount,
+            hasMore: metadata.hasMore, context }));
+    };
+    if (text(detail.status)) add(makeFact({ entity: base.entity, predicate: 'order_status', value: text(detail.status), basis,
+        capabilityId: base.capabilityId, tool: base.tool, qualifiers: context }));
+    if (text(detail.customerName)) add(makeFact({ entity: base.entity, predicate: 'order_customer_attribute', value: text(detail.customerName), basis,
+        capabilityId: base.capabilityId, tool: base.tool, qualifiers: context }));
+    if (text(detail.contractNo)) add(makeFact({ entity: base.entity, predicate: 'order_contract_number', value: text(detail.contractNo), basis,
+        capabilityId: base.capabilityId, tool: base.tool, qualifiers: context }));
+    const collections = detail.collections || {};
+    collection('order_lines', collections.items);
+    collection('order_purchase_list', collections.purchaseList);
+    collection('order_todos', collections.todos);
+    for (const [index, row] of (Array.isArray(detail.items) ? detail.items : []).entries()) {
+        const lineRef = `order_lines:${index}`;
+        const quantity = finite(row.qty);
+        const snapshotName = text(row.recipeName);
+        if (snapshotName) add(makeFact({ entity: base.entity, predicate: 'order_snapshot_recipe', value: snapshotName, basis,
+            capabilityId: base.capabilityId, tool: base.tool, qualifiers: { ...context, lineRef, relationKind: 'ORDER_SNAPSHOT_RECIPE' } }));
+        if (quantity !== null) add(makeFact({ entity: base.entity, predicate: 'order_line_quantity', value: quantity, unit: 'COUNT', basis,
+            capabilityId: base.capabilityId, tool: base.tool, qualifiers: { ...context, quantityRole: 'ORDER_LINE', lineRef,
+                ...(snapshotName ? { recipeSnapshotName: snapshotName } : {}) } }));
+    }
+    return facts;
+}
+
 // Operational read/preview producers already own readiness and procurement
-// arithmetic.  This adapter copies their formal result rows into a compact,
-// shared evidence vocabulary; it never derives shortage, availability,
-// purchase coverage, readiness, or procurement state.
+// arithmetic. This adapter only copies formal result rows into the shared
+// vocabulary; it never derives shortage, availability, purchase coverage,
+// readiness, or procurement state.
 function operationalEvidenceFacts(data, base, result = {}) {
     if (!data || typeof data !== 'object') return [];
     const facts = [];
     const add = fact => facts.push(fact);
-    const collection = (entity, collectionRef, source, metadata = {}) => add(collectionCompletenessFact({
+    const collection = (entity, collectionRef, source, metadata = {}, context = {}) => add(collectionCompletenessFact({
         entity, collectionRef, source, base,
         complete: metadata.complete, returnedCount: metadata.returnedCount,
-        totalCount: metadata.totalCount, hasMore: metadata.hasMore,
+        totalCount: metadata.totalCount, hasMore: metadata.hasMore, context,
     }));
     const quantities = (row, entity, requirementRef, basis, context, fields) => {
         for (const fact of operationalQuantityFacts(row, { entity, base, requirementRef, basis, context, fields })) add(fact);
@@ -314,61 +413,21 @@ function operationalEvidenceFacts(data, base, result = {}) {
         }
     }
 
-    if (base.tool === 'check_order_readiness') {
-        const order = base.entity;
-        const basis = 'FORMAL_ORDER_READINESS';
-        if (text(data.verdict)) add(makeFact({ entity: order, predicate: 'readiness_status', value: text(data.verdict), basis,
-            capabilityId: base.capabilityId, tool: base.tool,
-            qualifiers: { producer: 'order_readiness', canProduce: data.canProduce === true,
-                shortageLineCount: finite(data.metrics?.shortageLineCount), unresolvedLineCount: finite(data.metrics?.unresolvedLineCount) } }));
-        const metadata = data.collections?.shortages || { complete: true,
-            returnedCount: Array.isArray(data.shortages) ? data.shortages.length : null,
-            totalCount: finite(data.metrics?.shortageLineCount) };
-        collection(order, 'order_shortages', 'order_readiness', metadata);
-        const metric = finite(data.metrics?.shortageLineCount);
-        if (metric !== null) add(makeFact({ entity: order, predicate: 'shortage_line_count', value: metric, unit: 'COUNT', basis,
-            capabilityId: base.capabilityId, tool: base.tool, qualifiers: { quantityRole: 'SHORTAGE_LINE_COUNT', collectionRef: 'order_shortages' } }));
-        for (const [index, row] of (Array.isArray(data.shortages) ? data.shortages : []).entries()) {
-            const requirementRef = `order_shortages:${index}`;
-            const entity = materialEntity(row);
-            if (!entity) { add(unresolvedRequirementFact(row, { base, requirementRef, basis, context: { producer: 'order_readiness', orderContext: true } })); continue; }
-            quantities(row, entity, requirementRef, basis, { producer: 'order_readiness', orderContext: true,
-                inventoryType: text(row.inventoryType), procurementStage: text(row.procurementStage) }, {
-                required_quantity: { field: 'requiredQty', role: 'REQUIRED' },
-                available_quantity: { field: 'availableQty', role: 'AVAILABLE' },
-                shortage_quantity: { field: 'shortageQty', role: 'SHORTAGE' },
-                purchase_quantity: { field: 'plannedQty', role: 'PLANNED_PURCHASE' },
-                purchase_quantity_ordered: { field: 'orderedQty', role: 'ORDERED' },
-                purchase_quantity_received: { field: 'receivedQty', role: 'RECEIVED' },
-                purchase_quantity_stocked: { field: 'stockedQty', role: 'STOCKED' },
-            });
-        }
-    }
+    if (base.tool === 'check_order_readiness') facts.push(...projectOrderReadinessEvidence(data, {
+        base, order: data.order || base.entity, producer: 'order_readiness', basis: 'FORMAL_ORDER_READINESS',
+    }));
 
-    if (base.tool === 'get_order_detail') {
-        const order = base.entity;
-        const detail = data.order && typeof data.order === 'object' ? data.order : data;
-        const basis = 'FORMAL_ORDER_DETAIL';
-        if (text(detail.status)) add(makeFact({ entity: order, predicate: 'order_status', value: text(detail.status), basis,
-            capabilityId: base.capabilityId, tool: base.tool }));
-        if (text(detail.customerName)) add(makeFact({ entity: order, predicate: 'order_customer_attribute', value: text(detail.customerName), basis,
-            capabilityId: base.capabilityId, tool: base.tool }));
-        if (text(detail.contractNo)) add(makeFact({ entity: order, predicate: 'order_contract_number', value: text(detail.contractNo), basis,
-            capabilityId: base.capabilityId, tool: base.tool }));
-        const collections = detail.collections || {};
-        collection(order, 'order_lines', 'order_detail', collections.items || { complete: false });
-        collection(order, 'order_purchase_list', 'order_detail', collections.purchaseList || { complete: false });
-        collection(order, 'order_todos', 'order_detail', collections.todos || { complete: false });
-        for (const [index, row] of (Array.isArray(detail.items) ? detail.items : []).entries()) {
-            const lineRef = `order_lines:${index}`;
-            const quantity = finite(row.qty);
-            const snapshotName = text(row.recipeName);
-            if (snapshotName) add(makeFact({ entity: order, predicate: 'order_snapshot_recipe', value: snapshotName, basis,
-                capabilityId: base.capabilityId, tool: base.tool, qualifiers: { lineRef, relationKind: 'ORDER_SNAPSHOT_RECIPE' } }));
-            if (quantity !== null) add(makeFact({ entity: order, predicate: 'order_line_quantity', value: quantity, unit: 'COUNT', basis,
-                capabilityId: base.capabilityId, tool: base.tool,
-                qualifiers: { quantityRole: 'ORDER_LINE', lineRef, ...(snapshotName ? { recipeSnapshotName: snapshotName } : {}) } }));
-        }
+    if (base.tool === 'get_order_detail') facts.push(...projectOrderDetailEvidence(data.order && typeof data.order === 'object' ? data.order : data, {
+        base, producer: 'order_detail', basis: 'FORMAL_ORDER_DETAIL',
+    }));
+
+    if (base.tool === 'get_order_knowledge_package') {
+        facts.push(...projectOrderDetailEvidence(data.order, {
+            base, producer: 'order_knowledge_package', basis: 'FORMAL_ORDER_KNOWLEDGE_PACKAGE',
+        }));
+        facts.push(...projectOrderReadinessEvidence(data.readiness, {
+            base, order: data.order || base.entity, producer: 'order_knowledge_package.readiness', basis: 'FORMAL_ORDER_KNOWLEDGE_PACKAGE_READINESS',
+        }));
     }
 
     if (base.tool === 'get_purchase_overview') {
@@ -381,16 +440,16 @@ function operationalEvidenceFacts(data, base, result = {}) {
                 && returnedCount !== null && totalCount !== null && returnedCount === totalCount,
             returnedCount, totalCount,
             hasMore: receipt.truncated === true || receipt.possiblyTruncated === true || data.truncated === true,
-        });
+        }, { producer: 'purchase_overview', scopeKey: 'global_purchase_overview' });
         for (const [index, row] of (Array.isArray(data.tasks) ? data.tasks : []).entries()) {
             const requirementRef = `purchase_tasks:${index}`;
             const entity = materialEntity(row);
             if (!entity) { add(unresolvedRequirementFact(row, { base, requirementRef, basis, context: { producer: 'purchase_overview' } })); continue; }
             if (text(row.procurementStage)) add(makeFact({ entity, predicate: 'purchase_status', value: text(row.procurementStage), basis,
                 capabilityId: base.capabilityId, tool: base.tool,
-                qualifiers: { requirementRef, supplier: text(row.supplier), inventoryType: text(row.inventoryType), producer: 'purchase_overview' } }));
+                qualifiers: { requirementRef, supplier: text(row.supplier), inventoryType: text(row.inventoryType), producer: 'purchase_overview', scopeKey: 'global_purchase_overview' } }));
             quantities(row, entity, requirementRef, basis, { producer: 'purchase_overview', supplier: text(row.supplier),
-                inventoryType: text(row.inventoryType), procurementStage: text(row.procurementStage) }, {
+                inventoryType: text(row.inventoryType), procurementStage: text(row.procurementStage), scopeKey: 'global_purchase_overview' }, {
                 purchase_quantity: { field: 'plannedQty', role: 'PLANNED_PURCHASE' },
                 purchase_quantity_ordered: { field: 'orderedQty', role: 'ORDERED' },
                 purchase_quantity_received: { field: 'receivedQty', role: 'RECEIVED' },
@@ -429,6 +488,31 @@ function genericFormalFacts(data, base, limit = 80) {
     return facts;
 }
 
+const CANONICAL_OPERATIONAL_PREDICATES = new Set([
+    'readiness_status', 'collection_completeness', 'shortage_line_count',
+    'required_quantity', 'available_quantity', 'shortage_quantity',
+    'purchase_status', 'purchase_quantity', 'purchase_quantity_ordered',
+    'purchase_quantity_received', 'purchase_quantity_stocked', 'purchase_pending_quantity',
+    'order_status', 'order_customer_attribute', 'order_contract_number',
+    'order_snapshot_recipe', 'order_line_quantity', 'unresolved_requirement',
+]);
+
+function operationalConsistencyKey(fact) {
+    if (!CANONICAL_OPERATIONAL_PREDICATES.has(fact?.predicate)) return null;
+    const entity = fact.entity ? `${fact.entity.type}:${fact.entity.id}` : 'none';
+    const role = fact.qualifiers?.quantityRole || (fact.predicate === 'collection_completeness' ? fact.qualifiers?.collectionRef || null : null);
+    const scopeKey = fact.qualifiers?.scopeKey || null;
+    // A missing scope must not accidentally make global and order-scoped
+    // evidence mutually authoritative. Only explicitly shared formal scope
+    // is eligible for corroboration/conflict comparison.
+    if (!scopeKey) return null;
+    return JSON.stringify([entity, fact.predicate, role, scopeKey]);
+}
+
+function valuesEqual(left, right) {
+    return left?.value === right?.value && left?.unit === right?.unit;
+}
+
 function createFactLedger(options = {}) {
     const includeScenarioComparisonFacts = options.includeScenarioComparisonFacts === true;
     const includeRecipeComparisonFacts = options.includeRecipeComparisonFacts === true;
@@ -437,11 +521,30 @@ function createFactLedger(options = {}) {
     const includeOperationalEvidenceFacts = options.includeOperationalEvidenceFacts === true;
     const facts = [];
     const observations = [];
+    const consistency = { corroborated: [], conflicts: [] };
     let sequence = 0;
     const append = raw => {
         const fact = { factId: `F-${String(++sequence).padStart(3, '0')}`, ...raw };
         facts.push(Object.freeze(fact));
         return fact;
+    };
+    const reconcileOperationalEvidence = added => {
+        for (const fact of added) {
+            const key = operationalConsistencyKey(fact);
+            if (!key) continue;
+            const peers = facts.filter(candidate => candidate.factId !== fact.factId
+                && operationalConsistencyKey(candidate) === key);
+            for (const peer of peers) {
+                const list = valuesEqual(peer, fact) ? consistency.corroborated : consistency.conflicts;
+                const status = valuesEqual(peer, fact) ? 'CORROBORATED' : 'FORMAL_EVIDENCE_CONFLICT';
+                const ids = [peer.factId, fact.factId].sort();
+                if (!list.some(item => item.semanticKey === key && item.factIds.length === ids.length && item.factIds.every((id, index) => id === ids[index]))) {
+                    list.push(Object.freeze({ status, semanticKey: key, factIds: Object.freeze(ids),
+                        sources: Object.freeze([peer.source?.tool || null, fact.source?.tool || null]),
+                        ...(status === 'FORMAL_EVIDENCE_CONFLICT' ? { values: Object.freeze([{ value: peer.value, unit: peer.unit }, { value: fact.value, unit: fact.unit }]) } : {}) }));
+                }
+            }
+        }
     };
     return Object.freeze({
         appendToolResult({ toolName, args, result, entityBindings } = {}) {
@@ -477,6 +580,7 @@ function createFactLedger(options = {}) {
                 }
                 if (includeOperationalEvidenceFacts) {
                     for (const fact of operationalEvidenceFacts(data, { entity, tool, capabilityId }, result)) added.push(append(fact));
+                    reconcileOperationalEvidence(added);
                 }
                 for (const fact of genericFormalFacts(data, { entity, tool, capabilityId })) added.push(append(fact));
                 if (Array.isArray(data) && data.length === 0) {
@@ -488,7 +592,9 @@ function createFactLedger(options = {}) {
             return Object.freeze({ factIds: Object.freeze(added.map(fact => fact.factId)), facts: Object.freeze(added) });
         },
         snapshot() {
-            return Object.freeze({ facts: Object.freeze([...facts]), observations: Object.freeze([...observations]) });
+            return Object.freeze({ facts: Object.freeze([...facts]), observations: Object.freeze([...observations]), consistency: Object.freeze({
+                corroborated: Object.freeze([...consistency.corroborated]), conflicts: Object.freeze([...consistency.conflicts]),
+            }) });
         },
         facts() { return Object.freeze([...facts]); },
     });
@@ -553,4 +659,4 @@ function modelProjection(result, factIds) {
         projection: { truncated, collections } };
 }
 
-module.exports = { MAX_MODEL_PROJECTION_BYTES, coilDirectoryCostFacts, createFactLedger, modelProjection, operationalEvidenceFacts, recipeComparisonFacts, recipeDetailCurrentCostFacts, scenarioComparisonFacts };
+module.exports = { MAX_MODEL_PROJECTION_BYTES, coilDirectoryCostFacts, createFactLedger, modelProjection, operationalConsistencyKey, operationalEvidenceFacts, projectOrderDetailEvidence, projectOrderReadinessEvidence, recipeComparisonFacts, recipeDetailCurrentCostFacts, scenarioComparisonFacts };

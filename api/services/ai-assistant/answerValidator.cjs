@@ -297,11 +297,13 @@ function validateAnswer(content, { ledger, judge = {}, mode = 'READ', proposalOn
         && !/(?:等待|仍需|请).{0,12}确认/.test(answer)) return validationFailure('PROPOSAL_SUCCESS_CLAIM');
     const facts = Array.isArray(ledger?.facts) ? ledger.facts : [];
     const verified = new Map(facts.filter(fact => fact?.verified === true).map(fact => [fact.factId, fact]));
+    const conflictedFactIds = new Set((ledger?.consistency?.conflicts || []).flatMap(item => item?.factIds || []));
     for (const claim of claims) {
         if (!claim || typeof claim.text !== 'string' || !Array.isArray(claim.factIds)) return validationFailure('CLAIM_UNGROUNDED', { reason: 'INVALID_CLAIM_SHAPE' });
         if (!answer.includes(claim.text)) return validationFailure('CLAIM_UNGROUNDED', { claimText: claim.text, reason: 'CLAIM_TEXT_NOT_IN_ANSWER' });
         if (claim.factIds.length === 0) return validationFailure('CLAIM_UNGROUNDED', { claimText: claim.text, reason: 'EMPTY_FACT_IDS' });
         if (claim.factIds.some(id => !verified.has(id))) return validationFailure('CLAIM_FACT_UNVERIFIED');
+        if (claim.factIds.some(id => conflictedFactIds.has(id))) return validationFailure('FORMAL_EVIDENCE_CONFLICT', { claimText: claim.text, factIds: claim.factIds.filter(id => conflictedFactIds.has(id)) });
         const moneyBinding = claimMoneyBinding(claim, verified, facts);
         if (!moneyBinding.valid) return validationFailure('MONEY_CLAIM_BINDING_MISMATCH', moneyBinding.detail);
         const operationalBinding = claimOperationalQuantityBinding(claim, verified, facts);
@@ -321,6 +323,7 @@ function validateAnswer(content, { ledger, judge = {}, mode = 'READ', proposalOn
         || expected.some(index => !goals.some(goal => goal?.questionIndex === index))) return validationFailure('GOAL_STATUS_MISSING');
     for (const goal of goals) {
         if (!STATUSES.has(goal?.status) || !Array.isArray(goal.factIds) || goal.factIds.some(id => !verified.has(id))) return validationFailure('GOAL_STATUS_INVALID');
+        if (goal.factIds.some(id => conflictedFactIds.has(id))) return validationFailure('FORMAL_EVIDENCE_CONFLICT', { factIds: goal.factIds.filter(id => conflictedFactIds.has(id)) });
         if (goal.status === 'COMPLETED' && BUSINESS_MODES.has(mode) && goal.factIds.length === 0) return validationFailure('GOAL_COMPLETION_UNGROUNDED');
         if (goal.status === 'COMPLETED' && BUSINESS_MODES.has(mode)
             && !goal.factIds.some(id => !['identity_resolved', 'identity_ambiguous', 'identity_not_found'].includes(verified.get(id)?.predicate))) {

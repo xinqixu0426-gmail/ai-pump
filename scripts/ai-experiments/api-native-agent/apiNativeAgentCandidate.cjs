@@ -72,8 +72,9 @@ function candidateSystemPrompt({ businessMemo, policyMemo, ontologyContext, apiI
         'The raw owner input is the primary task source. Business Memo explains business terminology. Policy Memo explains handling, preview, and persistence boundaries. Ontology explains identity and relationships. The API Index is discovery only, not a router.',
         'Initially you only have load_tools and resolve_entity. Before calling an indexed business tool, load its schema with load_tools. Choose tools and order yourself; do not assume an ID, money amount, inventory, relationship, or current configuration.',
         'If a formal result is ambiguous, not found, unsupported, or incomplete, investigate safely when useful or ask for clarification. Never silently choose a candidate. Never call a write tool or claim a write happened.',
-        'After every formal result, decide yourself whether more investigation is needed. A formal count can answer a count question even if item detail projection is truncated. Projection truncation is not the same as an incomplete formal business query. If a result says NO_NEW_EVIDENCE or INVESTIGATION_NO_PROGRESS, use existing evidence, choose another capability, or clarify; do not repeatedly vary arbitrary filters. Stop once formal evidence is sufficient.',
-        'Before ending investigation, compare the owner request with the formal evidence already obtained. Resolving an identity is not by itself a cost, inventory, or relationship answer. If a requested fact is already present, use it without repeating a query. If a requested fact is still missing and a loaded read/preview tool can investigate it, continue safely. If a necessary input is genuinely missing, a target remains ambiguous, or the capability is unavailable, say that specific reason. Do not guess data, silently select candidates, or write data.',
+        'Before the first business execution, review the API Index against every business dimension in the owner request. Load every read/preview capability that you judge directly relevant; do not load unrelated tools. Loading a business tool declares it relevant, so execute it once before answering unless a formal failure, ambiguity, unsupported capability, or missing required input blocks it. Later investigation may reveal another relevant capability; load it then and investigate it too. Do not repeat a successful query with the same arguments.',
+        'After every formal result, decide yourself whether more investigation is needed. A formal count can answer a count question even if item detail projection is truncated. Projection truncation is not the same as an incomplete formal business query. If a result says NO_NEW_EVIDENCE or INVESTIGATION_NO_PROGRESS, use existing evidence, choose another capability, or clarify; do not repeatedly vary arbitrary filters. Stop only after every owner-requested business dimension has been considered and every business tool you declared relevant has either executed or has a recorded formal block.',
+        'Before ending investigation, compare the owner request with the formal evidence already obtained and the API Index. Resolving an identity is not by itself a cost, inventory, or relationship answer. If a requested fact is already present, use it without repeating a query. If a requested fact is still missing and an available read/preview capability can investigate it, load and continue safely. If a necessary input is genuinely missing, a target remains ambiguous, or the capability is unavailable, say that specific reason and use PARTIAL, UNAVAILABLE, or CLARIFICATION rather than claiming the blocked outcome complete. Do not guess data, silently select candidates, or write data.',
         'When ready, return JSON only: {"answer":"Chinese answer","claims":[{"text":"exact assertion in answer","factIds":["F-001"]}],"goals":[{"questionIndex":0,"status":"COMPLETED|PARTIAL|UNAVAILABLE|CLARIFICATION","factIds":["F-001"]}]}. Every factual assertion needs cited fact IDs. A clarification/unavailable answer may use an empty factIds array. Never show IDs, tool names, API paths, tokens, or internal JSON to the owner.',
         '', 'FULL BUSINESS MEMO:', businessMemo || 'No business memo was supplied.',
         '', 'FULL POLICY MEMO:', policyMemo || 'No policy memo was supplied.',
@@ -160,17 +161,18 @@ function modelSafeQualifiers(value) {
     if (Array.isArray(value)) return value.map(modelSafeQualifiers);
     if (!value || typeof value !== 'object') return value;
     return Object.fromEntries(Object.entries(value)
-        .filter(([key]) => !/(?:^|_)(?:id|canonicalid)$/i.test(key) && !/Id$/i.test(key))
+        .filter(([key]) => !/(?:^|_)(?:id|canonicalid)$/i.test(key) && !/Id$/i.test(key) && key !== 'scopeKey')
         .map(([key, child]) => [key, modelSafeQualifiers(child)]));
 }
 function renderClaimableFactsForModel(ledgerOrSnapshot) {
     const facts = Array.isArray(ledgerOrSnapshot?.facts) ? ledgerOrSnapshot.facts : [];
+    const conflictedFactIds = new Set((ledgerOrSnapshot?.consistency?.conflicts || []).flatMap(item => item?.factIds || []));
     const seen = new Set();
     const entries = [];
     const structuredMoney = new Set(facts.filter(fact => fact?.verified && fact?.qualifiers?.moneyRole)
         .map(fact => stableJson([fact.entity?.type || null, fact.entity?.canonicalName || null, fact.value, fact.unit])));
     for (const fact of facts) {
-        if (!fact?.verified) continue;
+        if (!fact?.verified || conflictedFactIds.has(fact.factId) || fact.predicate === 'formal_evidence_conflict') continue;
         // Generic deep field observations stay in the ledger for audit.  Only
         // identity, relation and scalar-bearing paths are claimable; exposing
         // every nested display field turns one detailed object into hundreds
@@ -286,13 +288,34 @@ async function runApiNativeAgentCandidate(input = {}, dependencies = {}) {
         { role: 'user', content: rawOwnerInput },
     ];
     const toolResults = []; const traces = []; const finalizationAttempts = []; const formalOutcomeReceipts = []; const successfulCalls = new Set(); const formalEvidence = new Set();
+    // The Agent itself selects relevance through the API Index.  Runtime only
+    // records that declaration and mechanically prevents a premature answer
+    // after an Agent-declared business capability has not been attempted.
+    const requiredRelevantTools = new Set(); const executedRelevantTools = new Set(); const failedRelevantTools = new Set(); const blockedRelevantTools = new Set();
     const context = { selectedToolNames: new Set(), entityBindings: new Map(), resolvedRecipeIds: new Set(), resolvedRecipeBindings: new Map(), resolvedCoilBindings: new Map(), resolvedPartBindings: new Map(), ambiguousCoilKeys: new Set(), signal: input.signal };
     let mainModelCalls = 0; let loadToolsCalls = 0; let resolveCalls = 0; let businessToolCalls = 0;
     let secondDecisionAfterResult = false; let resultReturnedToAgent = false; let noNewEvidenceEvents = 0; let duplicateFactsAvoided = 0; let consecutiveNoNewEvidence = 0; let noProgressEvents = 0;
-    let completionReviewCalls = 0; let completionReviewResumed = 0; let terminalOutcomeReviewCalls = 0; const stoppingReasons = [];
+    let completionReviewCalls = 0; let completionReviewResumed = 0; let relevantCoverageReviewResumed = 0; let terminalOutcomeReviewCalls = 0; let missingRelevantToolsAtFirstStop = null; const stoppingReasons = [];
+
+    function missingRelevantTools() {
+        return [...requiredRelevantTools].filter(name => !executedRelevantTools.has(name) && !failedRelevantTools.has(name)).sort();
+    }
+    function relevantCoverage() {
+        const missing = missingRelevantTools();
+        return Object.freeze({
+            requiredRelevantTools: Object.freeze([...requiredRelevantTools].sort()),
+            executedRelevantTools: Object.freeze([...executedRelevantTools].sort()),
+            failedRelevantTools: Object.freeze([...failedRelevantTools].sort()),
+            blockedRelevantTools: Object.freeze([...blockedRelevantTools].sort()),
+            missingRelevantTools: Object.freeze(missing),
+            ...(missingRelevantToolsAtFirstStop ? { missingRelevantToolsAtFirstStop: Object.freeze([...missingRelevantToolsAtFirstStop]) } : {}),
+            coverageReviewResumed: relevantCoverageReviewResumed,
+            finalRelevantCoverage: missing.length === 0,
+        });
+    }
 
     function metrics() {
-        return Object.freeze({ mainModelCalls, loadToolsCalls, resolveCalls, businessToolCalls, noNewEvidenceEvents, duplicateFactsAvoided, noProgressEvents, completionReviewCalls, completionReviewResumed, terminalOutcomeReviewCalls, stoppingReasons: [...stoppingReasons], loadedToolNames: session.loadedToolNames(), apiIndexFingerprint: apiIndex.fingerprint, loadedSchemaFingerprint: session.snapshot().schemaFingerprint });
+        return Object.freeze({ mainModelCalls, loadToolsCalls, resolveCalls, businessToolCalls, noNewEvidenceEvents, duplicateFactsAvoided, noProgressEvents, completionReviewCalls, completionReviewResumed, relevantCoverageReviewResumed, terminalOutcomeReviewCalls, stoppingReasons: [...stoppingReasons], loadedToolNames: session.loadedToolNames(), relevantApiCoverage: relevantCoverage(), apiIndexFingerprint: apiIndex.fingerprint, loadedSchemaFingerprint: session.snapshot().schemaFingerprint });
     }
     function appendToolMessage(call, result, appendFacts = true) {
         let factIds = [];
@@ -309,8 +332,16 @@ async function runApiNativeAgentCandidate(input = {}, dependencies = {}) {
         if (noProgress) noProgressEvents += 1;
         const projection = appendFacts ? { ...candidateToolProjection(result, factIds), ...(noNewEvidence ? { control: { code: noProgress ? 'INVESTIGATION_NO_PROGRESS' : 'NO_NEW_EVIDENCE', message: noProgress ? '连续正式查询未增加业务证据；请使用已有证据、换能力或澄清，不要继续重复同一路径。' : '本次正式结果没有增加新的业务证据；请使用已有证据、换能力或澄清。' } } : {}) } : { controlPlane: true, success: result.success, code: result.code || null, loadedToolNames: result.loadedToolNames || [], newlyLoadedToolNames: result.newlyLoadedToolNames || [] };
         messages.push({ role: 'tool', tool_call_id: call.id, name: call.name, content: JSON.stringify(projection) });
+        if (requiredRelevantTools.has(call.name)) {
+            if (result?.success === true && result?.verified === true) executedRelevantTools.add(call.name);
+            else if (result?.success === false) {
+                failedRelevantTools.add(call.name);
+                if (['ENTITY_AMBIGUOUS', 'AI_RESOURCE_NOT_FOUND', 'UNSUPPORTED', 'FORMAL_TOOL_FAILED', 'INVALID_AI_TOOL_INPUT'].includes(String(result.code || ''))) blockedRelevantTools.add(call.name);
+            }
+        }
         toolResults.push(result); traces.push({ name: call.name, argKeys: Object.keys(call.args || {}).sort(), success: result.success === true, verified: result.verified === true,
             code: result.code || null, factIds, noNewEvidence, controlPlane: appendFacts === false,
+            ...(requiredRelevantTools.has(call.name) ? { declaredRelevant: true } : {}),
             ...(appendFacts ? { businessExecution: result.success === true && result.verified === true } : {}) });
         resultReturnedToAgent = true;
     }
@@ -318,7 +349,7 @@ async function runApiNativeAgentCandidate(input = {}, dependencies = {}) {
         const raw = String(content || '').trim() || finalFallback(ledger, fallbackStatus);
         const validation = validator(raw, { ledger: ledger.snapshot(), judge: { questions: [rawOwnerInput] }, mode: 'READ' });
         const snapshot = ledger.snapshot(); const claimableFacts = renderClaimableFactsForModel(snapshot);
-        return Object.freeze({ rawOwnerInput, rawFinalEnvelope: raw, answer: validation.answer, answerValidation: validation, toolResults: Object.freeze(toolResults), factLedger: snapshot, claimableFacts, formalOutcomeReceipts: Object.freeze([...formalOutcomeReceipts]), traces: Object.freeze(traces), finalizationAttempts: Object.freeze([...finalizationAttempts]), metrics: metrics(), durationMs: Date.now() - startedAt, context: Object.freeze({ rawOwnerInputTokensEst: estimateTokens(rawOwnerInput), businessMemoTokensEst: estimateTokens(input.businessMemo), policyMemoTokensEst: estimateTokens(input.policyMemo), ontologyContextTokensEst: estimateTokens(ontologyContext), apiIndexTokensEst: estimateTokens(apiIndexText), loadedSchemaTokensEst: estimateTokens(JSON.stringify(session.loadedDefinitions())), factCatalogChars: JSON.stringify(claimableFacts).length, factCatalogFactCount: claimableFacts.length, totalApproxContextTokens: estimateTokens(messages.map(item => item.content || JSON.stringify(item.tool_calls || '')).join('\n')) }), flags: Object.freeze({ apiIndexUsed: true, loadToolsUsed: loadToolsCalls > 0, onDemandSchemaUsed: session.loadedToolNames().length > 0, toolResultsReturnToSameAgent: resultReturnedToAgent, secondToolDecisionAfterResult: secondDecisionAfterResult, judgeRouterUsed: false, domainToolNamesSelectionUsed: false, mandatoryGroundingLayerUsed: false }) });
+        return Object.freeze({ rawOwnerInput, rawFinalEnvelope: raw, answer: validation.answer, answerValidation: validation, toolResults: Object.freeze(toolResults), factLedger: snapshot, claimableFacts, formalOutcomeReceipts: Object.freeze([...formalOutcomeReceipts]), traces: Object.freeze(traces), finalizationAttempts: Object.freeze([...finalizationAttempts]), relevantApiCoverage: relevantCoverage(), metrics: metrics(), durationMs: Date.now() - startedAt, context: Object.freeze({ rawOwnerInputTokensEst: estimateTokens(rawOwnerInput), businessMemoTokensEst: estimateTokens(input.businessMemo), policyMemoTokensEst: estimateTokens(input.policyMemo), ontologyContextTokensEst: estimateTokens(ontologyContext), apiIndexTokensEst: estimateTokens(apiIndexText), loadedSchemaTokensEst: estimateTokens(JSON.stringify(session.loadedDefinitions())), factCatalogChars: JSON.stringify(claimableFacts).length, factCatalogFactCount: claimableFacts.length, totalApproxContextTokens: estimateTokens(messages.map(item => item.content || JSON.stringify(item.tool_calls || '')).join('\n')) }), flags: Object.freeze({ apiIndexUsed: true, loadToolsUsed: loadToolsCalls > 0, onDemandSchemaUsed: session.loadedToolNames().length > 0, toolResultsReturnToSameAgent: resultReturnedToAgent, secondToolDecisionAfterResult: secondDecisionAfterResult, judgeRouterUsed: false, domainToolNamesSelectionUsed: false, mandatoryGroundingLayerUsed: false }) });
     }
 
     async function finalize(draft, fallbackStatus = 'PARTIAL') {
@@ -364,6 +395,15 @@ async function runApiNativeAgentCandidate(input = {}, dependencies = {}) {
         mainModelCalls += 1;
         const calls = toolCallsFrom(message);
         if (calls.length === 0) {
+            const missing = missingRelevantTools();
+            if (missing.length > 0 && turn + 1 < maxMainModelCalls) {
+                if (!missingRelevantToolsAtFirstStop) missingRelevantToolsAtFirstStop = [...missing];
+                relevantCoverageReviewResumed += 1;
+                stoppingReasons.push('RELEVANT_API_COVERAGE_INCOMPLETE');
+                messages.push({ role: 'assistant', content: String(message.content || '') });
+                messages.push({ role: 'system', content: `RELEVANT_API_COVERAGE_INCOMPLETE: You loaded these read/preview business tools as relevant to the owner request but have not attempted them: ${JSON.stringify(missing)}. Continue this same investigation and execute each missing declared-relevant tool once with formally resolved inputs where needed. Do not finalize before every declared-relevant tool has executed or returned a formal block. This is a completeness control, not a tool-order instruction; do not load unrelated tools or repeat successful calls.` });
+                continue;
+            }
             // A no-tool response is a candidate answer, not proof that every
             // requested business outcome is complete.  The same conversation
             // gets one bounded, tool-capable review; it is deliberately not a
@@ -372,7 +412,7 @@ async function runApiNativeAgentCandidate(input = {}, dependencies = {}) {
                 completionReviewCalls += 1;
                 stoppingReasons.push('MODEL_READY_TO_ANSWER');
                 messages.push({ role: 'assistant', content: String(message.content || '') });
-                messages.push({ role: 'system', content: 'COMPLETION REVIEW: Recheck the owner\'s original request against the formal evidence already obtained. Identity alone is not a requested cost, inventory, or relationship result. If all requested facts are already supported, return the final JSON answer now without extra calls. If a requested fact is missing and an available read/preview capability can investigate it, continue with tools. If necessary input is missing, a target is ambiguous, or capability is unavailable, state that exact reason. Do not guess, silently choose, or write.' });
+                messages.push({ role: 'system', content: `COMPLETION REVIEW: Recheck every business dimension in the owner's original request against the API Index and formal evidence. Identity alone is not a requested cost, inventory, relationship, order, readiness, or procurement result. Required relevant tools declared so far: ${JSON.stringify([...requiredRelevantTools].sort())}; executed: ${JSON.stringify([...executedRelevantTools].sort())}; formal failures/blocks: ${JSON.stringify([...failedRelevantTools].sort())}. If an owner-requested dimension has a relevant indexed read/preview capability not yet loaded, load and execute it. If any declared relevant capability remains unattempted, execute it before finalizing. If all requested facts are supported and all declared relevant tools are executed or formally blocked, return the final JSON answer. If necessary input is missing, a target is ambiguous, or capability is unavailable, state that exact reason. Do not guess, silently choose, write, load unrelated tools, or repeat a successful query.` });
                 continue;
             }
             stoppingReasons.push(completionReviewCalls ? 'COMPLETION_REVIEW_CONFIRMED' : 'MODEL_READY_TO_ANSWER');
@@ -399,7 +439,10 @@ async function runApiNativeAgentCandidate(input = {}, dependencies = {}) {
             if (call.name === 'load_tools') {
                 loadToolsCalls += 1;
                 const result = loadToolsCalls > MAX_LOAD_TOOLS_CALLS ? failure(call.name, 'LOAD_TOOLS_CALL_LIMIT_EXCEEDED') : session.load(call.args.toolNames);
-                if (result.success) for (const name of result.newlyLoadedToolNames) context.selectedToolNames.add(name);
+                if (result.success) for (const name of result.newlyLoadedToolNames) {
+                    context.selectedToolNames.add(name);
+                    requiredRelevantTools.add(name);
+                }
                 appendToolMessage(call, result, false);
                 continue;
             }

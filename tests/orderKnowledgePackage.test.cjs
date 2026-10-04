@@ -168,6 +168,9 @@ test('V10.4 订单知识包合并实时业务状态和人工确认事实，并�
         assert.equal(result.order.status, '采购中');
         assert.equal(result.order.totals.totalUnits, 30);
         assert.equal(result.order.totals.totalCost, 8185.5);
+        assert.deepEqual(result.order.collections.items, { returnedCount: 1, totalCount: 1, complete: true, hasMore: false });
+        assert.deepEqual(result.order.collections.purchaseList, { returnedCount: 1, totalCount: 1, complete: true, hasMore: false });
+        assert.deepEqual(result.order.collections.todos, { returnedCount: 1, totalCount: 1, complete: true, hasMore: false });
         assert.equal(result.readiness.verdict, 'waiting_materials');
         assert.equal(result.confirmedKnowledge.customerRequirement.text, '客户明确要求：30 台使用指定包装标签。');
         assert.match(result.confirmedKnowledge.executionRecords[0].text, /备用供应商/);
