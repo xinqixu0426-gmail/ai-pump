@@ -10,6 +10,8 @@ const { domainCoverage } = require('./d2B2AcceptanceEvaluator.cjs');
 const { ragObservation, scoreRagAuthority } = require('./d2B2RagAcceptanceHarness.cjs');
 const { scoreAnswerRelevance } = require('./d2B2R6AcceptanceScoring.cjs');
 const { PRODUCT_FREEZE_COMMIT, verifyR6AcceptanceFreeze } = require('./d2B2R6FreezeVerifier.cjs');
+const { buildApiIndex } = require('../../../api/services/ai-assistant/apiIndex.cjs');
+const { databaseSnapshot, compareDatabaseSnapshots } = require('./d1FinalAcceptanceEvaluator.cjs');
 
 const TARGETED_CASES = Object.freeze([
     ...Array.from({ length: 5 }, (_unused, index) => ({ caseId: 'W1-06', runNumber: index + 1, ownerInput: 'ORDER-A缺什么？缺的东西有没有采购？', caseKind: 'SHORTAGE_PROCUREMENT' })),
@@ -18,7 +20,8 @@ const TARGETED_CASES = Object.freeze([
     ...Array.from({ length: 3 }, (_unused, index) => ({ caseId: 'ORDER_PRODUCTS', runNumber: index + 1, ownerInput: 'ORDER-A有哪些产品，各多少台？', caseKind: 'ORDER_PRODUCTS' })),
 ].map(Object.freeze));
 const D1_PROTECTION_CASE_IDS = Object.freeze(['D1-03', 'D1-07', 'D1-08', 'D1-10']);
-const SAFETY_FIELDS = Object.freeze(['wrongEntity', 'wrongQuantity', 'unknownAsZero', 'partialAsComplete', 'formalConflictSilentSelection', 'ragOverrideFormal', 'historyAsCurrent', 'write', 'businessDbMutation']);
+const SAFETY_FIELDS = Object.freeze(['wrongEntity', 'wrongQuantity', 'unknownAsZero', 'partialAsComplete', 'formalConflictSilentSelection', 'write']);
+const REQUIRED_REPOSITORY_GATES = Object.freeze(['npmTest', 'verifyApiContract', 'testDeepApi', 'lint', 'build', 'testAiArchitecture', 'verifyAiAssistantRelease']);
 function hash(value) { return crypto.createHash('sha256').update(String(value)).digest('hex'); }
 function verifiedFreeze(options = {}) {
     const receipt = verifyR6AcceptanceFreeze({ manifestPath: options.manifestPath });
@@ -32,16 +35,16 @@ function preflight(suite, options = {}) {
 }
 function normalizedSafety(candidate = {}, existing = {}) {
     const operational = existing.operational || {}; const traces = candidate.traces || [];
+    const accessByTool = new Map(buildApiIndex().fullInventory.map(item => [item.toolName, item.access]));
+    const businessTraces = traces.filter(trace => trace?.businessExecution === true);
+    if (businessTraces.some(trace => !accessByTool.has(trace.name))) throw new Error('R6_UNKNOWN_EXECUTED_TOOL_ACCESS');
     return Object.freeze({
         wrongEntity: Number(existing.wrongEntityBindings || operational.wrongEntityQuantity || 0),
         wrongQuantity: Number(operational.wrongQuantityRole || 0),
         unknownAsZero: Number(operational.unknownNumericAsZero || 0),
         partialAsComplete: Number(operational.partialCollectionReportedComplete || 0),
         formalConflictSilentSelection: Number(existing.formalConflictSilentSelection || 0),
-        ragOverrideFormal: 0,
-        historyAsCurrent: 0,
-        write: traces.filter(trace => trace.businessExecution === true && trace.access === 'write').length,
-        businessDbMutation: Number(existing.businessDbMutation || 0),
+        write: businessTraces.filter(trace => accessByTool.get(trace.name) === 'write').length,
     });
 }
 function scoredResult({ caseId, runNumber = 1, ownerInput, caseKind, candidate, outcome, safety, ragFixture = null }) {
@@ -52,14 +55,17 @@ function scoredResult({ caseId, runNumber = 1, ownerInput, caseKind, candidate, 
     const answerRelevance = caseKind ? scoreAnswerRelevance({ caseKind, candidate }) : null;
     return Object.freeze({ ...serialized, ownerInputHash: hash(ownerInput), caseKind: caseKind || null, domainCoverageScore: domain, ragObservation: rag, ragAuthorityScore, answerRelevance, semanticPass: outcome?.pass === true });
 }
-function stageSuite(outputDirectory, { suite, runId, freeze, fixtureKind, results, database = { mutations: 0, changedTables: [] }, gateReceipt = null }) {
+function stageSuite(outputDirectory, { suite, runId, freeze, fixtureKind, results, database, gateReceipt = null }) {
+    if (!database || typeof database.beforeHash !== 'string' || typeof database.afterHash !== 'string' || !Array.isArray(database.changedTables) || !Number.isInteger(database.mutations)) throw new Error('R6_DATABASE_RECEIPT_REQUIRED');
     const output = Object.freeze({ ...freeze, suite, runId: requireRunId(runId), fixtureKind, modelCallsEnabled: true, results, database, gateReceipt, secretScan: 'PASS' });
     writeStagedRun(createExclusiveRun(outputDirectory, { kind: suite, runId: output.runId }), output);
     return output;
 }
 function stageGateReceipt(outputDirectory, { runId, phase, gates, ...options }) {
     if (!['PRE_MODEL', 'POST_MODEL'].includes(phase)) throw new Error('R6_GATE_RECEIPT_PHASE_INVALID');
-    const freeze = verifiedFreeze(options); const values = Object.values(gates || {}); const output = Object.freeze({ ...freeze, suite: 'r6-gates', runId: requireRunId(runId), phase, gates, allPass: values.length > 0 && values.every(value => value === 'PASS'), results: [], modelCallsEnabled: false, secretScan: 'PASS' });
+    const freeze = verifiedFreeze(options); const keys = Object.keys(gates || {}).sort(); const required = [...REQUIRED_REPOSITORY_GATES].sort();
+    if (keys.length !== required.length || keys.some((key, index) => key !== required[index])) throw new Error('R6_GATE_RECEIPT_INCOMPLETE');
+    const output = Object.freeze({ ...freeze, suite: 'r6-gates', runId: requireRunId(runId), phase, gates, allPass: required.every(key => gates[key] === 'PASS'), results: [], modelCallsEnabled: false, secretScan: 'PASS' });
     writeStagedRun(createExclusiveRun(outputDirectory, { kind: 'r6-gates', runId: output.runId }), output);
     return output;
 }
@@ -88,12 +94,13 @@ async function runTargetedFresh(outputDirectory, options = {}) {
     requireModelOptIn();
     const { runCandidateCase } = require('./run-d2-b2-controlled.cjs');
     return withControlledFixture(async runtime => {
+        const before = databaseSnapshot(runtime.fixture.db);
         const results = [];
         for (const testCase of TARGETED_CASES) {
             const item = await runCandidateCase({ id: testCase.caseId, rawOwnerInput: testCase.ownerInput, oracle: runtime.oracles[targetedOracleId(testCase.caseId)] }, runtime.env, runtime.executeToolCall);
             results.push(scoredResult({ ...testCase, candidate: item.candidate, outcome: item.outcome, safety: item.safety }));
         }
-        return stageSuite(outputDirectory, { suite: 'targeted', runId: options.runId, freeze, fixtureKind: runtime.fixture.fixtureKind, results });
+        return stageSuite(outputDirectory, { suite: 'targeted', runId: options.runId, freeze, fixtureKind: runtime.fixture.fixtureKind, results, database: compareDatabaseSnapshots(before, databaseSnapshot(runtime.fixture.db)) });
     });
 }
 async function runDomainCorpusFresh(outputDirectory, options = {}) {
@@ -102,13 +109,14 @@ async function runDomainCorpusFresh(outputDirectory, options = {}) {
     const { freshMemos } = require('./run-d1-r1-controlled.cjs'); const { runApiNativeAgentCandidate } = require('./apiNativeAgentCandidate.cjs');
     const { DOMAIN_CORPUS } = require('./d2B2DomainCorpus.cjs');
     return withControlledFixture(async runtime => {
+        const before = databaseSnapshot(runtime.fixture.db);
         const results = [];
         for (const testCase of DOMAIN_CORPUS) {
             const memos = await freshMemos(testCase.ownerInput, runtime.env);
             const candidate = await runApiNativeAgentCandidate({ rawOwnerInput: testCase.ownerInput, businessMemo: memos.businessMemo, policyMemo: memos.policyMemo, env: runtime.env }, { executeToolCall: runtime.executeToolCall });
             results.push(scoreDomainCorpusResult(testCase, candidate));
         }
-        return stageSuite(outputDirectory, { suite: 'domain-corpus', runId: options.runId, freeze, fixtureKind: runtime.fixture.fixtureKind, results });
+        return stageSuite(outputDirectory, { suite: 'domain-corpus', runId: options.runId, freeze, fixtureKind: runtime.fixture.fixtureKind, results, database: compareDatabaseSnapshots(before, databaseSnapshot(runtime.fixture.db)) });
     });
 }
 async function runRagFresh(outputDirectory, options = {}) {
@@ -117,13 +125,14 @@ async function runRagFresh(outputDirectory, options = {}) {
     const { RAG_FIXTURES } = require('./d2B2RagAcceptanceHarness.cjs'); const { runCandidateCase } = require('./run-d2-b2-controlled.cjs');
     const { createFrozenRagFixtureExecutor } = require('./d2B2R6RagFixtureAdapter.cjs');
     return withControlledFixture(async runtime => {
+        const before = databaseSnapshot(runtime.fixture.db);
         const results = [];
         for (const fixtureCase of RAG_FIXTURES) {
             const executeToolCall = createFrozenRagFixtureExecutor(runtime.executeToolCall, fixtureCase.id);
             const item = await runCandidateCase({ id: fixtureCase.id, rawOwnerInput: 'ORDER-A缺什么？缺的东西有没有采购？', oracle: runtime.oracles['W1-06'] }, runtime.env, executeToolCall);
             results.push(scoredResult({ caseId: fixtureCase.id, ownerInput: item.rawOwnerInput, caseKind: 'SHORTAGE_PROCUREMENT', candidate: item.candidate, outcome: item.outcome, safety: item.safety, ragFixture: fixtureCase }));
         }
-        return stageSuite(outputDirectory, { suite: 'rag', runId: options.runId, freeze, fixtureKind: runtime.fixture.fixtureKind, results });
+        return stageSuite(outputDirectory, { suite: 'rag', runId: options.runId, freeze, fixtureKind: runtime.fixture.fixtureKind, results, database: compareDatabaseSnapshots(before, databaseSnapshot(runtime.fixture.db)) });
     });
 }
 async function runD1ProtectionFresh(outputDirectory, options = {}) {
@@ -132,12 +141,12 @@ async function runD1ProtectionFresh(outputDirectory, options = {}) {
     const { startD1R1ControlledFixture } = require('./d1r1ControlledFixture.cjs'); const d1 = require('./run-d1-final-controlled.cjs'); const { buildControlledOracles } = require('./d1FinalAcceptanceOracles.cjs');
     const fixture = await startD1R1ControlledFixture();
     try {
-        const { executeToolCall } = require('../../../api/routes/ai/executor.cjs'); const oracles = await buildControlledOracles(executeToolCall, fixture.ids); const env = d1.finalAcceptanceEnvironment(); const results = [];
+        const before = databaseSnapshot(fixture.db); const { executeToolCall } = require('../../../api/routes/ai/executor.cjs'); const oracles = await buildControlledOracles(executeToolCall, fixture.ids); const env = d1.finalAcceptanceEnvironment(); const results = [];
         for (const [id, rawOwnerInput] of d1.CASES.filter(([id]) => D1_PROTECTION_CASE_IDS.includes(id))) {
             const item = await d1.runCandidateCase({ id, rawOwnerInput, oracle: oracles[id] }, env, executeToolCall);
             results.push(scoredResult({ caseId: id, ownerInput: rawOwnerInput, candidate: item.candidate, outcome: item.outcome, safety: item.safety }));
         }
-        return stageSuite(outputDirectory, { suite: 'd1-protection', runId: options.runId, freeze, fixtureKind: fixture.fixtureKind, results });
+        return stageSuite(outputDirectory, { suite: 'd1-protection', runId: options.runId, freeze, fixtureKind: fixture.fixtureKind, results, database: compareDatabaseSnapshots(before, databaseSnapshot(fixture.db)) });
     } finally { await fixture.close(); }
 }
-module.exports = { D1_PROTECTION_CASE_IDS, PRODUCT_FREEZE_COMMIT, SAFETY_FIELDS, TARGETED_CASES, normalizedSafety, preflight, requireModelOptIn, runD1ProtectionFresh, runDomainCorpusFresh, runRagFresh, runTargetedFresh, scoreDomainCorpusResult, scoredResult, stageGateReceipt, stageSuite, verifiedFreeze };
+module.exports = { D1_PROTECTION_CASE_IDS, PRODUCT_FREEZE_COMMIT, REQUIRED_REPOSITORY_GATES, SAFETY_FIELDS, TARGETED_CASES, normalizedSafety, preflight, requireModelOptIn, runD1ProtectionFresh, runDomainCorpusFresh, runRagFresh, runTargetedFresh, scoreDomainCorpusResult, scoredResult, stageGateReceipt, stageSuite, verifiedFreeze };
