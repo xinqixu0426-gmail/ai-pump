@@ -80,7 +80,7 @@ function hasFormalAmbiguity(candidate) {
     return (candidate?.traces || []).some(trace => trace?.code === 'ENTITY_AMBIGUOUS')
         || allFacts(candidate).some(fact => /(?:identity_ambiguous|entity_ambiguous)/iu.test(String(fact?.predicate || '')));
 }
-function recipeDetailMatches(candidate, oracle, answer, facts) {
+function recipeDetailMatches(candidate, oracle, answer, _facts) {
     const resolveTraces = traceFactIds(candidate, trace => trace?.name === 'resolve_entity' && trace?.success === true && trace?.verified === true);
     const detailTraces = traceFactIds(candidate, trace => trace?.name === 'get_recipe_detail' && trace?.success === true && trace?.verified === true);
     const citedFormalBinding = claimsCiteAny(candidate, new Set([...resolveTraces, ...detailTraces]));

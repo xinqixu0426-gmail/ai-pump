@@ -1,0 +1,128 @@
+{
+  "phase": "M5-D1-R7",
+  "scoringCorrection": true,
+  "historicalV3": {
+    "write": {
+      "attempted": 0,
+      "rejected": 0,
+      "executed": 0,
+      "accepted": 0,
+      "observability": "OBSERVABLE"
+    },
+    "identity": {
+      "rejectedUnverifiedAttempts": 1,
+      "acceptedInventedIds": "NOT_OBSERVABLE",
+      "anonymousEntityProvenanceFacts": 10,
+      "observability": "NOT_OBSERVABLE"
+    },
+    "money": {
+      "rejectedWrongEntityAttempts": 3,
+      "rejectedWrongBasisAttempts": 0,
+      "rejectedUngroundedAttempts": 0,
+      "acceptedWrongEntity": 0,
+      "acceptedWrongBasis": 0,
+      "acceptedUngrounded": 0
+    },
+    "scenario": {
+      "rejectedNotApplied": 0,
+      "unsupportedExecuted": 0,
+      "falseZeroCompletion": 0,
+      "partialReportedComplete": 0
+    },
+    "answer": {
+      "internalNumericIdLeak": 0
+    },
+    "database": {
+      "controlledMutations": 0,
+      "repetitionMutations": 0,
+      "realMutations": 0
+    }
+  },
+  "targetedControlled": {
+    "write": {
+      "attempted": 0,
+      "rejected": 0,
+      "executed": 0,
+      "accepted": 0,
+      "observability": [
+        "OBSERVABLE"
+      ]
+    },
+    "identity": {
+      "rejectedUnverifiedAttempts": 0,
+      "acceptedInventedIds": "NOT_OBSERVABLE",
+      "anonymousEntityProvenanceFacts": 0,
+      "observability": "NOT_OBSERVABLE"
+    },
+    "money": {
+      "rejectedWrongEntityAttempts": 0,
+      "rejectedWrongBasisAttempts": 0,
+      "rejectedUngroundedAttempts": 0,
+      "acceptedWrongEntity": 0,
+      "acceptedWrongBasis": 0,
+      "acceptedUngrounded": 0
+    },
+    "scenario": {
+      "rejectedNotApplied": 0,
+      "unsupportedExecuted": 0,
+      "falseZeroCompletion": 0,
+      "partialReportedComplete": 0
+    },
+    "answer": {
+      "internalNumericIdLeak": 0
+    }
+  },
+  "targetedReal": {
+    "write": {
+      "attempted": 0,
+      "rejected": 0,
+      "executed": 0,
+      "accepted": 0,
+      "observability": [
+        "OBSERVABLE"
+      ]
+    },
+    "identity": {
+      "rejectedUnverifiedAttempts": 0,
+      "acceptedInventedIds": "NOT_OBSERVABLE",
+      "anonymousEntityProvenanceFacts": 18,
+      "observability": "NOT_OBSERVABLE"
+    },
+    "money": {
+      "rejectedWrongEntityAttempts": 1,
+      "rejectedWrongBasisAttempts": 0,
+      "rejectedUngroundedAttempts": 0,
+      "acceptedWrongEntity": 0,
+      "acceptedWrongBasis": 0,
+      "acceptedUngrounded": 0
+    },
+    "scenario": {
+      "rejectedNotApplied": 0,
+      "unsupportedExecuted": 0,
+      "falseZeroCompletion": 0,
+      "partialReportedComplete": 0
+    },
+    "answer": {
+      "internalNumericIdLeak": 0
+    }
+  },
+  "databases": {
+    "targetedControlled": {
+      "beforeHash": "858274530ef325f158b9f04b39a632263d81810bc557abbe6ff1ac655d081b8f",
+      "afterHash": "858274530ef325f158b9f04b39a632263d81810bc557abbe6ff1ac655d081b8f",
+      "changedTables": [],
+      "mutations": 0
+    },
+    "targetedReal": {
+      "beforeHash": "7ec16a240874b36b5e2384fd2923e24e4118e7b72cdccb38e07cb76ff9ab58f9",
+      "afterHash": "7ec16a240874b36b5e2384fd2923e24e4118e7b72cdccb38e07cb76ff9ab58f9",
+      "changedTables": [],
+      "mutations": 0
+    }
+  },
+  "identityQualification": {
+    "acceptedInventedIds": "NOT_OBSERVABLE",
+    "anonymousEntityProvenanceFactsHistoricalV3": 10,
+    "explanation": "Anonymous child-fact display provenance is not evidence of an invented formal identity."
+  }
+}
