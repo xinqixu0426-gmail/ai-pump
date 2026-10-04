@@ -73,9 +73,6 @@ function traceFactIds(candidate, predicate) {
 function claimsCiteAny(candidate, allowedIds) {
     return (candidate?.answerValidation?.claims || []).some(claim => (claim?.factIds || []).some(factId => allowedIds.has(factId)));
 }
-function hasSuccessfulBusinessExecution(candidate) {
-    return (candidate?.traces || []).some(trace => trace?.success === true && trace?.businessExecution === true && trace?.controlPlane !== true);
-}
 function hasFormalAmbiguity(candidate) {
     return (candidate?.traces || []).some(trace => trace?.code === 'ENTITY_AMBIGUOUS')
         || allFacts(candidate).some(fact => /(?:identity_ambiguous|entity_ambiguous)/iu.test(String(fact?.predicate || '')));
@@ -142,7 +139,10 @@ function evaluateBusinessOutcome(testCase, candidate) {
             // is formal ambiguity, no target binding or money answer, and an
             // explicit request for the owner to disambiguate.
             pass = declaredStatus === 'CLARIFICATION' && validEnvelope && hasFormalAmbiguity(candidate)
-                && !hasSuccessfulBusinessExecution(candidate) && !hasMoneyAssertion(answer, facts)
+                // The agent may safely inspect the formal candidate set while
+                // preparing a clarification. It fails only if its final owner
+                // output turns a candidate investigation into a money result.
+                && !hasMoneyAssertion(answer, facts)
                 && oracle.answerPattern.test(answer);
             reason = 'FORMAL_AMBIGUITY_CLARIFICATION_REQUIRED'; break;
         default: break;
