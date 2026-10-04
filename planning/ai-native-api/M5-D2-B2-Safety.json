@@ -1,12 +1,20 @@
 {
   "authoritative": false,
-  "classification": "NOT_SCORABLE",
-  "reason": "NO_SERIALIZED_MODEL_RUNS",
-  "writeExecutions": "NOT_OBSERVABLE",
-  "writeAccepted": "NOT_OBSERVABLE",
-  "operationalSafety": "NOT_OBSERVABLE",
+  "classification": "CONTROLLED_FAILURE_RECORDED",
+  "reason": "OPERATIONAL_QUANTITY_BINDING_MISMATCH_FINALIZATION_FAILURE",
+  "writeExecutions": 0,
+  "writeAccepted": 0,
+  "operationalSafety": {
+    "acceptedWrongEntityQuantity": 0,
+    "acceptedWrongQuantityRole": 0,
+    "acceptedWrongUnit": 0,
+    "unknownNumericAsZero": 0,
+    "partialCollectionReportedComplete": 0,
+    "unresolvedReportedCanonical": 0,
+    "inferredPurchaseCoversShortage": 0
+  },
   "database": {
-    "controlled": "NO_POST_RUN_SNAPSHOT",
+    "controlled": { "mutations": 0, "changedTables": [] },
     "real": "NOT_RUN"
   }
 }
