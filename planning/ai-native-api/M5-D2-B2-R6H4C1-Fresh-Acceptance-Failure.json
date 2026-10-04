@@ -1,0 +1,32 @@
+{
+  "phase": "D2-B2-R6H4-C1",
+  "productFreezeCommit": "cdebfb5ef6f83a4c8b39e93f3f0dcc39077e2251",
+  "harnessFreezeCommit": "d7cee89ea1677972d73ddc750fdabc73ae488684",
+  "manifest": "planning/ai-native-api/M5-D2-B2-R6H4C1-Freeze-Manifest.json",
+  "preModelGateRunId": "r6c1-pre-20261005-01",
+  "attemptedSuite": {
+    "suite": "domain-corpus",
+    "runId": "r6c1-domain-20261005-01",
+    "modelOptIn": true,
+    "result": "ABORTED_BEFORE_STAGING"
+  },
+  "error": {
+    "code": "R6_UNKNOWN_EXECUTED_TOOL_ACCESS",
+    "location": "scripts/ai-experiments/api-native-agent/d2B2R6FreshRunners.cjs:normalizedSafety",
+    "stack": [
+      "normalizedSafety",
+      "scoreDomainCorpusResult",
+      "runDomainCorpusFresh"
+    ],
+    "classification": "ACCEPTANCE_HARNESS_ANOMALY"
+  },
+  "preservation": {
+    "suiteArtifactWritten": false,
+    "rawCandidateSerialized": false,
+    "reason": "The frozen runner throws during per-case safety scoring before it reaches suite-level staging.",
+    "otherFreshSuitesStarted": false
+  },
+  "sourceChangesAfterFreeze": false,
+  "postFreezeVerification": "PASS",
+  "deploy": false
+}

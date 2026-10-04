@@ -1,0 +1,22 @@
+{
+  "productFreezeCommit": "cdebfb5ef6f83a4c8b39e93f3f0dcc39077e2251",
+  "harnessFreezeCommit": "d7cee89ea1677972d73ddc750fdabc73ae488684",
+  "apiIndexFingerprint": "10bee9d8a065ea2322fcaf14bdf21cee949d0f57da8c3d5133448c1ee7d09c61",
+  "manifestPath": "/Users/dan/Documents/ai-native-pump-system/pump-cost-accounting-system/planning/ai-native-api/M5-D2-B2-R6H4C1-Freeze-Manifest.json",
+  "suite": "r6-gates",
+  "runId": "r6c1-pre-20261005-01",
+  "phase": "PRE_MODEL",
+  "gates": {
+    "npmTest": "PASS",
+    "verifyApiContract": "PASS",
+    "testDeepApi": "PASS",
+    "lint": "PASS",
+    "build": "PASS",
+    "testAiArchitecture": "PASS",
+    "verifyAiAssistantRelease": "PASS"
+  },
+  "allPass": true,
+  "results": [],
+  "modelCallsEnabled": false,
+  "secretScan": "PASS"
+}
