@@ -59,18 +59,22 @@ test('R3-A: an authoritative calculate_coil_cost total is claimable, while an ar
     assert.equal(unrelated.facts().find(fact => fact.predicate === 'total_cost').qualifiers, undefined);
 });
 
-test('R3-B: one bounded completion review leaves tools available and may resume the same agent investigation', async () => {
+test('R3-B: declared-relevant coverage precedes one bounded completion review without duplicating business calls', async () => {
     const model = scripted([
         { content: '', tool_calls: [toolCall('load', 'load_tools', { toolNames: ['get_all_recipes', 'search_coils'] })] },
         { content: '', tool_calls: [toolCall('recipes', 'get_all_recipes', {})] },
         { content: JSON.stringify({ answer: '已确认对象。', claims: [{ text: '已确认对象。', factIds: ['F-001'] }], goals: [{ questionIndex: 0, status: 'COMPLETED', factIds: ['F-001'] }] }) },
         { content: '', tool_calls: [toolCall('coils', 'search_coils', { spec: '12', sheets: 120 })] },
+        // The relevant-tool coverage gate consumes the first no-tool response
+        // before the historical bounded completion review is reached.
+        { content: JSON.stringify({ answer: '已完成正式查询。', claims: [{ text: '已完成正式查询。', factIds: ['F-001'] }], goals: [{ questionIndex: 0, status: 'COMPLETED', factIds: ['F-001'] }] }) },
         { content: JSON.stringify({ answer: '已完成正式查询。', claims: [{ text: '已完成正式查询。', factIds: ['F-001'] }], goals: [{ questionIndex: 0, status: 'COMPLETED', factIds: ['F-001'] }] }) },
         { content: JSON.stringify({ answer: '已完成正式查询。', claims: [{ text: '已完成正式查询。', factIds: ['F-001'] }], goals: [{ questionIndex: 0, status: 'COMPLETED', factIds: ['F-001'] }] }) },
     ]);
     const result = await runApiNativeAgentCandidate(input(), { modelCall: model, executeToolCall: async name => ({ success: true, verified: true, executionEvidence: { verified: true }, data: name === 'search_coils' ? { data: [] } : [] }) });
     assert.equal(result.metrics.completionReviewCalls, 1);
-    assert.equal(result.metrics.completionReviewResumed, 1);
+    assert.equal(result.metrics.completionReviewResumed, 0);
+    assert.equal(result.metrics.relevantCoverageReviewResumed, 1);
     assert.equal(result.metrics.businessToolCalls, 2);
     assert.equal(result.answerValidation.valid, true);
 });

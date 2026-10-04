@@ -152,9 +152,17 @@ test('通用 MCP：固定白名单只包含已登记的只读 Query/Preview，�
     );
     assert.match(
         listed.find(tool => tool.name === 'get_order_detail').description,
+        /其它直接业务维度仍由模型根据 API Index 自行选择/
+    );
+    assert.doesNotMatch(
+        listed.find(tool => tool.name === 'get_order_detail').description,
         /模型不要改调其他能力/
     );
     assert.match(
+        listed.find(tool => tool.name === 'get_order_knowledge_package').description,
+        /未覆盖的直接业务维度，模型仍应根据 API Index 自行选择/
+    );
+    assert.doesNotMatch(
         listed.find(tool => tool.name === 'get_order_knowledge_package').description,
         /不要再顺序重复调用/
     );
