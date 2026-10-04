@@ -3,7 +3,7 @@ const crypto = require('node:crypto'); const fs = require('node:fs'); const path
 const { buildApiIndex, apiIndexFingerprint } = require('../../../api/services/ai-assistant/apiIndex.cjs');
 const { canonicalDefinitions, toolSchemaFingerprint } = require('../../../api/services/ai-assistant/toolSchemaLoader.cjs');
 const candidate = require('./apiNativeAgentCandidate.cjs');
-const ROOT = path.resolve(__dirname, '../../..'); const PRODUCT_BASELINE_COMMIT = '961ff57aad198b9b1ef7ed7f3913dc86b57ff799';
+const ROOT = path.resolve(__dirname, '../../..'); const PRODUCT_BASELINE_COMMIT = 'cdebfb5ef6f83a4c8b39e93f3f0dcc39077e2251';
 function sha(relative) { return crypto.createHash('sha256').update(fs.readFileSync(path.join(ROOT, relative))).digest('hex'); }
 function head() { return execFileSync('git', ['rev-parse', 'HEAD'], { cwd: ROOT, encoding: 'utf8' }).trim(); }
 function buildManifest(options = {}) { const index = buildApiIndex(); const definitions = [...canonicalDefinitions().values()]; const files = {
