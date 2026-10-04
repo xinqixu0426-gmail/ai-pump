@@ -1,0 +1,11 @@
+{
+  "phase": "M5-D1-FH1-R1",
+  "builder": "d1FinalAcceptanceManifest.cjs",
+  "productBaselineCommit": "82b0dce603c7ee2c715a55799ce1b04db0344bc7",
+  "harnessCommit": "resolved from current HEAD at final-run manifest generation",
+  "requiredHashes": ["candidateSourceHash", "candidatePromptHash", "businessAgentPromptHash", "policyAgentPromptHash", "companyBusinessModelHash", "domainPolicyHash", "ontologyHash", "controlledFixtureHash", "controlledEvaluatorHash", "realCatalogEvaluatorHash", "controlledRunnerHash", "repetitionRunnerHash", "realRunnerHash"],
+  "requiredFingerprints": ["apiIndexFingerprint", "canonicalToolDefinitionsFingerprint", "scenarioToolSchemaFingerprint"],
+  "requiredBudgets": ["maxMainModelCalls", "maxBusinessToolCalls", "maxLoadToolsCalls", "maxResolveCalls", "maxFinalizationCalls"],
+  "modelCallsThisPhase": 0,
+  "builderTests": "PASS"
+}

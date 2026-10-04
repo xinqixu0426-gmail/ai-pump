@@ -1,0 +1,13 @@
+{
+  "phase": "M5-D1-FH1-R1",
+  "runner": "run-d1-final-real-catalog.cjs",
+  "environmentBeforeRuntimeImports": true,
+  "databaseSourceGuard": "LOCAL_BUSINESS_DB only; test/temp environment rejects before executor or db import",
+  "oracleAllowWrite": false,
+  "modelOptInRequired": true,
+  "dynamicOracle": true,
+  "rotorExpectation": "APPLIED and COMPARABLE rotorProcessMode scenario when formally applicable",
+  "dataLimitationSkipsModelCase": true,
+  "realBusinessDbReadThisPhase": false,
+  "realBusinessDbMutationsThisPhase": 0
+}

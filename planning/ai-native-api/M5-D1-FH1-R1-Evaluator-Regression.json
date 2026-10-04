@@ -1,0 +1,19 @@
+{
+  "phase": "M5-D1-FH1-R1",
+  "modelCalls": 0,
+  "tests": {
+    "recipeDifferenceNestedParticipants": "PASS",
+    "recipeDifferenceWrongPairRejected": "PASS",
+    "recipeDifferenceWrongDirectionRejected": "PASS",
+    "notAppliedIsRejectedNotUnsupportedExecution": "PASS",
+    "nonComparableIsRejectedNotUnsupportedExecution": "PASS",
+    "falseZeroCompletionDetected": "PASS",
+    "scenarioCurrentCandidateDeltaHasNoFalseWrongBasis": "PASS",
+    "recipeCurrentsAndDifferenceHaveNoFalseWrongBasis": "PASS",
+    "wrongCurrentScenarioRoleDetected": "PASS",
+    "secretScan": "PASS",
+    "serializedEvidenceReconstructsPerformance": "PASS",
+    "serializedEvidenceReconstructsFinalization": "PASS"
+  },
+  "result": "PASS"
+}

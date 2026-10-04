@@ -1,0 +1,8 @@
+{
+  "productBaselineCommit": "82b0dce603c7ee2c715a55799ce1b04db0344bc7",
+  "guard": "d1FinalProductDriftGuard.cjs",
+  "result": "PASS",
+  "protectedProductPaths": ["api/**", "scripts/ai-experiments/business-policy-intent/**", "scripts/ai-experiments/api-native-agent/apiNativeAgentCandidate.cjs", "scripts/ai-experiments/api-native-agent/d1r1ControlledFixture.cjs", "planning/business-understanding/**"],
+  "reviewedHarnessAllowlistExtended": ["d1FinalAcceptanceEvidence.cjs", "d1FinalAcceptanceManifest.cjs", "run-d1-final-controlled-repetition.cjs", "tests/d1FinalAcceptanceHarness.test.cjs"],
+  "productBehaviorChanged": false
+}

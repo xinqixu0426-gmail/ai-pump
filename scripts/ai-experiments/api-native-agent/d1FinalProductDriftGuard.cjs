@@ -5,10 +5,10 @@ const { execFileSync } = require('node:child_process');
 const PRODUCT_BASELINE_COMMIT = '82b0dce603c7ee2c715a55799ce1b04db0344bc7';
 const HARNESS_ALLOWLIST = Object.freeze([
     /^planning\/ai-native-api\/M5-D1-(?:FINAL|FH1)-/,
-    /^scripts\/ai-experiments\/api-native-agent\/d1FinalAcceptance(?:Evaluator|Oracles)?\.cjs$/,
-    /^scripts\/ai-experiments\/api-native-agent\/run-d1-final-(?:controlled|real-catalog)\.cjs$/,
+    /^scripts\/ai-experiments\/api-native-agent\/d1FinalAcceptance(?:Evaluator|Oracles|Evidence|Manifest)?\.cjs$/,
+    /^scripts\/ai-experiments\/api-native-agent\/run-d1-final-(?:controlled|controlled-repetition|real-catalog)\.cjs$/,
     /^scripts\/ai-experiments\/api-native-agent\/d1FinalProductDriftGuard\.cjs$/,
-    /^tests\/d1FinalAcceptanceEvaluator\.test\.cjs$/,
+    /^tests\/d1FinalAcceptance(?:Evaluator|Harness)\.test\.cjs$/,
 ]);
 
 function evaluateProductDrift(paths, allowlist = HARNESS_ALLOWLIST) {

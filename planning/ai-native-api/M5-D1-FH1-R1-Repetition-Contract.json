@@ -1,0 +1,14 @@
+{
+  "phase": "M5-D1-FH1-R1",
+  "runner": "run-d1-final-controlled-repetition.cjs",
+  "explicitModelOptIn": "D1_FINAL_ALLOW_MODEL_RUN=1",
+  "caseIds": ["D1-01", "D1-03", "D1-04", "D1-05", "D1-06", "D1-07", "D1-08"],
+  "runsPerCase": 3,
+  "plannedRuns": 21,
+  "freshBusinessMemoPerRun": true,
+  "freshPolicyMemoPerRun": true,
+  "freshCandidatePerRun": true,
+  "immutableFormalOracleSharedWithinFixture": true,
+  "fixtureMutationGuard": "beforeHash == afterHash required",
+  "modelCallsThisPhase": 0
+}

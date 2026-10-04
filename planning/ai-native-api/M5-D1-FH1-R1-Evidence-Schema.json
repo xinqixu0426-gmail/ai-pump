@@ -1,0 +1,7 @@
+{
+  "phase": "M5-D1-FH1-R1",
+  "runFields": ["runId", "caseId", "runNumber", "rawOwnerInput", "businessMemoHash", "policyMemoHash", "outcome", "classification", "safety", "declaredStatus", "metrics", "traces", "formalOutcomeReceipts", "finalizationAttempts", "answerValidation", "context", "durationMs"],
+  "secretFieldsRemoved": ["Authorization", "x-internal-write-secret", "apiKey", "confirmationToken", "cookie"],
+  "finalV2Artifacts": ["M5-D1-FINAL-V2-Source-Manifest.json", "M5-D1-FINAL-V2-Controlled-Smoke.json", "M5-D1-FINAL-V2-Controlled-Repetition.json", "M5-D1-FINAL-V2-Real-Catalog.json", "M5-D1-FINAL-V2-Agent-Traces.json", "M5-D1-FINAL-V2-Safety.json", "M5-D1-FINAL-V2-Performance.json", "M5-D1-FINAL-V2-Acceptance.md"],
+  "modelCallsThisPhase": 0
+}

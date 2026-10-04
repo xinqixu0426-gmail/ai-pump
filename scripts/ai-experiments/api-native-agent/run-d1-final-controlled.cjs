@@ -9,6 +9,7 @@ const { freshMemos, environment } = require('./run-d1-r1-controlled.cjs');
 const { runApiNativeAgentCandidate } = require('./apiNativeAgentCandidate.cjs');
 const { buildControlledOracles } = require('./d1FinalAcceptanceOracles.cjs');
 const { classifyRun, compareDatabaseSnapshots, databaseSnapshot } = require('./d1FinalAcceptanceEvaluator.cjs');
+const { FINAL_V2_ARTIFACTS, serializeRun } = require('./d1FinalAcceptanceEvidence.cjs');
 const { productDriftFromGit } = require('./d1FinalProductDriftGuard.cjs');
 
 const CASES = Object.freeze([
@@ -21,7 +22,7 @@ const CASES = Object.freeze([
 async function runCandidateCase(testCase, env, executeToolCall) {
     const memos = await freshMemos(testCase.rawOwnerInput, env);
     const candidate = await runApiNativeAgentCandidate({ rawOwnerInput: testCase.rawOwnerInput, businessMemo: memos.businessMemo, policyMemo: memos.policyMemo, env }, { executeToolCall });
-    return Object.freeze({ ...testCase, candidate, memoTimings: memos.timings, ...classifyRun(testCase, candidate) });
+    return Object.freeze({ ...testCase, candidate, businessMemoHash: require('node:crypto').createHash('sha256').update(memos.businessMemo).digest('hex'), policyMemoHash: require('node:crypto').createHash('sha256').update(memos.policyMemo).digest('hex'), memoTimings: memos.timings, ...classifyRun(testCase, candidate) });
 }
 async function main(outputDirectory = path.join(process.cwd(), 'planning/ai-native-api')) {
     if (process.env.D1_FINAL_ALLOW_MODEL_RUN !== '1') throw new Error('D1_FINAL_MODEL_RUN_REQUIRES_EXPLICIT_OPT_IN');
@@ -33,10 +34,10 @@ async function main(outputDirectory = path.join(process.cwd(), 'planning/ai-nati
         const env = environment(); const results = [];
         for (const [id, rawOwnerInput] of CASES) results.push(await runCandidateCase({ id, rawOwnerInput, oracle: oracleById[id] }, env, executeToolCall));
         const database = compareDatabaseSnapshots(before, databaseSnapshot(fixture.db));
-        const output = Object.freeze({ phase: 'M5-D1-FINAL', fixtureRuntime: fixture.fixtureKind, modelCallsEnabled: true, database, productDrift: productDriftFromGit(),
-            results: results.map(item => ({ id: item.id, rawOwnerInput: item.rawOwnerInput, outcome: item.outcome, safety: item.safety, declaredStatus: item.declaredStatus, memoTimings: item.memoTimings, metrics: item.candidate.metrics, formalOutcomeReceipts: item.candidate.formalOutcomeReceipts, answerValidation: item.candidate.answerValidation })) });
+        const output = Object.freeze({ phase: 'M5-D1-FINAL-V2', fixtureRuntime: fixture.fixtureKind, modelCallsEnabled: true, database, productDrift: productDriftFromGit(),
+            results: results.map(item => serializeRun(item)) });
         fs.mkdirSync(outputDirectory, { recursive: true });
-        fs.writeFileSync(path.join(outputDirectory, 'M5-D1-FINAL-Controlled-Smoke.json'), `${JSON.stringify(output, null, 2)}\n`, 'utf8');
+        fs.writeFileSync(path.join(outputDirectory, FINAL_V2_ARTIFACTS.controlledSmoke), `${JSON.stringify(output, null, 2)}\n`, 'utf8');
         return output;
     } finally { await fixture.close(); }
 }

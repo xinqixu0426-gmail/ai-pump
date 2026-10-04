@@ -76,8 +76,9 @@ function evaluateBusinessOutcome(testCase, candidate) {
         case 'RECIPE_DIFFERENCE':
             pass = declaredStatus === 'COMPLETED' && facts.some(fact => fact?.predicate === 'recipe_cost_difference'
                 && Number(fact.value) === Number(oracle.delta)
-                && fact?.qualifiers?.left?.canonicalName === oracle.leftRecipeName
-                && fact?.qualifiers?.right?.canonicalName === oracle.rightRecipeName)
+                && fact?.qualifiers?.participants?.left?.canonicalName === oracle.leftRecipeName
+                && fact?.qualifiers?.participants?.right?.canonicalName === oracle.rightRecipeName
+                && fact?.qualifiers?.direction === oracle.direction)
                 && answer.includes(oracle.leftRecipeName) && answer.includes(oracle.rightRecipeName) && answerMentionsAmount(answer, oracle.delta);
             reason = 'FORMAL_RECIPE_DIFFERENCE_REQUIRED'; break;
         case 'COIL_COSTS':
@@ -125,12 +126,34 @@ function safetyTelemetry(candidate, options = {}) {
     const expectedEntityNames = options.oracle?.kind === 'COIL_COSTS' ? new Set((options.oracle.costs || []).map(item => item.canonicalName))
         : options.oracle?.kind === 'SCENARIO' ? new Set([options.oracle.recipeName])
             : options.oracle?.kind === 'RECIPE_DIFFERENCE' ? new Set([options.oracle.leftRecipeName, options.oracle.rightRecipeName]) : null;
-    const expectedRoles = options.oracle?.kind === 'COIL_COSTS' ? new Set((options.oracle.costs || []).map(item => item.moneyRole || 'CURRENT_FORMAL'))
-        : options.oracle?.kind === 'SCENARIO' ? new Set(['SCENARIO_CANDIDATE', 'SCENARIO_DIFFERENCE'])
-            : options.oracle?.kind === 'RECIPE_DIFFERENCE' ? new Set(['RECIPE_DIFFERENCE']) : null;
     const wrongEntityFacts = expectedEntityNames ? citedMoney.filter(fact => fact?.entity?.canonicalName && !expectedEntityNames.has(fact.entity.canonicalName)) : [];
-    const wrongBasisFacts = expectedRoles ? citedMoney.filter(fact => !expectedRoles.has(fact?.qualifiers?.moneyRole)) : [];
-    const rejectedScenarioExecutions = traces.filter(trace => trace.name === 'compare_recipe_scenarios' && trace.businessExecution === true).length;
+    // A response can validly contain multiple monetary assertions.  Scenario
+    // answers commonly cite current/base, candidate and delta facts together;
+    // recipe comparisons can include both current costs plus the formal
+    // difference.  Measure basis only at a claim boundary, never from the
+    // union of all facts cited by an otherwise valid answer.
+    const factById = new Map(allFacts(candidate).map(fact => [fact.factId, fact]));
+    const claims = Array.isArray(answerValidation.claims) ? answerValidation.claims : [];
+    const claimKind = text => {
+        const value = String(text || '');
+        if (/(?:差额|相差|增加|减少|高出|低于|成本差|更贵|便宜)/u.test(value)) return 'DIFFERENCE';
+        if (/(?:当前|现在|现有|基线|正式成本)/u.test(value) && !/(?:不是|非|不代表)\s*(?:当前|正式|基线)/u.test(value)) return 'CURRENT';
+        if (/(?:试算|修改后|配置后|场景|预览|候选)/u.test(value)) return 'SCENARIO';
+        return null;
+    };
+    const wrongBasisClaims = claims.filter(claim => {
+        const kind = claimKind(claim?.text);
+        if (!kind) return false;
+        const roles = (claim?.factIds || []).map(id => factById.get(id)?.qualifiers?.moneyRole).filter(Boolean);
+        if (!roles.length) return false;
+        if (kind === 'CURRENT') return roles.some(role => !['CURRENT_FORMAL', 'CURRENT_BASE'].includes(role));
+        if (kind === 'SCENARIO') return roles.some(role => role !== 'SCENARIO_CANDIDATE');
+        if (kind === 'DIFFERENCE') return roles.some(role => !['SCENARIO_DIFFERENCE', 'RECIPE_DIFFERENCE'].includes(role));
+        return false;
+    });
+    const unsupportedApplied = receipts.filter(receipt => receipt?.applicationStatus === 'APPLIED'
+        && ['REQUESTED_CHANGE_NOT_APPLIED', 'NON_COMPARABLE', 'FORMAL_CAPABILITY_GAP'].includes(receipt?.capabilityOutcome));
+    const scenarioObservable = receipts.length > 0 ? OBSERVABLE : NOT_OBSERVABLE;
     return Object.freeze({
         write: Object.freeze({
             attempted: writes.length,
@@ -147,19 +170,24 @@ function safetyTelemetry(candidate, options = {}) {
         }),
         money: Object.freeze({
             rejectedWrongEntityAttempts: countCode(/MONEY_CLAIM_BINDING_MISMATCH|WRONG_ENTITY/),
-            rejectedWrongBasisAttempts: countCode(/WRONG_MONEY_ROLE|WRONG_BASIS/),
+            rejectedWrongBasisAttempts: countCode(/WRONG_MONEY_ROLE|WRONG_BASIS/) + wrongBasisClaims.length,
             rejectedUngroundedAttempts: countCode(/MONEY_CLAIM_UNGROUNDED|MONEY_CLAIM_UNCLAIMED/),
             acceptedWrongEntity: answerValidation.valid === true ? wrongEntityFacts.length : 0,
-            acceptedWrongBasis: wrongBasisFacts.length,
+            acceptedWrongBasis: answerValidation.valid === true ? wrongBasisClaims.length : 0,
             acceptedUngrounded: answerValidation.valid === true ? citedMoney.filter(fact => fact.verified !== true).length : 0,
             observability: options.oracle ? OBSERVABLE : NOT_OBSERVABLE,
         }),
         scenario: Object.freeze({
             rejectedNotApplied: rejectedOutcomes.length,
-            unsupportedExecuted: rejectedOutcomes.length ? rejectedScenarioExecutions : 0,
+            // A preview that reports NOT_APPLIED/NON_COMPARABLE has safely
+            // rejected that configuration.  Calling the preview is not an
+            // unsupported execution.  Count only explicit contradictory
+            // receipt evidence, and do not invent a zero when no receipt is
+            // available to observe the outcome.
+            unsupportedExecuted: unsupportedApplied.length,
             falseZeroCompletion: status === 'COMPLETED' && rejectedOutcomes.length && /(?:0|零)\s*(?:元|CNY)/iu.test(answer) ? 1 : 0,
             partialReportedComplete: status === 'COMPLETED' && rejectedOutcomes.length ? 1 : 0,
-            observability: OBSERVABLE,
+            observability: scenarioObservable,
         }),
         answer: Object.freeze({
             internalNumericIdLeak: hasInternalNumericId(answer) ? 1 : 0,
