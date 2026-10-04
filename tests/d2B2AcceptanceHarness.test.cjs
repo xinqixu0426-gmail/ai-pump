@@ -10,6 +10,7 @@ const { domainRuntimeState } = require('../scripts/ai-experiments/api-native-age
 const { DOMAIN_CORPUS, scoreDomainSelection } = require('../scripts/ai-experiments/api-native-agent/d2B2DomainCorpus.cjs');
 const { RAG_FIXTURES, ragObservation, scoreRagAuthority } = require('../scripts/ai-experiments/api-native-agent/d2B2RagAcceptanceHarness.cjs');
 const { performance, scoreAnswerRelevance } = require('../scripts/ai-experiments/api-native-agent/d2B2R6AcceptanceScoring.cjs');
+const { CANONICAL_ARTIFACTS, PRODUCT_FREEZE_COMMIT, assembleR6, publishR6 } = require('../scripts/ai-experiments/api-native-agent/d2B2R6AcceptanceAssembler.cjs');
 const { classifyRun, domainCoverage } = require('../scripts/ai-experiments/api-native-agent/d2B2AcceptanceEvaluator.cjs');
 test('D2-B2 acceptance harness has ten controlled cases and a fresh 15-run repetition plan without starting a provider', () => {
   assert.equal(controlled.CASES.length, 10); assert.equal(repetition.REPETITION_CASE_IDS.length, 5); assert.equal(repetition.plan().length, 15);
@@ -49,6 +50,27 @@ test('R6H4B AR-01..07 and PF-01..03: cited fact semantics catch dumps while dete
   assert.equal(scoreAnswerRelevance({ caseKind: 'ORDER_SHORTAGE', candidate }).answerDumpedUnrequestedContext, true);
   const metrics = performance([{ domainRuntime: { selectedBusinessDomains: ['order'], domainApiSet: ['a'], executedDomainApis: ['a'], notApplicableDomainApis: [], blockedDomainApis: [], rag: { ragSearchExecuted: true } }, metrics: { mainModelCalls: 2, businessToolCalls: 1 }, durationMs: 10, context: { totalApproxContextTokens: 100 } }, { domainRuntime: { selectedBusinessDomains: ['order','procurement'], domainApiSet: ['a','b'], executedDomainApis: ['a'], notApplicableDomainApis: [], blockedDomainApis: ['b'], rag: { ragSearchExecuted: true } }, metrics: { mainModelCalls: 4, businessToolCalls: 2 }, durationMs: 30, context: { totalApproxContextTokens: 300 } }]);
   assert.equal(metrics.averageModelCalls, 3); assert.equal(metrics.medianDurationMs, 10); assert.equal(metrics.p95DurationMs, 30);
+});
+test('R6H4B AS-01..12: R6 assembly is staging-only, freeze-pinned, composition-checked, and fails closed', () => {
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), 'd2-b2-r6-assembly-'));
+  const plan = { productFreezeCommit: PRODUCT_FREEZE_COMMIT, harnessFreezeCommit: 'r6h4b-test-freeze', domainCorpusRunId: 'domain-corpus-r6', ragAuthorityRunIds: ['rag-01', 'rag-02', 'rag-03', 'rag-04'], targetedRunIds: Array.from({ length: 14 }, (_unused, index) => `targeted-${index + 1}`), d1ProtectionRunId: 'd1-protection-r6' };
+  assert.throws(() => assembleR6(root, plan), /R6_ACCEPTANCE_REQUIRED_RUN_MISSING/);
+  const record = (kind, runId, results, overrides = {}) => {
+    const run = staging.createExclusiveRun(root, { kind, runId });
+    staging.writeStagedRun(run, { productFreezeCommit: PRODUCT_FREEZE_COMMIT, harnessFreezeCommit: plan.harnessFreezeCommit, results, ...overrides });
+  };
+  const safe = (caseId = 'fixture') => ({ caseId, safety: { write: 0 }, domainRuntime: { selectedBusinessDomains: ['order'], domainApiSet: ['get_order_detail'], executedDomainApis: ['get_order_detail'], notApplicableDomainApis: [], blockedDomainApis: [], rag: { ragSearchExecuted: true } }, metrics: { mainModelCalls: 1, businessToolCalls: 1 }, durationMs: 10, context: { totalApproxContextTokens: 20 } });
+  record('domain-corpus', plan.domainCorpusRunId, Array.from({ length: 12 }, () => safe('DOMAIN')));
+  plan.ragAuthorityRunIds.forEach((id, index) => record('rag', id, [safe(`RAG-0${index + 1}`)]));
+  const composition = ['W1-06', 'W1-06', 'W1-06', 'W1-06', 'W1-06', 'SHORTAGE_ONLY', 'SHORTAGE_ONLY', 'SHORTAGE_ONLY', 'PENDING_PURCHASE', 'PENDING_PURCHASE', 'PENDING_PURCHASE', 'ORDER_PRODUCTS', 'ORDER_PRODUCTS', 'ORDER_PRODUCTS'];
+  plan.targetedRunIds.forEach((id, index) => record('targeted', id, [safe(composition[index])]));
+  record('d1-protection', plan.d1ProtectionRunId, Array.from({ length: 4 }, () => safe('D1')));
+  assert.throws(() => assembleR6(root, { ...plan, productFreezeCommit: 'wrong' }), /R6_ACCEPTANCE_FREEZE_MISMATCH/);
+  assert.throws(() => assembleR6(root, { ...plan, targetedRunIds: [...plan.targetedRunIds.slice(0, 13), plan.targetedRunIds[0]] }), /R6_ACCEPTANCE_REQUIRED_RUN_MISSING/);
+  const assembled = publishR6(root, plan);
+  assert.equal(assembled.targetedComposition['W1-06'], 5);
+  assert.equal(assembled.performance.averageModelCalls, 1);
+  assert.equal(fs.existsSync(path.join(root, CANONICAL_ARTIFACTS.acceptance)), true);
 });
 test('D2-B2 source manifest pins the B1 product baseline and the reviewed 31-capability API Index contract', () => {
   const manifest = buildManifest({ harnessCommit: 'test-harness' }); assert.equal(manifest.productBaselineCommit, PRODUCT_BASELINE_COMMIT); assert.equal(manifest.apiIndexCount, 31); assert.equal(manifest.apiIndexFingerprint, '10bee9d8a065ea2322fcaf14bdf21cee949d0f57da8c3d5133448c1ee7d09c61'); assert.equal(typeof manifest.realRunnerHash, 'string'); assert.equal(typeof manifest.exclusiveEvidenceContractHash, 'string');

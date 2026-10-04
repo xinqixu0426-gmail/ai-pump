@@ -14,7 +14,10 @@ function requireRunId(value) {
 }
 function rootFor(outputDirectory) { return path.join(outputDirectory || path.join(process.cwd(), 'planning/ai-native-api'), 'M5-D2-B2-runs'); }
 function runDirectory(outputDirectory, kind, runId) {
-    if (!/^(?:controlled|repetition|real)$/u.test(kind)) throw new Error('D2_B2_RUN_KIND_INVALID');
+    // R6 acceptance has independent writers for each semantic suite.  Keep
+    // the vocabulary closed so a runner cannot silently invent a staging
+    // location or publish a canonical artifact directly.
+    if (!/^(?:controlled|repetition|real|domain-corpus|rag|targeted|d1-protection)$/u.test(kind)) throw new Error('D2_B2_RUN_KIND_INVALID');
     return path.join(rootFor(outputDirectory), kind, requireRunId(runId));
 }
 function createExclusiveRun(outputDirectory, { kind, runId }) {
