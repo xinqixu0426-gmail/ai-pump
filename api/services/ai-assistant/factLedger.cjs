@@ -112,6 +112,31 @@ function recipeComparisonFacts(data, base) {
         qualifiers: { moneyRole: 'RECIPE_DIFFERENCE', participants: { left: { canonicalName: leftName }, right: { canonicalName: rightName } }, direction: 'RIGHT_MINUS_LEFT' } })];
 }
 
+// get_recipe_detail returns current cost inside its formal detail envelope.
+// Candidate finalization needs the same structured money semantics as other
+// current-cost paths; this projects the API value only when the API confirms
+// the amount is complete.  It never promotes a partial amount or recalculates
+// any cost.
+function recipeDetailCurrentCostFacts(data, base) {
+    if (base.tool !== 'get_recipe_detail' || !data || typeof data !== 'object') return [];
+    const current = data.currentCost;
+    const value = finite(current?.currentTotalCost);
+    if (current?.costComplete !== true || value === null || !base.entity) return [];
+    // A legacy/formally-redacted identity lookup can verify the canonical ID
+    // without returning its display label.  The detail response is itself a
+    // verified formal record, so hydrate only this exact bound recipe with
+    // its own canonical name after checking the IDs agree.  This is a
+    // provenance repair, not a name inference or a cross-record binding.
+    const detailId = Number(data.recipe?.id ?? data.recipeId);
+    const detailName = text(data.recipe?.name ?? data.recipeName);
+    const entity = Number.isSafeInteger(detailId) && detailId === Number(base.entity.id) && detailName
+        ? { ...base.entity, canonicalName: detailName }
+        : base.entity;
+    return [makeFact({ entity, predicate: 'current_cost', value, unit: 'CNY',
+        basis: text(current.costBasis) || null, capabilityId: base.capabilityId, tool: base.tool,
+        qualifiers: { moneyRole: 'CURRENT_FORMAL', costComplete: true, sourcePath: 'currentCost.currentTotalCost' } })];
+}
+
 // Scenario comparison is a formal multi-basis result.  Preserve its compact
 // scalar evidence before generic traversal reaches verbose read-set metadata;
 // this performs no cost calculation and only projects values the formal API
@@ -212,6 +237,7 @@ function createFactLedger(options = {}) {
     const includeScenarioComparisonFacts = options.includeScenarioComparisonFacts === true;
     const includeRecipeComparisonFacts = options.includeRecipeComparisonFacts === true;
     const includeCoilDirectoryCostFacts = options.includeCoilDirectoryCostFacts === true;
+    const includeRecipeDetailCurrentCostFacts = options.includeRecipeDetailCurrentCostFacts === true;
     const facts = [];
     const observations = [];
     let sequence = 0;
@@ -240,6 +266,9 @@ function createFactLedger(options = {}) {
                 // without copying business algorithms into the adapter.
                 added.push(append(makeFact({ entity, predicate: 'formal_result_available', value: true, capabilityId, tool })));
                 for (const fact of scalarFacts(data, { entity, tool, capabilityId })) added.push(append(fact));
+                if (includeRecipeDetailCurrentCostFacts) {
+                    for (const fact of recipeDetailCurrentCostFacts(data, { entity, tool, capabilityId })) added.push(append(fact));
+                }
                 if (includeRecipeComparisonFacts) {
                     for (const fact of recipeComparisonFacts(data, { entity, tool, capabilityId })) added.push(append(fact));
                 }
@@ -324,4 +353,4 @@ function modelProjection(result, factIds) {
         projection: { truncated, collections } };
 }
 
-module.exports = { MAX_MODEL_PROJECTION_BYTES, coilDirectoryCostFacts, createFactLedger, modelProjection, recipeComparisonFacts, scenarioComparisonFacts };
+module.exports = { MAX_MODEL_PROJECTION_BYTES, coilDirectoryCostFacts, createFactLedger, modelProjection, recipeComparisonFacts, recipeDetailCurrentCostFacts, scenarioComparisonFacts };

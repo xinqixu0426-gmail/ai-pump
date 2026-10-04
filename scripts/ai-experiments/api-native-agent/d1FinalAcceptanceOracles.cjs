@@ -53,7 +53,7 @@ async function buildControlledOracles(executeToolCall, ids) {
     const costs = [...coils120Data, ...coil12130Data].filter(item => ['12-120-A', '12-130-A'].includes(item.schemeCode)).map(item => ({ canonicalName: item.schemeCode, amount: item.cost, moneyRole: 'CURRENT_FORMAL' }));
     const v750Recipes = requireFormal(recipesV750, 'V750-ambiguity').data || [];
     return Object.freeze({
-        'D1-01': { kind: 'COIL_COUNT', count: coils120.count, queryComplete: coils120.queryReceipt?.truncated === false },
+        'D1-01': { kind: 'COIL_COUNT', count: coils120.count, queryComplete: coils120.queryReceipt?.truncated === false, candidateNames: coils120Data.map(item => item.schemeCode).filter(Boolean) },
         'D1-02': { kind: 'RECIPE_COIL_RELATION', recipeName: detail750.recipe?.name, coilName: coils120Data.find(item => Number(item.id) === Number(detail750.recipe?.coilId))?.schemeCode || '12-120-A' },
         'D1-03': { kind: 'RECIPE_DIFFERENCE', leftRecipeName: difference.recipe1?.name, rightRecipeName: difference.recipe2?.name, delta: difference.costDiff, direction: 'RIGHT_MINUS_LEFT' },
         'D1-04': costs.length === 2 ? { kind: 'COIL_COSTS', costs } : { applicability: 'DATA_LIMITATION', reason: 'FIXTURE_COIL_COST_ORACLE_INCOMPLETE' },
@@ -84,7 +84,7 @@ async function buildRealCatalogCases(executeToolCall) {
     const candidateGroup = [...grouped.entries()].find(([, rows]) => rows.length > 0);
     if (candidateGroup) {
         const [key, rows] = candidateGroup;
-        cases.push({ id: 'REAL-02', rawOwnerInput: `查询${key}有哪些正式线圈方案。`, oracle: { kind: 'COIL_COUNT', count: rows.length, queryComplete: true } });
+        cases.push({ id: 'REAL-02', rawOwnerInput: `查询${key}有哪些正式线圈方案。`, oracle: { kind: 'COIL_COUNT', count: rows.length, queryComplete: true, candidateNames: rows.map(item => item.schemeCode).filter(Boolean) } });
     } else limitations.push({ id: 'REAL-02', reason: 'NO_COIL_CANDIDATES' });
     const costOracle = coilCostOracle(coils);
     if (costOracle.applicability === 'DATA_LIMITATION') limitations.push({ id: 'REAL-03', reason: costOracle.reason });

@@ -1,0 +1,19 @@
+{
+  "phase": "D1-R6",
+  "runMode": "fresh targeted controlled runs; isolated SQLite fixture; real Express routes, executor, formal services and fresh Business/Policy/Main agents",
+  "authoritativeTargetedRuns": [
+    {"caseId":"D1-07","runs":5,"semanticPass":5,"required":"5/5","status":"COMPLETED","scenario":{"applicationStatus":"APPLIED","comparisonStatus":"COMPARABLE","requiredOverrideKeys":["rotorProcessMode"],"base":224,"candidate":230,"delta":6},"scenarioKeysObserved":["stainless","stainless_shaft","stainless","stainlessShaftJoint","stainless_shaft"],"fallbacks":0},
+    {"caseId":"D1-08","runs":5,"semanticPass":5,"required":">=4/5","status":"COMPLETED","scenario":{"applicationStatus":"APPLIED","comparisonStatus":"COMPARABLE","requiredOverrideKeys":["cableLength","packingParts"],"base":224,"candidate":272,"delta":48},"packingIdentityMismatchTerminations":0,"repairValidRuns":1},
+    {"caseId":"D1-05","runs":2,"semanticPass":2,"required":"2/2","status":"COMPLETED","scenario":{"applicationStatus":"APPLIED","comparisonStatus":"COMPARABLE","requiredOverrideKeys":["hasFloat"],"base":224,"candidate":242,"delta":18},"firstPassValidRuns":2},
+    {"caseId":"D1-06","runs":2,"semanticPass":2,"required":"2/2","status":"COMPLETED","scenario":{"applicationStatus":"APPLIED","comparisonStatus":"COMPARABLE","requiredOverrideKeys":["surfaceTreatmentMode"],"base":224,"candidate":249,"delta":25},"firstPassValidRuns":1,"validAfterRepairRuns":1}
+  ],
+  "developmentDiagnosticsRetained": [
+    {"caseId":"D1-05","outcome":"A pre-fix finalizer run had APPLIED/COMPARABLE evidence but fell back after MONEY_CLAIM_BINDING_MISMATCH and NEGATIVE_CLAIM_UNGROUNDED. It was retained as the reproducer for the generic atomic-money repair and is not counted as a post-fix sample."}
+  ],
+  "fixtureMutationChecks": [
+    {"cases":"D1-07 x5","beforeHash":"bac4ea08b57e03a62a9bef5e63ff9600b0031661e83d1ee1fef31e406aaa4205","afterHash":"bac4ea08b57e03a62a9bef5e63ff9600b0031661e83d1ee1fef31e406aaa4205","changedTables":[],"mutations":0},
+    {"cases":"D1-08 x5","beforeHash":"8b6357e2cd0d5b63e3e736f512708c49c174f0887b6c726ad063e49e79480977","afterHash":"8b6357e2cd0d5b63e3e736f512708c49c174f0887b6c726ad063e49e79480977","changedTables":[],"mutations":0}
+  ],
+  "modelProvider":{"provider":"DeepSeek","model":"deepseek-chat","contextWindow":65536},
+  "fullAcceptanceRun":false
+}

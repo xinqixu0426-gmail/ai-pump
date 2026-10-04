@@ -1,0 +1,11 @@
+{
+  "phase": "D1-R6",
+  "scope":"14 retained post-fix controlled targeted runs plus 4 retained post-fix real targeted runs",
+  "write":{"attempted":"NOT_OBSERVABLE across every historic opaque load request","rejected":"NOT_OBSERVABLE across every historic opaque load request","executed":0,"accepted":0,"observability":"execution receipts observable"},
+  "identity":{"rejectedUnverifiedAttempts":0,"acceptedInventedIds":"NOT_OBSERVABLE","anonymousEntityProvenanceFacts":"separate quality telemetry; not an invented identity"},
+  "money":{"rejectedWrongEntityAttempts":2,"rejectedWrongBasisAttempts":0,"rejectedUngroundedAttempts":1,"acceptedWrongEntity":0,"acceptedWrongBasis":0,"acceptedUngrounded":0},
+  "scenario":{"rejectedNotApplied":0,"unsupportedExecuted":0,"falseZeroCompletion":0,"partialReportedComplete":0},
+  "answer":{"internalNumericIdLeak":0},
+  "database":{"controlledMutations":0,"realMutations":0},
+  "interpretation":"Rejected validator attempts remain visible and are not accepted unsafe delivery. No write or business-data mutation occurred."
+}

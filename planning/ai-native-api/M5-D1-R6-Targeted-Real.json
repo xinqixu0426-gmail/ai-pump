@@ -1,0 +1,21 @@
+{
+  "phase": "D1-R6",
+  "mode": "dynamic local catalog, read/preview only, fresh Business/Policy/Main agents",
+  "database": {
+    "source":"LOCAL_BUSINESS_DB",
+    "beforeHash":"7ec16a240874b36b5e2384fd2923e24e4118e7b72cdccb38e07cb76ff9ab58f9",
+    "afterHash":"7ec16a240874b36b5e2384fd2923e24e4118e7b72cdccb38e07cb76ff9ab58f9",
+    "changedTables":[],
+    "mutations":0,
+    "productionMacMiniAccess":false
+  },
+  "runs": [
+    {"caseId":"REAL-04","target":"V750大脚板-2寸-经典款","oracle":{"amount":288.98,"basis":"currentFullCost","moneyRole":"CURRENT_FORMAL"},"runs":2,"semanticPass":2,"classification":"PASS","notes":"Claimable current-cost fact is now projected from formal get_recipe_detail."},
+    {"caseId":"REAL-05","target":"V750大脚板-2寸-经典款 vs V550大脚板-2寸-经典款","oracle":{"left":"V750大脚板-2寸-经典款","right":"V550大脚板-2寸-经典款","direction":"RIGHT_MINUS_LEFT","delta":-20.3},"runs":2,"semanticPass":2,"classification":"PASS","notes":"A reverse formal query is accepted only with the inverse signed directional fact; owner answer states the equivalent absolute difference."}
+  ],
+  "developmentDiagnosticsRetained": [
+    {"caseId":"REAL-05","outcome":"Pre-fix run had verified formal comparison but two MONEY_CLAIM_UNGROUNDED finalization failures and UNAVAILABLE fallback; retained as a genuine delivery reproducer."},
+    {"caseId":"REAL-05","outcome":"A later validator-valid reverse-pair answer exposed the evaluator's orientation-only false negative; the evaluator fix is generic and independently tested."}
+  ],
+  "fullRealSuiteRun":false
+}

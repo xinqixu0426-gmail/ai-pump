@@ -1,0 +1,24 @@
+{
+  "phase": "D1-R6",
+  "target": "REAL-04 current-cost delivery",
+  "formalShape": "get_recipe_detail.data.currentCost.currentTotalCost with costComplete=true",
+  "rootCause": "The candidate ledger lacked a structured current-cost projection for the verified get_recipe_detail envelope. A legacy/redacted lookup transport could preserve canonical recipe ID while omitting its display name, so the current amount was not reliably claimable with an owner-visible entity name.",
+  "repair": {
+    "projection": {
+      "predicate": "current_cost",
+      "moneyRole": "CURRENT_FORMAL",
+      "basis": "formal currentCost.costBasis",
+      "sourcePath": "currentCost.currentTotalCost",
+      "arithmetic": "NONE"
+    },
+    "binding": "The ledger hydrates a display name only when the same verified detail record has exactly the bound recipe ID and provides its own recipe name. No cross-record lookup or numeric-ID exposure is added to the model-facing catalog.",
+    "scope": "Candidate opt-in only"
+  },
+  "verification": {
+    "realRecipe": "V750大脚板-2寸-经典款",
+    "formalCurrentCost": 288.98,
+    "formalBasis": "currentFullCost",
+    "postFixRuns": "2/2 PASS",
+    "modelFacingInternalNumericId": false
+  }
+}

@@ -450,6 +450,44 @@ test('N4.1C：包装身份和表面处理矛盾 fail closed', t => {
     }), error => error.code === 'SURFACE_TREATMENT_COST_REQUIRED');
 });
 
+test('R6：包装预览按正式 partId 补全可选显示身份，显式冲突仍给出安全修复绑定', t => {
+    const unique = `R6-packing-${Date.now()}`;
+    const woodId = Number(db.prepare(
+        'INSERT INTO parts (model, supplier, category, price, created_at, updated_at) VALUES (?, ?, \'包装\', 7, datetime(\'now\'), datetime(\'now\'))'
+    ).run(`${unique}-木箱`, 'R6正式供应商').lastInsertRowid);
+    const templateId = Number(db.prepare(
+        'INSERT INTO pump_shell_templates (shell_model, parts_json, shell_components_json, created_at, updated_at) VALUES (?, \'[]\', \'[]\', datetime(\'now\'), datetime(\'now\'))'
+    ).run(`${unique}-shell`).lastInsertRowid);
+    const recipeId = Number(db.prepare(`INSERT INTO recipes
+        (name, spec, parts_json, extra_parts_json, packing_parts_json, template_id, assembly_wage, packing_wage,
+         surface_treatment_mode, surface_treatment_cost, management_fee, configuration_policy_json, created_at, updated_at)
+         VALUES (?, 'R6-packing', '[]', '[]', '[]', ?, 0, 0, 'none', 0, 0, ?, datetime('now'), datetime('now'))`)
+        .run(unique, templateId, JSON.stringify({ version: 1, fields: {}, packingPartIds: [woodId] })).lastInsertRowid);
+    t.after(() => {
+        db.prepare('DELETE FROM recipes WHERE id = ?').run(recipeId);
+        db.prepare('DELETE FROM pump_shell_templates WHERE id = ?').run(templateId);
+        db.prepare('DELETE FROM parts WHERE id = ?').run(woodId);
+    });
+    const beforeRecipe = db.prepare('SELECT packing_parts_json FROM recipes WHERE id = ?').get(recipeId).packing_parts_json;
+    const preview = scenarioService().compare(recipeId, {
+        version: 1, baselinePolicy: 'CURRENT_REBUILT', scenarios: [{ scenarioKey: 'wood', label: '木箱', overrides: {
+            packingParts: [{ partId: woodId, qty: 1, packingRole: 'container' }],
+        } }],
+    });
+    const applied = preview.scenarios[1].appliedOverrides.packingParts[0];
+    assert.deepEqual(applied, { partId: woodId, model: `${unique}-木箱`, supplier: 'R6正式供应商', qty: 1, packingRole: 'container', packagingMaterial: '木箱' });
+    assert.equal(db.prepare('SELECT packing_parts_json FROM recipes WHERE id = ?').get(recipeId).packing_parts_json, beforeRecipe, 'preview must not mutate recipe state');
+    assert.throws(() => scenarioService().compare(recipeId, {
+        version: 1, baselinePolicy: 'CURRENT_REBUILT', scenarios: [{ scenarioKey: 'wrong', label: '错误身份', overrides: {
+            packingParts: [{ partId: woodId, model: '错误型号', supplier: 'R6正式供应商', qty: 1, packingRole: 'container' }],
+        } }],
+    }), error => error.code === 'PACKING_IDENTITY_MISMATCH'
+        && error.details?.canonicalBinding?.partId === woodId
+        && error.details?.canonicalBinding?.model === `${unique}-木箱`
+        && error.details?.canonicalBinding?.supplier === 'R6正式供应商'
+        && error.details?.canonicalBinding?.packingRole === 'container');
+});
+
 test('N4-AUDIT-FIX-01：surface policy 缺失时允许显式假设，存在时严格匹配且正确派生费用', t => {
     const unique = `N4-audit-surface-${Date.now()}`;
     const templateId = Number(db.prepare(

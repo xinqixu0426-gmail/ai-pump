@@ -1,7 +1,7 @@
 'use strict';
 
 // Only contract-level diagnostics may cross from the formal API to the model.
-const SAFE_DETAIL_KEYS = new Set(['path', 'missingFields', 'allowedValues', 'unknownFields', 'candidateCount', 'entityType', 'status']);
+const SAFE_DETAIL_KEYS = new Set(['path', 'missingFields', 'allowedValues', 'unknownFields', 'candidateCount', 'entityType', 'status', 'canonicalBinding']);
 const SAFE_CATEGORIES = new Set(['INVALID_ARGUMENT', 'AMBIGUITY', 'NOT_FOUND', 'UNSUPPORTED_CAPABILITY', 'UNSUPPORTED_OVERRIDE', 'STALE_CONFLICT', 'TRANSPORT_UNAVAILABLE']);
 
 function categoryFor(code, statusCode) {
@@ -23,8 +23,17 @@ function safeDetails(input) {
         if (typeof value !== 'string' || value.length > 160 || /[\r\n]|https?:\/\/|(?:token|secret|password|authorization)/i.test(value)) return undefined;
         return value;
     };
+    const canonicalBinding = value => {
+        if (!value || typeof value !== 'object' || Array.isArray(value)) return undefined;
+        const partId = Number(value.partId);
+        const model = safeScalar(value.model);
+        const supplier = safeScalar(value.supplier);
+        const packingRole = safeScalar(value.packingRole);
+        if (!Number.isSafeInteger(partId) || partId < 1 || model === undefined || supplier === undefined || packingRole === undefined) return undefined;
+        return { partId, model, supplier, packingRole };
+    };
     return Object.fromEntries(Object.entries(input).filter(([key]) => SAFE_DETAIL_KEYS.has(key)).map(([key, value]) => [key,
-        Array.isArray(value) ? value.map(safeScalar).filter(item => item !== undefined).slice(0, 20) : safeScalar(value),
+        key === 'canonicalBinding' ? canonicalBinding(value) : Array.isArray(value) ? value.map(safeScalar).filter(item => item !== undefined).slice(0, 20) : safeScalar(value),
     ]).filter(([, value]) => value !== undefined));
 }
 

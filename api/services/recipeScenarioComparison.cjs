@@ -79,13 +79,13 @@ function normalizePackingParts(value) {
         const supplier = typeof part.supplier === 'string' ? part.supplier.trim() : '';
         const qty = finite(part.qty, `packingParts[${index}].qty`);
         const packingRole = typeof part.packingRole === 'string' ? part.packingRole : '';
-        if (!model || model.length > 160 || supplier.length > 160 || !PACKING_ROLES.has(packingRole) || qty < 0) {
+        if (model.length > 160 || supplier.length > 160 || !PACKING_ROLES.has(packingRole) || qty < 0) {
             fail('SCENARIO_COMPARE_INVALID_INPUT', `packingParts[${index}] 字段不合法`);
         }
         const identity = `${packingRole}:${partId}`;
         if (seen.has(identity)) fail('PACKING_PART_DUPLICATE', '同一正式包装零件不能重复出现', 422);
         seen.add(identity);
-        return { partId, model, supplier, qty, packingRole };
+        return { partId, ...(model ? { model } : {}), ...(supplier ? { supplier } : {}), qty, packingRole };
     });
 }
 
@@ -158,10 +158,11 @@ function canonicalPackingParts(db, requested) {
         if (String(row.category || '') !== '包装') fail('PACKING_PART_CATEGORY_INVALID', `零件 #${part.partId} 不是包装零件`, 422);
         const model = String(row.model || '').trim();
         const supplier = String(row.supplier || '').trim();
-        if (part.model !== model || part.supplier !== supplier) {
-            fail('PACKING_IDENTITY_MISMATCH', `包装零件 #${part.partId} 的型号或供应商与正式目录不一致`, 422);
-        }
         const formal = inferPackagingSemantics({ ...row, model, supplier });
+        if ((part.model && part.model !== model) || (part.supplier && part.supplier !== supplier)) {
+            fail('PACKING_IDENTITY_MISMATCH', `包装零件 #${part.partId} 的型号或供应商与正式目录不一致`, 422,
+                { canonicalBinding: { partId: part.partId, model, supplier, packingRole: formal.packingRole } });
+        }
         if (formal.packingRole !== part.packingRole) {
             fail('PACKING_ROLE_MISMATCH', `包装零件 #${part.partId} 的角色与正式包装语义不一致`, 422);
         }

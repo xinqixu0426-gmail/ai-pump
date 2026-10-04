@@ -1,0 +1,41 @@
+{
+  "phase": "D1-R6",
+  "purpose": "Correct proven Final V2-R2 evaluator false negatives and false positives without rewriting historical acceptance evidence.",
+  "historicalEvidence": {
+    "preserved": true,
+    "reportedControlledFull": "6/10",
+    "reportedRepetition": "10/21",
+    "reportedAcceptedInventedIds": 11,
+    "reportedAcceptedWrongBasis": 7
+  },
+  "changes": {
+    "scenarioKey": "Receipt scoring now uses applied override semantics, APPLIED/COMPARABLE status, entity, amount and delta. Agent-local scenarioKey remains usable only to connect that agent's own receipt and facts.",
+    "identity": "Anonymous display names in formal child facts are anonymousEntityProvenanceFacts, not proof of an invented formal identity. acceptedInventedIds is NOT_OBSERVABLE from frozen trace shape.",
+    "moneyBasis": "Only a single-money-fact atomic assertion may be classified by evaluator regex. A validator-valid and oracle-valid multi-role answer cannot be downgraded by weaker sentence-level regex.",
+    "recipeDetail": "Verified resolve_entity plus verified get_recipe_detail and the exact owner-visible recipe name support a recipe-detail oracle; child facts need not duplicate the parent display name.",
+    "coilCount": "A complete formally returned record set can support its count without a separately cited scalar count predicate.",
+    "recipeDifference": "A formally directional comparison queried in reverse is accepted when pair names and signed RIGHT_MINUS_LEFT delta are mathematically equivalent to the oracle pair."
+  },
+  "tests": {
+    "scenarioKeyDifferentSameBusinessScenario": "PASS",
+    "scenarioKeyDifferentWrongOverride": "FAIL as expected",
+    "scenarioNotApplied": "FAIL as expected",
+    "scenarioWrongAmount": "FAIL as expected",
+    "anonymousFactNotInventedId": "PASS",
+    "multiRoleCurrentCandidateDifference": "acceptedWrongBasis=0",
+    "recipeCurrentCurrentDifference": "acceptedWrongBasis=0",
+    "realRecipeDetailEquivalent": "PASS",
+    "completeCoilRecordSetCount": "PASS",
+    "reverseFormalRecipeDifference": "PASS"
+  },
+  "diagnosticRescoreOfV2R2": {
+    "authoritative": false,
+    "controlledFullEstimate": "NOT_RECOMPUTED; original 6/10 remains historical evidence",
+    "repetitionEstimate": "approximately 19/21, Supervisor diagnostic only",
+    "D1_05": "3/3 formal APPLIED/COMPARABLE with validator-valid final answers in frozen traces",
+    "D1_06": "3/3 formal APPLIED/COMPARABLE with correct final answers in frozen traces",
+    "D1_07": "run 2 and run 3 correct; run 1 genuine failure",
+    "D1_08": "run 1 and run 2 correct; run 3 genuine failure"
+  },
+  "modelCalls": 0
+}

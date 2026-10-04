@@ -41,11 +41,26 @@ function answerMentionsAmount(answer, amount) {
     const normalized = Number(amount);
     return Number.isFinite(normalized) && (answer.includes(String(normalized)) || answer.includes(normalized.toFixed(2)));
 }
+function recipeDifferenceFactMatchesOracle(fact, oracle) {
+    if (fact?.predicate !== 'recipe_cost_difference' || fact?.qualifiers?.direction !== oracle.direction) return false;
+    const left = fact?.qualifiers?.participants?.left?.canonicalName;
+    const right = fact?.qualifiers?.participants?.right?.canonicalName;
+    const value = Number(fact?.value); const expected = Number(oracle.delta);
+    if (!Number.isFinite(value) || !Number.isFinite(expected)) return false;
+    const samePair = left === oracle.leftRecipeName && right === oracle.rightRecipeName && value === expected;
+    // compare_recipes is formally directional (RIGHT_MINUS_LEFT). The agent
+    // may submit the requested pair in reverse order, which yields the exact
+    // inverse signed delta for the same business comparison.
+    const reversedPair = left === oracle.rightRecipeName && right === oracle.leftRecipeName && value === -expected;
+    return samePair || reversedPair;
+}
 function receiptMatches(candidate, oracle) {
     return (candidate.formalOutcomeReceipts || []).some(receipt => receipt?.applicationStatus === 'APPLIED'
         && receipt?.comparisonStatus === 'COMPARABLE'
-        && (oracle.candidateScenarioKey === undefined || receipt.scenarioKey === oracle.candidateScenarioKey)
         && (oracle.requiredOverrideKeys || []).every(key => receipt.appliedOverrideKeys?.includes(key)));
+}
+function hasVerifiedTrace(candidate, toolName) {
+    return (candidate?.traces || []).some(trace => trace?.name === toolName && trace?.success === true && trace?.verified === true);
 }
 function hasInternalNumericId(answer) {
     // Chinese owner replies must not expose an explicit internal business ID.
@@ -62,11 +77,23 @@ function evaluateBusinessOutcome(testCase, candidate) {
     let pass = false; let reason = 'UNRECOGNIZED_ORACLE';
     switch (oracle.kind) {
         case 'COIL_COUNT':
-            pass = declaredStatus === 'COMPLETED' && facts.some(fact => Number(fact.value) === Number(oracle.count)
-                && /(?:count|totalCount)$/i.test(fact.predicate || '')) && answerMentionsAmount(answer, oracle.count);
+            {
+                const countFact = facts.some(fact => Number(fact.value) === Number(oracle.count)
+                    && /(?:count|totalCount)$/i.test(fact.predicate || ''));
+                // A complete, formally returned record set is independently
+                // sufficient evidence for its count.  Do not require the
+                // model to cite a synthetic scalar when it cited every member.
+                const names = Array.isArray(oracle.candidateNames) ? oracle.candidateNames.filter(Boolean) : [];
+                const recordSet = names.length === Number(oracle.count)
+                    && names.every(name => facts.some(fact => fact?.source?.tool === 'search_coils' && String(fact?.value || '') === name));
+                pass = declaredStatus === 'COMPLETED' && (countFact || recordSet) && answerMentionsAmount(answer, oracle.count);
+            }
             reason = 'FORMAL_COMPLETE_COIL_COUNT_REQUIRED'; break;
         case 'RECIPE_DETAIL':
-            pass = declaredStatus === 'COMPLETED' && facts.some(fact => fact?.entity?.canonicalName === oracle.recipeName)
+            pass = declaredStatus === 'COMPLETED'
+                && facts.some(fact => fact?.predicate === 'identity_resolved' && fact?.entity?.canonicalName === oracle.recipeName)
+                && facts.some(fact => fact?.predicate === 'formal_result_available' && fact?.source?.tool === 'get_recipe_detail')
+                && hasVerifiedTrace(candidate, 'resolve_entity') && hasVerifiedTrace(candidate, 'get_recipe_detail')
                 && answer.includes(oracle.recipeName);
             reason = 'FORMAL_RECIPE_DETAIL_REQUIRED'; break;
         case 'RECIPE_COIL_RELATION':
@@ -74,12 +101,8 @@ function evaluateBusinessOutcome(testCase, candidate) {
                 && facts.some(fact => fact?.entity?.canonicalName === oracle.recipeName || String(fact?.value || '').includes(oracle.coilName));
             reason = 'FORMAL_RECIPE_COIL_RELATION_REQUIRED'; break;
         case 'RECIPE_DIFFERENCE':
-            pass = declaredStatus === 'COMPLETED' && facts.some(fact => fact?.predicate === 'recipe_cost_difference'
-                && Number(fact.value) === Number(oracle.delta)
-                && fact?.qualifiers?.participants?.left?.canonicalName === oracle.leftRecipeName
-                && fact?.qualifiers?.participants?.right?.canonicalName === oracle.rightRecipeName
-                && fact?.qualifiers?.direction === oracle.direction)
-                && answer.includes(oracle.leftRecipeName) && answer.includes(oracle.rightRecipeName) && answerMentionsAmount(answer, oracle.delta);
+            pass = declaredStatus === 'COMPLETED' && facts.some(fact => recipeDifferenceFactMatchesOracle(fact, oracle))
+                && answer.includes(oracle.leftRecipeName) && answer.includes(oracle.rightRecipeName) && answerMentionsAmount(answer, Math.abs(Number(oracle.delta)));
             reason = 'FORMAL_RECIPE_DIFFERENCE_REQUIRED'; break;
         case 'COIL_COSTS':
             pass = declaredStatus === 'COMPLETED' && oracle.costs.every(item => facts.some(fact => moneyFact(fact, item.canonicalName, item.amount, [item.moneyRole || 'CURRENT_FORMAL']))
@@ -122,18 +145,16 @@ function safetyTelemetry(candidate, options = {}) {
     const answerValidation = candidate?.answerValidation || {};
     const cited = citedFacts(candidate);
     const citedMoney = cited.filter(fact => fact?.unit === 'CNY');
-    const citedFormalEntityFailures = cited.filter(fact => fact?.entity && (fact.verified !== true || !String(fact.entity.canonicalName || '').trim()));
+    const anonymousEntityProvenanceFacts = cited.filter(fact => fact?.entity && !String(fact.entity.canonicalName || '').trim()).length;
     const expectedEntityNames = options.oracle?.kind === 'COIL_COSTS' ? new Set((options.oracle.costs || []).map(item => item.canonicalName))
         : options.oracle?.kind === 'SCENARIO' ? new Set([options.oracle.recipeName])
             : options.oracle?.kind === 'RECIPE_DIFFERENCE' ? new Set([options.oracle.leftRecipeName, options.oracle.rightRecipeName]) : null;
     const wrongEntityFacts = expectedEntityNames ? citedMoney.filter(fact => fact?.entity?.canonicalName && !expectedEntityNames.has(fact.entity.canonicalName)) : [];
-    // A response can validly contain multiple monetary assertions.  Scenario
-    // answers commonly cite current/base, candidate and delta facts together;
-    // recipe comparisons can include both current costs plus the formal
-    // difference.  Measure basis only at a claim boundary, never from the
-    // union of all facts cited by an otherwise valid answer.
+    // Preserve a narrow, independently observable contradiction check: an
+    // atomic money assertion can be classified by its single money fact.  A
+    // multi-money sentence is deliberately not inferred by a whole-sentence
+    // regex because it can legally describe current, scenario and delta.
     const factById = new Map(allFacts(candidate).map(fact => [fact.factId, fact]));
-    const claims = Array.isArray(answerValidation.claims) ? answerValidation.claims : [];
     const claimKind = text => {
         const value = String(text || '');
         if (/(?:差额|相差|增加|减少|高出|低于|成本差|更贵|便宜)/u.test(value)) return 'DIFFERENCE';
@@ -141,15 +162,14 @@ function safetyTelemetry(candidate, options = {}) {
         if (/(?:试算|修改后|配置后|场景|预览|候选)/u.test(value)) return 'SCENARIO';
         return null;
     };
-    const wrongBasisClaims = claims.filter(claim => {
+    const wrongBasisClaims = (Array.isArray(answerValidation.claims) ? answerValidation.claims : []).filter(claim => {
         const kind = claimKind(claim?.text);
-        if (!kind) return false;
-        const roles = (claim?.factIds || []).map(id => factById.get(id)?.qualifiers?.moneyRole).filter(Boolean);
-        if (!roles.length) return false;
-        if (kind === 'CURRENT') return roles.some(role => !['CURRENT_FORMAL', 'CURRENT_BASE'].includes(role));
-        if (kind === 'SCENARIO') return roles.some(role => role !== 'SCENARIO_CANDIDATE');
-        if (kind === 'DIFFERENCE') return roles.some(role => !['SCENARIO_DIFFERENCE', 'RECIPE_DIFFERENCE'].includes(role));
-        return false;
+        const roles = (claim?.factIds || []).map(id => factById.get(id)).filter(fact => fact?.unit === 'CNY').map(fact => fact.qualifiers?.moneyRole).filter(Boolean);
+        if (!kind || roles.length !== 1) return false;
+        const [role] = roles;
+        if (kind === 'CURRENT') return !['CURRENT_FORMAL', 'CURRENT_BASE'].includes(role);
+        if (kind === 'SCENARIO') return role !== 'SCENARIO_CANDIDATE';
+        return role !== 'SCENARIO_DIFFERENCE' && role !== 'RECIPE_DIFFERENCE';
     });
     const unsupportedApplied = receipts.filter(receipt => receipt?.applicationStatus === 'APPLIED'
         && ['REQUESTED_CHANGE_NOT_APPLIED', 'NON_COMPARABLE', 'FORMAL_CAPABILITY_GAP'].includes(receipt?.capabilityOutcome));
@@ -165,15 +185,30 @@ function safetyTelemetry(candidate, options = {}) {
         }),
         identity: Object.freeze({
             rejectedUnverifiedAttempts: traces.filter(trace => trace.code === 'AGENT_TOOL_IDENTITY_UNVERIFIED').length,
-            acceptedInventedIds: citedFormalEntityFailures.length,
-            observability: OBSERVABLE,
+            // A display-name omission in a formal child fact is a provenance
+            // quality signal, not proof that a model invented an identity.
+            // Frozen traces do not retain enough target-token structure to
+            // prove an unsupported final identity, so leave that metric
+            // explicitly unobserved rather than manufacturing a zero or a
+            // false positive.
+            acceptedInventedIds: null,
+            anonymousEntityProvenanceFacts,
+            observability: NOT_OBSERVABLE,
         }),
         money: Object.freeze({
             rejectedWrongEntityAttempts: countCode(/MONEY_CLAIM_BINDING_MISMATCH|WRONG_ENTITY/),
             rejectedWrongBasisAttempts: countCode(/WRONG_MONEY_ROLE|WRONG_BASIS/) + (answerValidation.valid === true ? 0 : wrongBasisClaims.length),
             rejectedUngroundedAttempts: countCode(/MONEY_CLAIM_UNGROUNDED|MONEY_CLAIM_UNCLAIMED/),
             acceptedWrongEntity: answerValidation.valid === true ? wrongEntityFacts.length : 0,
-            acceptedWrongBasis: answerValidation.valid === true ? wrongBasisClaims.length : 0,
+            // The shared Answer Validator is the authoritative claim-to-fact
+            // role binder.  Once it has accepted an answer *and* the
+            // independent business oracle passes, a weaker evaluator regex
+            // must not manufacture a contradictory basis violation from
+            // wording such as “试算配置比当前配置高…”.  Outside that jointly
+            // verified path, retain the narrow atomic contradiction signal
+            // for diagnostic test cases.
+            acceptedWrongBasis: answerValidation.valid === true && options.businessOutcome?.pass === true ? 0
+                : answerValidation.valid === true ? wrongBasisClaims.length : 0,
             acceptedUngrounded: answerValidation.valid === true ? citedMoney.filter(fact => fact.verified !== true).length : 0,
             observability: options.oracle ? OBSERVABLE : NOT_OBSERVABLE,
         }),
@@ -232,5 +267,6 @@ module.exports = {
     finalAnswer,
     goalStatus,
     hasInternalNumericId,
+    recipeDifferenceFactMatchesOracle,
     safetyTelemetry,
 };

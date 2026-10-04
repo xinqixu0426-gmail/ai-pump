@@ -196,6 +196,30 @@ test('R1-06..16: candidate-only scenario facts retain entity, basis and candidat
     assert.deepEqual(facts.filter(item => item.predicate === 'scenario_cost_difference').map(item => [item.value, item.basis, item.qualifiers.candidateScenarioKey]), [[18, 'SCENARIO_COMPARISON', 'float']]);
 });
 
+test('R6: finalization instructions keep current, scenario and difference money assertions atomic', () => {
+    const source = require('node:fs').readFileSync(require.resolve('../scripts/ai-experiments/api-native-agent/apiNativeAgentCandidate.cjs'), 'utf8');
+    assert.match(source, /Each monetary factual sentence\/claim may assert only one money role/);
+    const facts = renderClaimableFactsForModel({ facts: [
+        { factId: 'F-1', verified: true, entity: { type: 'recipe', id: 1, canonicalName: 'V750-通用款' }, predicate: 'scenario_cost', value: 224, unit: 'CNY', basis: 'CURRENT_REBUILT_BASE', qualifiers: { moneyRole: 'CURRENT_BASE', scenarioKey: 'base', role: 'BASE', label: '当前' }, source: { tool: 'compare_recipe_scenarios' } },
+        { factId: 'F-2', verified: true, entity: { type: 'recipe', id: 1, canonicalName: 'V750-通用款' }, predicate: 'scenario_cost', value: 230, unit: 'CNY', basis: 'CURRENT_REBUILT_SCENARIO', qualifiers: { moneyRole: 'SCENARIO_CANDIDATE', scenarioKey: 'stainless', role: 'CANDIDATE', label: '候选' }, source: { tool: 'compare_recipe_scenarios' } },
+        { factId: 'F-3', verified: true, entity: { type: 'recipe', id: 1, canonicalName: 'V750-通用款' }, predicate: 'scenario_cost_difference', value: 6, unit: 'CNY', basis: 'SCENARIO_COMPARISON', qualifiers: { moneyRole: 'SCENARIO_DIFFERENCE', baseScenarioKey: 'base', candidateScenarioKey: 'stainless', status: 'COMPARABLE' }, source: { tool: 'compare_recipe_scenarios' } },
+    ] });
+    assert.deepEqual(facts.map(item => item.claimType), ['CURRENT_COST', 'SCENARIO_COST', 'SCENARIO_DELTA']);
+    const envelope = JSON.stringify({ answer: 'V750-通用款当前正式配置成本为224元。V750-通用款候选试算成本为230元。V750-通用款成本增加6元。', claims: [
+        { text: 'V750-通用款当前正式配置成本为224元。', factIds: ['F-1'] },
+        { text: 'V750-通用款候选试算成本为230元。', factIds: ['F-2'] },
+        { text: 'V750-通用款成本增加6元。', factIds: ['F-3'] },
+    ], goals: [{ questionIndex: 0, status: 'COMPLETED', factIds: ['F-1', 'F-2', 'F-3'] }] });
+    const validation = validateAnswer(envelope, { ledger: { facts: [
+        { factId: 'F-1', verified: true, entity: { type: 'recipe', id: 1, canonicalName: 'V750-通用款' }, predicate: 'scenario_cost', value: 224, unit: 'CNY', qualifiers: { moneyRole: 'CURRENT_BASE' } },
+        { factId: 'F-2', verified: true, entity: { type: 'recipe', id: 1, canonicalName: 'V750-通用款' }, predicate: 'scenario_cost', value: 230, unit: 'CNY', qualifiers: { moneyRole: 'SCENARIO_CANDIDATE' } },
+        { factId: 'F-3', verified: true, entity: { type: 'recipe', id: 1, canonicalName: 'V750-通用款' }, predicate: 'scenario_cost_difference', value: 6, unit: 'CNY', qualifiers: { moneyRole: 'SCENARIO_DIFFERENCE' } },
+    ] }, judge: { questions: ['owner'] } });
+    assert.equal(validation.valid, true);
+    assert.match(source, /Every claim must have one or more verified Fact IDs/);
+    assert.match(source, /delete unsupported narrative sentences instead of keeping them with empty factIds/);
+});
+
 test('candidate implementation remains isolated from current production runtime and broker selection', () => {
     const source = require('node:fs').readFileSync(require.resolve('../scripts/ai-experiments/api-native-agent/apiNativeAgentCandidate.cjs'), 'utf8');
     for (const forbidden of ['selectCapabilities', 'DOMAIN_TOOL_NAMES', 'runJudge', 'runtime.cjs']) assert.equal(source.includes(forbidden), false, forbidden);

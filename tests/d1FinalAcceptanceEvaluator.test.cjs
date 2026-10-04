@@ -18,6 +18,9 @@ const { main: repetitionMain } = require('../scripts/ai-experiments/api-native-a
 const { assertRealDatabaseSource, initializeRealHarness, main: realMain } = require('../scripts/ai-experiments/api-native-agent/run-d1-final-real-catalog.cjs');
 const { FINAL_V2_ARTIFACTS, deriveFinalizationStats, derivePerformance, scanForSecrets, serializeRun, writeFinalV2Artifacts } = require('../scripts/ai-experiments/api-native-agent/d1FinalAcceptanceEvidence.cjs');
 const { buildFinalAcceptanceManifest } = require('../scripts/ai-experiments/api-native-agent/d1FinalAcceptanceManifest.cjs');
+const { createFactLedger } = require('../api/services/ai-assistant/factLedger.cjs');
+const { validateAiToolArgs } = require('../api/services/aiToolInputValidator.cjs');
+const { formalToolFailure } = require('../api/services/aiFormalToolError.cjs');
 
 function candidate({ answer = 'A成本为66元。', status = 'COMPLETED', valid = true, facts = [], receipts = [], traces = [], finalizationAttempts = [], claims, metrics, context, durationMs } = {}) {
     const ids = facts.map(fact => fact.factId);
@@ -112,6 +115,13 @@ test('FH1R1-01/02/03/04/05: recipe difference uses real nested participants and 
     assert.equal(evaluateBusinessOutcome({ oracle }, candidate({ answer: 'A和B成本差10元。', facts: [differenceFact('C', 'D')] })).pass, false);
 });
 
+test('R6 recipe comparison accepts the formally equivalent reverse query, but not a different pair or inverse mismatch', () => {
+    const oracle = { kind: 'RECIPE_DIFFERENCE', leftRecipeName: 'A', rightRecipeName: 'B', direction: 'RIGHT_MINUS_LEFT', delta: -10 };
+    assert.equal(evaluateBusinessOutcome({ oracle }, candidate({ answer: 'A比B成本高10元。', facts: [differenceFact('B', 'A', 'RIGHT_MINUS_LEFT', 10)] })).pass, true);
+    assert.equal(evaluateBusinessOutcome({ oracle }, candidate({ answer: 'A比B成本高10元。', facts: [differenceFact('C', 'A', 'RIGHT_MINUS_LEFT', 10)] })).pass, false);
+    assert.equal(evaluateBusinessOutcome({ oracle }, candidate({ answer: 'A比B成本高10元。', facts: [differenceFact('B', 'A', 'RIGHT_MINUS_LEFT', 9)] })).pass, false);
+});
+
 test('FH1R1-06/07/08/09: safely rejected scenarios are not unsupported executions', () => {
     const rejected = candidate({ answer: '该配置未应用。', receipts: [{ applicationStatus: 'NOT_APPLIED', comparisonStatus: 'COMPARABLE', capabilityOutcome: 'REQUESTED_CHANGE_NOT_APPLIED' }], traces: [{ name: 'compare_recipe_scenarios', businessExecution: true }] });
     const safe = safetyTelemetry(rejected, { oracle: { kind: 'SCENARIO', recipeName: 'A' } });
@@ -201,4 +211,71 @@ test('FH1R1 manifest separates product and harness commits with runner hashes an
     assert.equal(manifest.productDrift.pass, true);
     assert.match(manifest.harnessCommit, /^[a-f0-9]{40}$/);
     for (const key of ['controlledRunnerHash', 'repetitionRunnerHash', 'realRunnerHash', 'candidateSourceHash', 'scenarioToolSchemaFingerprint']) assert.match(manifest[key], /^[a-f0-9]{64}$/);
+});
+
+test('R6 EV-SK-01..05: scenario business evidence matches semantics, not an oracle-local scenario key', () => {
+    const oracle = { kind: 'SCENARIO', recipeName: 'V750-通用款', candidateScenarioKey: 'rotor', candidateAmount: 230, delta: 6, answerMarker: '不锈钢接轴', requiredOverrideKeys: ['rotorProcessMode'] };
+    const facts = [
+        money('F-candidate', 'V750-通用款', 230, 'SCENARIO_CANDIDATE'),
+        { factId: 'F-delta', verified: true, entity: { type: 'recipe', canonicalName: 'V750-通用款' }, predicate: 'scenario_cost_difference', value: 6, unit: 'CNY', qualifiers: { moneyRole: 'SCENARIO_DIFFERENCE', candidateScenarioKey: 'stainless' } },
+    ];
+    const semanticMatch = candidate({ answer: 'V750-通用款做不锈钢接轴增加6元。', facts, receipts: [{ scenarioKey: 'stainless', applicationStatus: 'APPLIED', comparisonStatus: 'COMPARABLE', appliedOverrideKeys: ['rotorProcessMode'], capabilityOutcome: 'EXECUTABLE_RESULT' }] });
+    assert.equal(evaluateBusinessOutcome({ oracle }, semanticMatch).pass, true);
+    const wrongOverride = candidate({ answer: 'V750-通用款做不锈钢接轴增加6元。', facts, receipts: [{ scenarioKey: 'stainless', applicationStatus: 'APPLIED', comparisonStatus: 'COMPARABLE', appliedOverrideKeys: ['surfaceTreatmentMode'], capabilityOutcome: 'EXECUTABLE_RESULT' }] });
+    assert.equal(evaluateBusinessOutcome({ oracle }, wrongOverride).pass, false);
+    const notApplied = candidate({ answer: 'V750-通用款做不锈钢接轴增加6元。', facts, receipts: [{ scenarioKey: 'stainless', applicationStatus: 'NOT_APPLIED', comparisonStatus: 'COMPARABLE', appliedOverrideKeys: ['rotorProcessMode'], capabilityOutcome: 'REQUESTED_CHANGE_NOT_APPLIED' }] });
+    assert.equal(evaluateBusinessOutcome({ oracle }, notApplied).pass, false);
+    const wrongAmount = candidate({ answer: 'V750-通用款做不锈钢接轴增加6元。', facts: [money('F-candidate', 'V750-通用款', 231, 'SCENARIO_CANDIDATE'), facts[1]], receipts: semanticMatch.formalOutcomeReceipts });
+    assert.equal(evaluateBusinessOutcome({ oracle }, wrongAmount).pass, false);
+});
+
+test('R6 evaluator treats anonymous provenance as a quality signal, never as an invented formal identity', () => {
+    const anonymous = { factId: 'F-1', verified: true, entity: { type: 'recipe', canonicalName: null }, predicate: 'formal_field:recipe.parts[0].model', value: '轴承', unit: null };
+    const telemetry = safetyTelemetry(candidate({ facts: [anonymous], claims: [{ text: '正式详情读取成功。', factIds: ['F-1'] }] }), {});
+    assert.notEqual(telemetry.identity.acceptedInventedIds, 1);
+    assert.equal(telemetry.identity.anonymousEntityProvenanceFacts, 1);
+});
+
+test('R6 evaluator does not invent a wrong-basis violation from one valid multi-money assertion', () => {
+    const facts = [money('F-current', 'R', 224, 'CURRENT_BASE'), money('F-candidate', 'R', 230, 'SCENARIO_CANDIDATE'), { factId: 'F-delta', verified: true, entity: { type: 'recipe', canonicalName: 'R' }, predicate: 'scenario_cost_difference', value: 6, unit: 'CNY', qualifiers: { moneyRole: 'SCENARIO_DIFFERENCE' } }];
+    const valid = candidate({ answer: 'R当前224元，试算230元，增加6元。', facts, claims: [{ text: 'R当前224元，试算230元，增加6元。', factIds: ['F-current', 'F-candidate', 'F-delta'] }] });
+    assert.equal(safetyTelemetry(valid, { oracle: { kind: 'SCENARIO', recipeName: 'R' }, businessOutcome: { pass: true } }).money.acceptedWrongBasis, 0);
+});
+
+test('R6 evaluator defers to a validator-accepted, oracle-passing atomic answer instead of reclassifying natural-language contrast wording', () => {
+    const facts = [money('F-current', 'R', 224, 'CURRENT_BASE'), { factId: 'F-delta', verified: true, entity: { type: 'recipe', canonicalName: 'R' }, predicate: 'scenario_cost_difference', value: 48, unit: 'CNY', qualifiers: { moneyRole: 'SCENARIO_DIFFERENCE' } }];
+    const valid = candidate({ answer: 'R试算配置比当前正式配置高48元。', facts, claims: [{ text: 'R试算配置比当前正式配置高48元。', factIds: ['F-delta'] }] });
+    assert.equal(safetyTelemetry(valid, { oracle: { kind: 'SCENARIO', recipeName: 'R' }, businessOutcome: { pass: true } }).money.acceptedWrongBasis, 0);
+});
+
+test('R6 REAL detail and complete record-set oracles accept verified formal evidence without duplicated display names or a synthetic count fact', () => {
+    const detail = candidate({ answer: '已读取正式配方 V750。', facts: [
+        { factId: 'F-resolved', verified: true, entity: { type: 'recipe', canonicalName: 'V750' }, predicate: 'identity_resolved', value: 'V750' },
+        { factId: 'F-detail', verified: true, entity: null, predicate: 'formal_result_available', value: true, source: { tool: 'get_recipe_detail' } },
+        { factId: 'F-child', verified: true, entity: { type: 'recipe', canonicalName: null }, predicate: 'formal_field:recipe.parts[0].model', value: '轴承' },
+    ], traces: [{ name: 'resolve_entity', success: true, verified: true }, { name: 'get_recipe_detail', success: true, verified: true }] });
+    assert.equal(evaluateBusinessOutcome({ oracle: { kind: 'RECIPE_DETAIL', recipeName: 'V750' } }, detail).pass, true);
+    const records = candidate({ answer: '正式方案只有一套：COIL-0001。', facts: [
+        { factId: 'F-search', verified: true, entity: null, predicate: 'formal_result_available', value: true, source: { tool: 'search_coils' } },
+        { factId: 'F-code', verified: true, entity: null, predicate: 'formal_field:data[0].schemeCode', value: 'COIL-0001', source: { tool: 'search_coils' } },
+    ], claims: [{ text: '正式方案只有一套：COIL-0001。', factIds: ['F-search', 'F-code'] }] });
+    assert.equal(evaluateBusinessOutcome({ oracle: { kind: 'COIL_COUNT', count: 1, queryComplete: true, candidateNames: ['COIL-0001'] } }, records).pass, true);
+});
+
+test('R6 recipe detail current-cost projection promotes only the formal complete current total', () => {
+    const ledger = createFactLedger({ includeRecipeDetailCurrentCostFacts: true });
+    const binding = new Map([['recipe:1', { verified: true, canonicalName: null }]]);
+    ledger.appendToolResult({ toolName: 'get_recipe_detail', args: { recipeId: 1 }, entityBindings: binding, result: { success: true, verified: true, agentToolName: 'get_recipe_detail', data: { recipe: { id: 1, name: 'R' }, currentCost: { costComplete: true, currentTotalCost: 224, costBasis: 'currentFullCost' } } } });
+    const current = ledger.facts().find(fact => fact.predicate === 'current_cost');
+    assert.deepEqual({ entity: current?.entity?.canonicalName, value: current?.value, basis: current?.basis, role: current?.qualifiers?.moneyRole }, { entity: 'R', value: 224, basis: 'currentFullCost', role: 'CURRENT_FORMAL' });
+    const incomplete = createFactLedger({ includeRecipeDetailCurrentCostFacts: true });
+    incomplete.appendToolResult({ toolName: 'get_recipe_detail', args: { recipeId: 1 }, entityBindings: binding, result: { success: true, verified: true, agentToolName: 'get_recipe_detail', data: { recipe: { id: 1, name: 'R' }, currentCost: { costComplete: false, currentTotalCost: null, partialTotalCost: 224, costBasis: 'currentFullCost' } } } });
+    assert.equal(incomplete.facts().some(fact => fact.predicate === 'current_cost'), false);
+});
+
+test('R6 packing schema accepts a formal part identity without forcing the model to echo mutable catalog display fields, while supplied mismatches remain safe', () => {
+    const args = validateAiToolArgs('compare_recipe_scenarios', { recipeId: 1, version: 1, baselinePolicy: 'CURRENT_REBUILT', scenarios: [{ scenarioKey: 'packing', label: '包装', overrides: { packingParts: [{ partId: 9, qty: 1, packingRole: 'container' }] } }] });
+    assert.deepEqual(args.scenarios[0].overrides.packingParts[0], { partId: 9, qty: 1, packingRole: 'container' });
+    const mismatch = formalToolFailure({ code: 'PACKING_IDENTITY_MISMATCH', statusCode: 422, details: { canonicalBinding: { partId: 9, model: '木箱', supplier: '正式供应商', packingRole: 'container' } } }, 'compare_recipe_scenarios');
+    assert.deepEqual(mismatch.details.canonicalBinding, { partId: 9, model: '木箱', supplier: '正式供应商', packingRole: 'container' });
 });

@@ -1,0 +1,36 @@
+{
+  "phase": "D1-R6",
+  "target": "D1-08 packing identity recovery",
+  "diagnostic": {
+    "fixtureRecipe": "V750通用款",
+    "formalPartBinding": {
+      "partId": 608,
+      "model": "木箱",
+      "supplier": "D1-R1受控供应商",
+      "packingRole": "container"
+    },
+    "observedAgentArgs": {
+      "partId": 608,
+      "model": "木箱",
+      "supplier": "D1-R1受控供应商",
+      "qty": 1,
+      "packingRole": "container"
+    },
+    "historicalFailure": "Optional display-field echo could disagree with the canonical part binding and terminate an otherwise identity-resolved preview."
+  },
+  "answers": {
+    "A_resolveEntity": "The formal part identity is the canonical packaging part above; no fuzzy first-result selection is used.",
+    "B_mismatch": "The failure family was optional model/supplier echo, not partId, quantity, or packing-role ambiguity.",
+    "C_safeDetails": "PACKING_IDENTITY_MISMATCH now returns a sanitized canonicalBinding containing only partId, model, supplier and packingRole.",
+    "D_recoverability": "The agent can safely retry from formal canonical binding evidence; it does not need to guess a catalog record.",
+    "E_searchParts": "No: a verified canonical partId is sufficient for the API to recover formal display attributes.",
+    "F_echoRequirement": "The API no longer requires model/supplier echo. When supplied, each remains strict-validated against the canonical part record."
+  },
+  "contract": {
+    "requiredPackingPartsFields": ["partId", "qty", "packingRole"],
+    "optionalStrictValidatedFields": ["model", "supplier"],
+    "canonicalization": "Business API canonicalizes display fields from the formal part ID before scenario cost calculation.",
+    "identitySafety": "PRESERVED",
+    "writeBehavior": "UNCHANGED"
+  }
+}
