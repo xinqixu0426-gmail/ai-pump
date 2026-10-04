@@ -3,8 +3,8 @@
   "fixtureRuntime": "D2-B2-isolated-operational-runtime",
   "modelCallsEnabled": true,
   "database": {
-    "beforeHash": "d648fe479b30f2ab91dcf3dd6887d4d21becd2949e309f259650ea193f23f512",
-    "afterHash": "d648fe479b30f2ab91dcf3dd6887d4d21becd2949e309f259650ea193f23f512",
+    "beforeHash": "491ea034d6b4bd8dc9d9e1e978c8b6343b688a76fa7e0c775dc0a4ee5f5b4168",
+    "afterHash": "491ea034d6b4bd8dc9d9e1e978c8b6343b688a76fa7e0c775dc0a4ee5f5b4168",
     "changedTables": [],
     "mutations": 0
   },
@@ -14,8 +14,8 @@
       "caseId": "W1-01",
       "runNumber": 1,
       "rawOwnerInput": "ORDER-A现在缺什么？各缺多少？",
-      "businessMemoHash": "e13f754be08cb0105a6550d5f43dbf723e8a37a28769ed88929de73be7b6cfc2",
-      "policyMemoHash": "712bc59ba0507d68be611d28eb9888ce73d3476ea77f7f0c1cc35d8dfc82efa8",
+      "businessMemoHash": "5e28c97c233d81b1bb20c376229be564f2a84dcc7377a2671f964c695980fc62",
+      "policyMemoHash": "379665d70f8379525a9cdec73316403ada597f58b5d2c5cf5f7aa9e05e7ab68c",
       "outcome": {
         "pass": false,
         "validEnvelope": true,
@@ -76,8 +76,8 @@
       },
       "declaredStatus": "UNAVAILABLE",
       "memoTimings": {
-        "businessMs": 2242.72625,
-        "policyMs": 2506.722458
+        "businessMs": 2724.99725,
+        "policyMs": 3249.591875
       },
       "metrics": {
         "mainModelCalls": 7,
@@ -227,29 +227,40 @@
       "finalizationAttempts": [
         {
           "attempt": 1,
-          "code": "ANSWER_ENVELOPE_INVALID",
-          "detail": null,
+          "code": "OPERATIONAL_QUANTITY_BINDING_MISMATCH",
+          "detail": {
+            "claimText": "ORDER-A 当前判定为待补料，有 1 项物料库存不足。",
+            "amount": 1,
+            "detectedQuantityRole": "SHORTAGE",
+            "unit": "count",
+            "citedFactIds": [
+              "F-005"
+            ],
+            "compatibleFactIds": [],
+            "reason": "WRONG_QUANTITY_ROLE"
+          },
           "valid": false,
-          "raw": "{\"answer\":\"ORDER-A 当前判定为待补料，不能直接进入生产；缺料项共 1 项。该缺料项为 D1-R1轴承-202，需求量为 10 个，可用量为 7 个，缺料量为 3 个；采购计划数量为 3 个，已下单 0 个，已到货 0 个，已入库 0 个。缺料明细集合完整（共 1 项，无遗漏）。\",\"claims\":[{\"text\":\"ORDER-A 当前判定为待补料，不能直接进入生产；缺料项共 1 项。\",\"factIds\":[\"F-003\",\"F-005\"]},{\"text\":\"该缺料项为 D1-R1轴承-202，需求量为 10 个，可用量为 7 个，缺料量为 3 个。\",\"factIds\":[\"F-060\",\"F-006\",\"F-007\",\"F-008\"]},{\"text\":\"采购计划数量为 3 个，已下单 0 个，已到货 0 个，已入库 0 个。\",\"factIds\":[\"F-009\",\"F-010\",\"F-011\",\"F-012\"]},{\"text\":\"缺料明细集合完整（共 1 项，无遗漏）。\",\"factIds\":[\"F-004\",\"F-073\",\"F-074\"]}],\"goals\":[{\"questionIndex\":0,\"status\":\"COMPLETED\",\"factIds\":[\"F-003\",\"F-005\",\"F-006\",\"F-007\",\"F-008\"}]}"
+          "raw": "{\"answer\":\"ORDER-A 当前判定为待补料，有 1 项物料库存不足。缺口物料为 D1-R1轴承-202，需求 10 个，可用 7 个，缺 3 个。该物料的采购进度为：计划采购 3 个，已下单 0 个，已到货 0 个，已入库 0 个。\",\"claims\":[{\"text\":\"ORDER-A 当前判定为待补料，有 1 项物料库存不足。\",\"factIds\":[\"F-003\",\"F-004\",\"F-005\"]},{\"text\":\"缺口物料为 D1-R1轴承-202，需求 10 个，可用 7 个，缺 3 个。\",\"factIds\":[\"F-060\",\"F-006\",\"F-007\",\"F-008\"]},{\"text\":\"该物料的采购进度为：计划采购 3 个，已下单 0 个，已到货 0 个，已入库 0 个。\",\"factIds\":[\"F-009\",\"F-010\",\"F-011\",\"F-012\"]}],\"goals\":[{\"questionIndex\":0,\"status\":\"COMPLETED\",\"factIds\":[\"F-005\",\"F-006\",\"F-007\",\"F-008\",\"F-009\",\"F-010\",\"F-011\",\"F-012\"]}]}"
         },
         {
           "attempt": 2,
           "code": "OPERATIONAL_QUANTITY_BINDING_MISMATCH",
           "detail": {
-            "claimText": "该缺料项为 D1-R1轴承-202，需求量为 10 个。",
+            "claimText": "缺料清单共 1 条，缺口物料为 D1-R1轴承-202，需求 10 个，可用 7 个，缺 3 个。",
             "amount": 1,
-            "detectedQuantityRole": "SHORTAGE_LINE_COUNT",
-            "unit": null,
+            "detectedQuantityRole": "SHORTAGE",
+            "unit": "count",
             "citedFactIds": [
-              "F-006"
+              "F-005",
+              "F-006",
+              "F-007",
+              "F-008"
             ],
-            "compatibleFactIds": [
-              "F-005"
-            ],
-            "reason": "NO_MATCHING_OPERATIONAL_QUANTITY_FACT"
+            "compatibleFactIds": [],
+            "reason": "WRONG_QUANTITY_ROLE"
           },
           "valid": false,
-          "raw": "{\"answer\":\"ORDER-A 当前判定为待补料。ORDER-A 的缺料项共 1 项。该缺料项为 D1-R1轴承-202，需求量为 10 个。D1-R1轴承-202 的可用量为 7 个，缺料量为 3 个。\",\"claims\":[{\"text\":\"ORDER-A 当前判定为待补料。\",\"factIds\":[\"F-003\"]},{\"text\":\"ORDER-A 的缺料项共 1 项。\",\"factIds\":[\"F-005\"]},{\"text\":\"该缺料项为 D1-R1轴承-202，需求量为 10 个。\",\"factIds\":[\"F-060\",\"F-006\"]},{\"text\":\"D1-R1轴承-202 的可用量为 7 个，缺料量为 3 个。\",\"factIds\":[\"F-007\",\"F-008\"]}],\"goals\":[{\"questionIndex\":0,\"status\":\"COMPLETED\",\"factIds\":[\"F-003\",\"F-005\",\"F-006\",\"F-007\",\"F-008\"]}]}"
+          "raw": "{\"answer\":\"ORDER-A 当前判定为待补料。缺料清单共 1 条，缺口物料为 D1-R1轴承-202，需求 10 个，可用 7 个，缺 3 个。该物料的采购进度为：计划采购 3 个，已下单 0 个，已到货 0 个，已入库 0 个。\",\"claims\":[{\"text\":\"ORDER-A 当前判定为待补料。\",\"factIds\":[\"F-003\"]},{\"text\":\"缺料清单共 1 条，缺口物料为 D1-R1轴承-202，需求 10 个，可用 7 个，缺 3 个。\",\"factIds\":[\"F-004\",\"F-005\",\"F-060\",\"F-006\",\"F-007\",\"F-008\"]},{\"text\":\"该物料的采购进度为：计划采购 3 个，已下单 0 个，已到货 0 个，已入库 0 个。\",\"factIds\":[\"F-009\",\"F-010\",\"F-011\",\"F-012\"]}],\"goals\":[{\"questionIndex\":0,\"status\":\"COMPLETED\",\"factIds\":[\"F-005\",\"F-006\",\"F-007\",\"F-008\",\"F-009\",\"F-010\",\"F-011\",\"F-012\"]}]}"
         }
       ],
       "answerValidation": {
@@ -267,24 +278,24 @@
       },
       "context": {
         "rawOwnerInputTokensEst": 10,
-        "businessMemoTokensEst": 227,
-        "policyMemoTokensEst": 295,
+        "businessMemoTokensEst": 311,
+        "policyMemoTokensEst": 371,
         "ontologyContextTokensEst": 142,
         "apiIndexTokensEst": 3150,
         "loadedSchemaTokensEst": 506,
         "factCatalogChars": 4754,
         "factCatalogFactCount": 15,
-        "totalApproxContextTokens": 11408
+        "totalApproxContextTokens": 11473
       },
-      "durationMs": 13437
+      "durationMs": 13294
     },
     {
       "runId": "W1-02-1",
       "caseId": "W1-02",
       "runNumber": 1,
       "rawOwnerInput": "ORDER-A现在能直接生产吗？",
-      "businessMemoHash": "72776d30e5585f8ee9fe05175e1cf6df39bb3e7b2eeea84dd61ab44f1fd4528b",
-      "policyMemoHash": "bcfb9332b3ece1869370e43d8b2078e723385cc9235abd1a1f620c72f88573d3",
+      "businessMemoHash": "b534f0d16754ec2018ed8720d6b131a946aef6261dc33fe1ecca2b992fcae759",
+      "policyMemoHash": "d6165f529af73ce5118e0d5539149e17a52a76cd95fc6de1c6027dcec7c5a108",
       "outcome": {
         "pass": false,
         "validEnvelope": true,
@@ -345,11 +356,11 @@
       },
       "declaredStatus": "UNAVAILABLE",
       "memoTimings": {
-        "businessMs": 2812.917291,
-        "policyMs": 2346.687792
+        "businessMs": 2738.785917,
+        "policyMs": 2421.10525
       },
       "metrics": {
-        "mainModelCalls": 6,
+        "mainModelCalls": 7,
         "loadToolsCalls": 1,
         "resolveCalls": 1,
         "businessToolCalls": 1,
@@ -364,12 +375,10 @@
           "COMPLETION_REVIEW_CONFIRMED"
         ],
         "loadedToolNames": [
-          "get_order_knowledge_package",
-          "check_order_readiness",
-          "get_recent_orders"
+          "check_order_readiness"
         ],
         "apiIndexFingerprint": "734be7888b47f19baf76b5f55282d408e2416eec0b2924c3a91b90d197473f18",
-        "loadedSchemaFingerprint": "328398c03335d449a8004473fd8b3ed8c9a183e81170896114f81e33880b37b8"
+        "loadedSchemaFingerprint": "7563a7d56576c1c62d28d680c008f98540af071b1327997589b1f10cf256b947"
       },
       "traces": [
         {
@@ -499,35 +508,40 @@
           "attempt": 1,
           "code": "OPERATIONAL_QUANTITY_BINDING_MISMATCH",
           "detail": {
-            "claimText": "共有 1 项物料缺料。",
+            "claimText": "缺料为 1 项：零件 D1-R1轴承-202 需求 10 个、可用 7 个、缺口 3 个。",
             "amount": 1,
             "detectedQuantityRole": "SHORTAGE",
             "unit": "count",
             "citedFactIds": [
-              "F-005"
+              "F-005",
+              "F-006",
+              "F-007",
+              "F-008"
             ],
             "compatibleFactIds": [],
             "reason": "WRONG_QUANTITY_ROLE"
           },
           "valid": false,
-          "raw": "{\"answer\":\"ORDER-A 当前不能直接生产，就绪状态为待补料。共有 1 项物料缺料。缺料物料为 D1-R1轴承-202，需求量为 10 个，可用量为 7 个，缺口为 3 个。该物料计划采购 3 个，已下单 0 个，已到货 0 个，已入库 0 个。\",\"claims\":[{\"text\":\"ORDER-A 当前不能直接生产，就绪状态为待补料。\",\"factIds\":[\"F-001\",\"F-002\",\"F-003\"]},{\"text\":\"共有 1 项物料缺料。\",\"factIds\":[\"F-004\",\"F-005\",\"F-073\",\"F-074\"]},{\"text\":\"缺料物料为 D1-R1轴承-202，需求量为 10 个，可用量为 7 个，缺口为 3 个。\",\"factIds\":[\"F-060\",\"F-006\",\"F-007\",\"F-008\"]},{\"text\":\"该物料计划采购 3 个，已下单 0 个，已到货 0 个，已入库 0 个。\",\"factIds\":[\"F-009\",\"F-010\",\"F-011\",\"F-012\"]}],\"goals\":[{\"questionIndex\":0,\"status\":\"COMPLETED\",\"factIds\":[\"F-001\",\"F-003\",\"F-005\",\"F-008\"]}]}"
+          "raw": "{\"answer\":\"ORDER-A 当前不能直接生产，正式检查结论为“待补料”。缺料为 1 项：零件 D1-R1轴承-202 需求 10 个、可用 7 个、缺口 3 个。该零件计划采购 3 个，已下单 0 个、已到货 0 个、已入库 0 个，采购进度为“待下单”。缺料清单已完整返回 1 项，本次为只读判定，未对订单或库存做任何变更。\",\"claims\":[{\"text\":\"ORDER-A 当前不能直接生产，正式检查结论为“待补料”。\",\"factIds\":[\"F-001\",\"F-002\",\"F-003\"]},{\"text\":\"缺料为 1 项：零件 D1-R1轴承-202 需求 10 个、可用 7 个、缺口 3 个。\",\"factIds\":[\"F-005\",\"F-006\",\"F-007\",\"F-008\",\"F-060\"]},{\"text\":\"该零件计划采购 3 个，已下单 0 个、已到货 0 个、已入库 0 个，采购进度为“待下单”。\",\"factIds\":[\"F-009\",\"F-010\",\"F-011\",\"F-012\"]},{\"text\":\"缺料清单已完整返回 1 项，本次为只读判定，未对订单或库存做任何变更。\",\"factIds\":[\"F-004\",\"F-073\",\"F-074\"]}],\"goals\":[{\"questionIndex\":0,\"status\":\"COMPLETED\",\"factIds\":[\"F-001\",\"F-002\",\"F-003\",\"F-004\",\"F-005\",\"F-006\",\"F-007\",\"F-008\",\"F-009\",\"F-010\",\"F-011\",\"F-012\",\"F-060\",\"F-073\",\"F-074\"]}]}"
         },
         {
           "attempt": 2,
           "code": "OPERATIONAL_QUANTITY_BINDING_MISMATCH",
           "detail": {
-            "claimText": "缺料清单共 1 行，清单完整。",
+            "claimText": "缺料共 1 个条目。",
             "amount": 1,
-            "detectedQuantityRole": "SHORTAGE",
-            "unit": null,
+            "detectedQuantityRole": "SHORTAGE_LINE_COUNT",
+            "unit": "piece",
             "citedFactIds": [
               "F-005"
             ],
-            "compatibleFactIds": [],
-            "reason": "WRONG_QUANTITY_ROLE"
+            "compatibleFactIds": [
+              "F-005"
+            ],
+            "reason": "WRONG_OPERATIONAL_UNIT"
           },
           "valid": false,
-          "raw": "{\"answer\":\"ORDER-A 当前不能直接生产，就绪状态为待补料。缺料清单共 1 行，清单完整。缺料物料为 D1-R1轴承-202，需求量为 10 个，可用量为 7 个，缺料量为 3 个。该物料计划采购 3 个，已下单 0 个，已到货 0 个，已入库 0 个。\",\"claims\":[{\"text\":\"ORDER-A 当前不能直接生产，就绪状态为待补料。\",\"factIds\":[\"F-001\",\"F-002\",\"F-003\"]},{\"text\":\"缺料清单共 1 行，清单完整。\",\"factIds\":[\"F-005\",\"F-004\",\"F-073\",\"F-074\"]},{\"text\":\"缺料物料为 D1-R1轴承-202，需求量为 10 个，可用量为 7 个，缺料量为 3 个。\",\"factIds\":[\"F-060\",\"F-006\",\"F-007\",\"F-008\"]},{\"text\":\"该物料计划采购 3 个，已下单 0 个，已到货 0 个，已入库 0 个。\",\"factIds\":[\"F-009\",\"F-010\",\"F-011\",\"F-012\"]}],\"goals\":[{\"questionIndex\":0,\"status\":\"COMPLETED\",\"factIds\":[\"F-001\",\"F-003\",\"F-005\",\"F-008\"]}]}"
+          "raw": "{\"answer\":\"ORDER-A 当前不能直接生产，正式检查结论为“待补料”。缺料共 1 个条目。零件 D1-R1轴承-202 需求 10 个。零件 D1-R1轴承-202 可用 7 个，缺口 3 个。零件 D1-R1轴承-202 计划采购 3 个，已下单 0 个、已到货 0 个、已入库 0 个。\",\"claims\":[{\"text\":\"ORDER-A 当前不能直接生产，正式检查结论为“待补料”。\",\"factIds\":[\"F-001\",\"F-002\",\"F-003\"]},{\"text\":\"缺料共 1 个条目。\",\"factIds\":[\"F-005\"]},{\"text\":\"零件 D1-R1轴承-202 需求 10 个。\",\"factIds\":[\"F-006\",\"F-060\"]},{\"text\":\"零件 D1-R1轴承-202 可用 7 个，缺口 3 个。\",\"factIds\":[\"F-007\",\"F-008\"]},{\"text\":\"零件 D1-R1轴承-202 计划采购 3 个，已下单 0 个、已到货 0 个、已入库 0 个。\",\"factIds\":[\"F-009\",\"F-010\",\"F-011\",\"F-012\"]}],\"goals\":[{\"questionIndex\":0,\"status\":\"COMPLETED\",\"factIds\":[\"F-001\",\"F-002\",\"F-003\",\"F-005\",\"F-006\",\"F-007\",\"F-008\",\"F-009\",\"F-010\",\"F-011\",\"F-012\",\"F-060\"]}]}"
         }
       ],
       "answerValidation": {
@@ -545,32 +559,32 @@
       },
       "context": {
         "rawOwnerInputTokensEst": 9,
-        "businessMemoTokensEst": 446,
-        "policyMemoTokensEst": 259,
+        "businessMemoTokensEst": 373,
+        "policyMemoTokensEst": 227,
         "ontologyContextTokensEst": 142,
         "apiIndexTokensEst": 3150,
-        "loadedSchemaTokensEst": 754,
+        "loadedSchemaTokensEst": 280,
         "factCatalogChars": 4754,
         "factCatalogFactCount": 15,
-        "totalApproxContextTokens": 12233
+        "totalApproxContextTokens": 11534
       },
-      "durationMs": 14981
+      "durationMs": 13501
     },
     {
       "runId": "W1-03-1",
       "caseId": "W1-03",
       "runNumber": 1,
       "rawOwnerInput": "ORDER-A这个缺料现在需要多少、库存有多少、还差多少？",
-      "businessMemoHash": "5ffda684162b7e661218771fed283cad5ff3718ad4eb13602a4900790a20acfa",
-      "policyMemoHash": "79d46af761ee1ea201dc56193b92ad1b4de781ab8f1b96ba8d63635de457b4c9",
+      "businessMemoHash": "64eb0c7199709565c21fd5cabf9ec003343c680a01f8651481f96bd6d9af33c4",
+      "policyMemoHash": "eccd4498d7dd246cc83972dcebb03e6a0036ed4624052214ebeb18a7c82fefd8",
       "outcome": {
-        "pass": true,
+        "pass": false,
         "validEnvelope": true,
-        "declaredStatus": "COMPLETED",
-        "classification": "PASS",
+        "declaredStatus": "UNAVAILABLE",
+        "classification": "AGENT_RELIABILITY_FAILURE",
         "reason": "FORMAL_QUANTITY_ROLES_REQUIRED"
       },
-      "classification": "PASS",
+      "classification": "AGENT_RELIABILITY_FAILURE",
       "safety": {
         "write": {
           "attempted": 0,
@@ -621,13 +635,13 @@
           "inferredPurchaseCoversShortage": 0
         }
       },
-      "declaredStatus": "COMPLETED",
+      "declaredStatus": "UNAVAILABLE",
       "memoTimings": {
-        "businessMs": 2442.318084,
-        "policyMs": 2614.546791
+        "businessMs": 2499.391916,
+        "policyMs": 2855.078084
       },
       "metrics": {
-        "mainModelCalls": 6,
+        "mainModelCalls": 9,
         "loadToolsCalls": 1,
         "resolveCalls": 1,
         "businessToolCalls": 2,
@@ -642,12 +656,11 @@
           "COMPLETION_REVIEW_CONFIRMED"
         ],
         "loadedToolNames": [
-          "get_order_knowledge_package",
           "check_order_readiness",
           "get_order_detail"
         ],
         "apiIndexFingerprint": "734be7888b47f19baf76b5f55282d408e2416eec0b2924c3a91b90d197473f18",
-        "loadedSchemaFingerprint": "c539e0e149f19f6eb96392308a7d770895781c6b1a365dc451325e6e5880e09c"
+        "loadedSchemaFingerprint": "0c43a551d166c82235f770e05b4c5ec7a3e4b455f97e563012e7496ada276b4d"
       },
       "traces": [
         {
@@ -771,7 +784,7 @@
           "businessExecution": true
         },
         {
-          "name": "get_order_knowledge_package",
+          "name": "get_order_detail",
           "argKeys": [
             "orderId"
           ],
@@ -856,14 +869,23 @@
             "F-154",
             "F-155",
             "F-156",
-            "F-157",
-            "F-158",
-            "F-159",
-            "F-160"
+            "F-157"
           ],
           "noNewEvidence": false,
           "controlPlane": false,
           "businessExecution": true
+        },
+        {
+          "name": "get_order_detail",
+          "argKeys": [
+            "orderId"
+          ],
+          "success": false,
+          "verified": false,
+          "code": "DUPLICATE_TOOL_CALL",
+          "factIds": [],
+          "noNewEvidence": false,
+          "controlPlane": true
         }
       ],
       "formalOutcomeReceipts": [],
@@ -872,89 +894,73 @@
           "attempt": 1,
           "code": "OPERATIONAL_QUANTITY_BINDING_MISMATCH",
           "detail": {
-            "claimText": "ORDER-A 当前有 1 项缺料，缺料物料为 D1-R1轴承-202。",
-            "amount": 1,
-            "detectedQuantityRole": "SHORTAGE",
-            "unit": "count",
+            "claimText": "ORDER-A 是客户 D2受控客户、状态为“采购中”的订单，产品为 V750-通用款 5 台，当前判定为待补料，共 1 项物料库存不足。",
+            "amount": 750,
+            "detectedQuantityRole": "ORDER_LINE",
+            "unit": null,
             "citedFactIds": [
+              "F-088",
               "F-005"
             ],
             "compatibleFactIds": [],
-            "reason": "WRONG_QUANTITY_ROLE"
+            "reason": "NO_MATCHING_OPERATIONAL_QUANTITY_FACT"
           },
           "valid": false,
-          "raw": "{\"answer\":\"ORDER-A 当前有 1 项缺料，缺料物料为 D1-R1轴承-202。该物料需求量为 10 个。该物料可用量为 7 个。该物料缺口量为 3 个。\",\"claims\":[{\"text\":\"ORDER-A 当前有 1 项缺料，缺料物料为 D1-R1轴承-202。\",\"factIds\":[\"F-004\",\"F-005\",\"F-060\"]},{\"text\":\"该物料需求量为 10 个。\",\"factIds\":[\"F-006\"]},{\"text\":\"该物料可用量为 7 个。\",\"factIds\":[\"F-007\"]},{\"text\":\"该物料缺口量为 3 个。\",\"factIds\":[\"F-008\"]}],\"goals\":[{\"questionIndex\":0,\"status\":\"COMPLETED\",\"factIds\":[\"F-006\",\"F-007\",\"F-008\"]}]}"
+          "raw": "{\"answer\":\"ORDER-A 是客户 D2受控客户、状态为“采购中”的订单，产品为 V750-通用款 5 台，当前判定为待补料，共 1 项物料库存不足。缺料物料为 D1-R1轴承-202，需求量 10 个，可用量 7 个。还差 3 个，采购进度为待下单：计划采购 3 个，已下单 0 个，已到货 0 个，已入库 0 个。\",\"claims\":[{\"text\":\"ORDER-A 是客户 D2受控客户、状态为“采购中”的订单，产品为 V750-通用款 5 台，当前判定为待补料，共 1 项物料库存不足。\",\"factIds\":[\"F-001\",\"F-081\",\"F-082\",\"F-087\",\"F-088\",\"F-003\",\"F-005\",\"F-004\"]},{\"text\":\"缺料物料为 D1-R1轴承-202，需求量 10 个，可用量 7 个。\",\"factIds\":[\"F-060\",\"F-006\",\"F-007\"]},{\"text\":\"还差 3 个，采购进度为待下单：计划采购 3 个，已下单 0 个，已到货 0 个，已入库 0 个。\",\"factIds\":[\"F-008\",\"F-009\",\"F-010\",\"F-011\",\"F-012\"]}],\"goals\":[{\"questionIndex\":0,\"status\":\"COMPLETED\",\"factIds\":[\"F-006\",\"F-007\",\"F-008\",\"F-009\",\"F-010\",\"F-011\",\"F-012\"]}]}"
         },
         {
           "attempt": 2,
-          "code": "ANSWER_VERIFIED",
-          "detail": null,
-          "valid": true,
-          "raw": "{\"answer\":\"ORDER-A 的缺料物料为 D1-R1轴承-202。该物料需求量为 10 个。该物料可用量为 7 个。该物料缺口量为 3 个。\",\"claims\":[{\"text\":\"ORDER-A 的缺料物料为 D1-R1轴承-202。\",\"factIds\":[\"F-060\"]},{\"text\":\"该物料需求量为 10 个。\",\"factIds\":[\"F-006\"]},{\"text\":\"该物料可用量为 7 个。\",\"factIds\":[\"F-007\"]},{\"text\":\"该物料缺口量为 3 个。\",\"factIds\":[\"F-008\"]}],\"goals\":[{\"questionIndex\":0,\"status\":\"COMPLETED\",\"factIds\":[\"F-006\",\"F-007\",\"F-008\"]}]}"
+          "code": "OPERATIONAL_QUANTITY_BINDING_MISMATCH",
+          "detail": {
+            "claimText": "ORDER-A 是客户 D2受控客户、状态为“采购中”的订单，订单数量 5 个，当前判定为待补料。",
+            "amount": 5,
+            "detectedQuantityRole": "ORDER_LINE",
+            "unit": "piece",
+            "citedFactIds": [
+              "F-088"
+            ],
+            "compatibleFactIds": [
+              "F-088"
+            ],
+            "reason": "WRONG_OPERATIONAL_UNIT"
+          },
+          "valid": false,
+          "raw": "{\"answer\":\"ORDER-A 是客户 D2受控客户、状态为“采购中”的订单，订单数量 5 个，当前判定为待补料。缺料物料为 D1-R1轴承-202，需求量 10 个。该物料可用量 7 个。还差 3 个，采购进度为待下单，已下单 0 个，已到货 0 个，已入库 0 个。\",\"claims\":[{\"text\":\"ORDER-A 是客户 D2受控客户、状态为“采购中”的订单，订单数量 5 个，当前判定为待补料。\",\"factIds\":[\"F-001\",\"F-082\",\"F-081\",\"F-088\",\"F-003\"]},{\"text\":\"缺料物料为 D1-R1轴承-202，需求量 10 个。\",\"factIds\":[\"F-113\",\"F-006\"]},{\"text\":\"该物料可用量 7 个。\",\"factIds\":[\"F-007\"]},{\"text\":\"还差 3 个，采购进度为待下单，已下单 0 个，已到货 0 个，已入库 0 个。\",\"factIds\":[\"F-008\",\"F-009\",\"F-010\",\"F-011\",\"F-012\"]}],\"goals\":[{\"questionIndex\":0,\"status\":\"COMPLETED\",\"factIds\":[\"F-006\",\"F-007\",\"F-008\",\"F-009\",\"F-010\",\"F-011\",\"F-012\"]}]}"
         }
       ],
       "answerValidation": {
         "valid": true,
-        "answer": "ORDER-A 的缺料物料为 D1-R1轴承-202。该物料需求量为 10 个。该物料可用量为 7 个。该物料缺口量为 3 个。",
-        "claims": [
-          {
-            "text": "ORDER-A 的缺料物料为 D1-R1轴承-202。",
-            "factIds": [
-              "F-060"
-            ]
-          },
-          {
-            "text": "该物料需求量为 10 个。",
-            "factIds": [
-              "F-006"
-            ]
-          },
-          {
-            "text": "该物料可用量为 7 个。",
-            "factIds": [
-              "F-007"
-            ]
-          },
-          {
-            "text": "该物料缺口量为 3 个。",
-            "factIds": [
-              "F-008"
-            ]
-          }
-        ],
+        "answer": "当前正式业务能力无法可靠完成该请求；不会把未应用的配置、零差额或未核验数据当作结果。",
+        "claims": [],
         "goals": [
           {
             "questionIndex": 0,
-            "status": "COMPLETED",
-            "factIds": [
-              "F-006",
-              "F-007",
-              "F-008"
-            ]
+            "status": "UNAVAILABLE",
+            "factIds": []
           }
         ],
         "code": "ANSWER_VERIFIED"
       },
       "context": {
         "rawOwnerInputTokensEst": 19,
-        "businessMemoTokensEst": 455,
-        "policyMemoTokensEst": 262,
+        "businessMemoTokensEst": 359,
+        "policyMemoTokensEst": 281,
         "ontologyContextTokensEst": 142,
         "apiIndexTokensEst": 3150,
-        "loadedSchemaTokensEst": 760,
-        "factCatalogChars": 6014,
-        "factCatalogFactCount": 21,
-        "totalApproxContextTokens": 12668
+        "loadedSchemaTokensEst": 534,
+        "factCatalogChars": 8213,
+        "factCatalogFactCount": 31,
+        "totalApproxContextTokens": 14362
       },
-      "durationMs": 11954
+      "durationMs": 16572
     },
     {
       "runId": "W1-04-1",
       "caseId": "W1-04",
       "runNumber": 1,
       "rawOwnerInput": "ORDER-A里有哪些产品，各多少台？",
-      "businessMemoHash": "e05457b5c150fcece2b8e39f68f2e48b9b9231b495c5b3ede0284631677a3334",
-      "policyMemoHash": "b832f5d8ee46279bfc10ad8a9f217cbd6b122f84ddea7e28c5d11a89f1116177",
+      "businessMemoHash": "9df61ee5f441b4b0f5875d39a1fa90f1844834b595a0ea9b16064aec39dc99a4",
+      "policyMemoHash": "91860b3b422834473a3fe6df8c485a127b22bde09bc72738bc69f992c8c970ad",
       "outcome": {
         "pass": true,
         "validEnvelope": true,
@@ -1015,11 +1021,11 @@
       },
       "declaredStatus": "COMPLETED",
       "memoTimings": {
-        "businessMs": 2465.458167,
-        "policyMs": 1793.599291
+        "businessMs": 2424.020542,
+        "policyMs": 2337.143334
       },
       "metrics": {
-        "mainModelCalls": 6,
+        "mainModelCalls": 7,
         "loadToolsCalls": 1,
         "resolveCalls": 1,
         "businessToolCalls": 1,
@@ -1034,10 +1040,11 @@
           "COMPLETION_REVIEW_CONFIRMED"
         ],
         "loadedToolNames": [
+          "get_order_knowledge_package",
           "get_order_detail"
         ],
         "apiIndexFingerprint": "734be7888b47f19baf76b5f55282d408e2416eec0b2924c3a91b90d197473f18",
-        "loadedSchemaFingerprint": "feab664440e456b5ff827558e457cc80c65a862c47c562dd1758411d47dd7742"
+        "loadedSchemaFingerprint": "4e8e98edf0b9037105dbacd23ba925cd7ef62476bb4aa15805c864038dbe17aa"
       },
       "traces": [
         {
@@ -1165,35 +1172,58 @@
       "finalizationAttempts": [
         {
           "attempt": 1,
+          "code": "OPERATIONAL_QUANTITY_BINDING_MISMATCH",
+          "detail": {
+            "claimText": "ORDER-A 的订单明细中只包含一个产品：V750-通用款，数量为 5 台。",
+            "amount": 750,
+            "detectedQuantityRole": "ORDER_LINE",
+            "unit": null,
+            "citedFactIds": [
+              "F-010"
+            ],
+            "compatibleFactIds": [],
+            "reason": "NO_MATCHING_OPERATIONAL_QUANTITY_FACT"
+          },
+          "valid": false,
+          "raw": "{\"answer\":\"ORDER-A 是正式订单，状态为采购中，客户为 D2受控客户。ORDER-A 的订单明细中只包含一个产品：V750-通用款，数量为 5 台。该订单的产品行集合为完整返回，共 1 条，没有其他产品。\",\"claims\":[{\"text\":\"ORDER-A 是正式订单，状态为采购中，客户为 D2受控客户。\",\"factIds\":[\"F-001\",\"F-002\",\"F-003\",\"F-004\"]},{\"text\":\"ORDER-A 的订单明细中只包含一个产品：V750-通用款，数量为 5 台。\",\"factIds\":[\"F-009\",\"F-010\"]},{\"text\":\"该订单的产品行集合为完整返回，共 1 条，没有其他产品。\",\"factIds\":[\"F-006\"]}],\"goals\":[{\"questionIndex\":0,\"status\":\"COMPLETED\",\"factIds\":[\"F-001\",\"F-006\",\"F-009\",\"F-010\"]}]}"
+        },
+        {
+          "attempt": 2,
           "code": "ANSWER_VERIFIED",
           "detail": null,
           "valid": true,
-          "raw": "{\"answer\":\"ORDER-A 中共有 1 项产品：V750-通用款，数量 5 台。该订单当前状态为采购中。产品明细共 1 条且已完整返回。\",\"claims\":[{\"text\":\"ORDER-A 中共有 1 项产品：V750-通用款，数量 5 台。\",\"factIds\":[\"F-009\",\"F-010\",\"F-006\"]},{\"text\":\"该订单当前状态为采购中。\",\"factIds\":[\"F-003\"]},{\"text\":\"产品明细共 1 条且已完整返回。\",\"factIds\":[\"F-006\",\"F-027\"]}],\"goals\":[{\"questionIndex\":0,\"status\":\"COMPLETED\",\"factIds\":[\"F-009\",\"F-010\",\"F-006\"]}]}"
+          "raw": "{\"answer\":\"ORDER-A 是正式订单，状态为采购中。ORDER-A 的订单明细产品为 V750-通用款。ORDER-A 该订单行的台数为 5 台。ORDER-A 的产品行集合完整返回，共 1 条，没有其他产品。\",\"claims\":[{\"text\":\"ORDER-A 是正式订单，状态为采购中。\",\"factIds\":[\"F-001\",\"F-002\",\"F-003\"]},{\"text\":\"ORDER-A 的订单明细产品为 V750-通用款。\",\"factIds\":[\"F-009\",\"F-027\"]},{\"text\":\"ORDER-A 该订单行的台数为 5 台。\",\"factIds\":[\"F-010\"]},{\"text\":\"ORDER-A 的产品行集合完整返回，共 1 条，没有其他产品。\",\"factIds\":[\"F-006\"]}],\"goals\":[{\"questionIndex\":0,\"status\":\"COMPLETED\",\"factIds\":[\"F-001\",\"F-006\",\"F-009\",\"F-010\"]}]}"
         }
       ],
       "answerValidation": {
         "valid": true,
-        "answer": "ORDER-A 中共有 1 项产品：V750-通用款，数量 5 台。该订单当前状态为采购中。产品明细共 1 条且已完整返回。",
+        "answer": "ORDER-A 是正式订单，状态为采购中。ORDER-A 的订单明细产品为 V750-通用款。ORDER-A 该订单行的台数为 5 台。ORDER-A 的产品行集合完整返回，共 1 条，没有其他产品。",
         "claims": [
           {
-            "text": "ORDER-A 中共有 1 项产品：V750-通用款，数量 5 台。",
+            "text": "ORDER-A 是正式订单，状态为采购中。",
             "factIds": [
-              "F-009",
-              "F-010",
-              "F-006"
-            ]
-          },
-          {
-            "text": "该订单当前状态为采购中。",
-            "factIds": [
+              "F-001",
+              "F-002",
               "F-003"
             ]
           },
           {
-            "text": "产品明细共 1 条且已完整返回。",
+            "text": "ORDER-A 的订单明细产品为 V750-通用款。",
             "factIds": [
-              "F-006",
+              "F-009",
               "F-027"
+            ]
+          },
+          {
+            "text": "ORDER-A 该订单行的台数为 5 台。",
+            "factIds": [
+              "F-010"
+            ]
+          },
+          {
+            "text": "ORDER-A 的产品行集合完整返回，共 1 条，没有其他产品。",
+            "factIds": [
+              "F-006"
             ]
           }
         ],
@@ -1202,9 +1232,10 @@
             "questionIndex": 0,
             "status": "COMPLETED",
             "factIds": [
+              "F-001",
+              "F-006",
               "F-009",
-              "F-010",
-              "F-006"
+              "F-010"
             ]
           }
         ],
@@ -1212,24 +1243,24 @@
       },
       "context": {
         "rawOwnerInputTokensEst": 11,
-        "businessMemoTokensEst": 363,
-        "policyMemoTokensEst": 84,
+        "businessMemoTokensEst": 331,
+        "policyMemoTokensEst": 205,
         "ontologyContextTokensEst": 142,
         "apiIndexTokensEst": 3150,
-        "loadedSchemaTokensEst": 255,
+        "loadedSchemaTokensEst": 481,
         "factCatalogChars": 3636,
         "factCatalogFactCount": 17,
-        "totalApproxContextTokens": 7433
+        "totalApproxContextTokens": 9921
       },
-      "durationMs": 8720
+      "durationMs": 12606
     },
     {
       "runId": "W1-05-1",
       "caseId": "W1-05",
       "runNumber": 1,
       "rawOwnerInput": "采购总览里ORDER-A这个缺料现在到哪一步了？",
-      "businessMemoHash": "0ab3393577b1ef3429670a8149f8122bf56b4293edcafb1a019ce5d69ab4e1fe",
-      "policyMemoHash": "64b7ebf142934beae94860cda900a681c4434f0ede01b8a1470fc6eba80203d6",
+      "businessMemoHash": "0c61f2e5e799d2e670e9a8971f19356a89854eb74e00c0d53a5d636ab8cbe260",
+      "policyMemoHash": "e1093f7c87d50a615692a35f78eccdc36958e862ac545b02082d8311d203d899",
       "outcome": {
         "pass": false,
         "validEnvelope": true,
@@ -1290,14 +1321,14 @@
       },
       "declaredStatus": "UNAVAILABLE",
       "memoTimings": {
-        "businessMs": 2789.785333,
-        "policyMs": 2437.692708
+        "businessMs": 2235.267041,
+        "policyMs": 2474.713917
       },
       "metrics": {
-        "mainModelCalls": 7,
+        "mainModelCalls": 6,
         "loadToolsCalls": 1,
         "resolveCalls": 1,
-        "businessToolCalls": 4,
+        "businessToolCalls": 2,
         "noNewEvidenceEvents": 0,
         "duplicateFactsAvoided": 0,
         "noProgressEvents": 0,
@@ -1309,12 +1340,13 @@
           "COMPLETION_REVIEW_CONFIRMED"
         ],
         "loadedToolNames": [
-          "search_business_changes",
           "get_order_knowledge_package",
+          "check_order_readiness",
+          "get_order_detail",
           "get_purchase_overview"
         ],
         "apiIndexFingerprint": "734be7888b47f19baf76b5f55282d408e2416eec0b2924c3a91b90d197473f18",
-        "loadedSchemaFingerprint": "01afdb936560b5f7ca0b15302a1f53713da617dcae8f5d6683c69a88089a5323"
+        "loadedSchemaFingerprint": "9249690203f2fccdf8c0bc54761cea19272a65ea1939e57165e4099fb7f474ca"
       },
       "traces": [
         {
@@ -1346,10 +1378,8 @@
           "controlPlane": true
         },
         {
-          "name": "get_order_knowledge_package",
-          "argKeys": [
-            "orderId"
-          ],
+          "name": "get_purchase_overview",
+          "argKeys": [],
           "success": true,
           "verified": true,
           "code": null,
@@ -1408,7 +1438,21 @@
             "F-053",
             "F-054",
             "F-055",
-            "F-056",
+            "F-056"
+          ],
+          "noNewEvidence": false,
+          "controlPlane": false,
+          "businessExecution": true
+        },
+        {
+          "name": "get_order_knowledge_package",
+          "argKeys": [
+            "orderId"
+          ],
+          "success": true,
+          "verified": true,
+          "code": null,
+          "factIds": [
             "F-057",
             "F-058",
             "F-059",
@@ -1434,19 +1478,7 @@
             "F-079",
             "F-080",
             "F-081",
-            "F-082"
-          ],
-          "noNewEvidence": false,
-          "controlPlane": false,
-          "businessExecution": true
-        },
-        {
-          "name": "get_purchase_overview",
-          "argKeys": [],
-          "success": true,
-          "verified": true,
-          "code": null,
-          "factIds": [
+            "F-082",
             "F-083",
             "F-084",
             "F-085",
@@ -1506,54 +1538,6 @@
           "noNewEvidence": false,
           "controlPlane": false,
           "businessExecution": true
-        },
-        {
-          "name": "search_business_changes",
-          "argKeys": [
-            "domain",
-            "entityId",
-            "period"
-          ],
-          "success": true,
-          "verified": true,
-          "code": null,
-          "factIds": [
-            "F-138",
-            "F-139",
-            "F-140",
-            "F-141",
-            "F-142",
-            "F-143",
-            "F-144",
-            "F-145"
-          ],
-          "noNewEvidence": false,
-          "controlPlane": false,
-          "businessExecution": true
-        },
-        {
-          "name": "search_business_changes",
-          "argKeys": [
-            "domain",
-            "entityId",
-            "period"
-          ],
-          "success": true,
-          "verified": true,
-          "code": null,
-          "factIds": [
-            "F-146",
-            "F-147",
-            "F-148",
-            "F-149",
-            "F-150",
-            "F-151",
-            "F-152",
-            "F-153"
-          ],
-          "noNewEvidence": false,
-          "controlPlane": false,
-          "businessExecution": true
         }
       ],
       "formalOutcomeReceipts": [],
@@ -1562,22 +1546,22 @@
           "attempt": 1,
           "code": "OPERATIONAL_QUANTITY_BINDING_MISMATCH",
           "detail": {
-            "claimText": "D1-R1轴承-202 的计划采购数量为 3 个、已下单数量为 0 个、已到货数量为 0 个、已入库数量为 0 个、待采购数量为 3 个（事实编号 F-087、F-088、F-089、F-090、F-091）。",
-            "amount": 1,
-            "detectedQuantityRole": "PLANNED_PURCHASE",
-            "unit": null,
+            "claimText": "该缺料项在采购总览中的采购状态为“待下单”，计划采购数量为 3 个，已下单数量为 0 个，已到货数量为 0 个，待采购数量为 3 个。",
+            "amount": 3,
+            "detectedQuantityRole": "RECEIVED",
+            "unit": "piece",
             "citedFactIds": [
-              "F-087",
-              "F-088",
-              "F-089",
-              "F-090",
-              "F-091"
+              "F-006",
+              "F-007",
+              "F-008",
+              "F-009",
+              "F-010"
             ],
             "compatibleFactIds": [],
-            "reason": "NO_MATCHING_OPERATIONAL_QUANTITY_FACT"
+            "reason": "WRONG_QUANTITY_ROLE"
           },
           "valid": false,
-          "raw": "{\"answer\":\"ORDER-A 已由正式订单体系唯一确认为订单（事实编号 F-001）。该订单的缺料物料为 D1-R1轴承-202，缺料集合共 1 项（事实编号 F-066、F-079）。该缺料的采购状态为“待下单”（事实编号 F-086）。D1-R1轴承-202 的计划采购数量为 3 个、已下单数量为 0 个、已到货数量为 0 个、已入库数量为 0 个、待采购数量为 3 个（事实编号 F-087、F-088、F-089、F-090、F-091）。\",\"claims\":[{\"text\":\"ORDER-A 已由正式订单体系唯一确认为订单（事实编号 F-001）。\",\"factIds\":[\"F-001\"]},{\"text\":\"该订单的缺料物料为 D1-R1轴承-202，缺料集合共 1 项（事实编号 F-066、F-079）。\",\"factIds\":[\"F-066\",\"F-079\"]},{\"text\":\"该缺料的采购状态为“待下单”（事实编号 F-086）。\",\"factIds\":[\"F-086\"]},{\"text\":\"D1-R1轴承-202 的计划采购数量为 3 个、已下单数量为 0 个、已到货数量为 0 个、已入库数量为 0 个、待采购数量为 3 个（事实编号 F-087、F-088、F-089、F-090、F-091）。\",\"factIds\":[\"F-087\",\"F-088\",\"F-089\",\"F-090\",\"F-091\"]}],\"goals\":[{\"questionIndex\":0,\"status\":\"COMPLETED\",\"factIds\":[\"F-001\",\"F-066\",\"F-079\",\"F-086\",\"F-087\",\"F-088\",\"F-089\",\"F-090\",\"F-091\"]}]}"
+          "raw": "{\"answer\":\"ORDER-A 已正式确认身份。该订单的就绪缺料项为 D1-R1轴承-202，缺料项数量为 1 项。该缺料项在采购总览中的采购状态为“待下单”，计划采购数量为 3 个，已下单数量为 0 个，已到货数量为 0 个，待采购数量为 3 个。ORDER-A 的当前成本为 1,120 元。缺料项 D1-R1轴承-202 的采购尚未开始下单，仍停留在待下单阶段；如需推进下单，须经您明确确认后通过受保护流程执行，本次仅做只读查询，未做任何修改。\",\"claims\":[{\"text\":\"ORDER-A 已正式确认身份。\",\"factIds\":[\"F-001\",\"F-057\"]},{\"text\":\"该订单的就绪缺料项为 D1-R1轴承-202，缺料项数量为 1 项。\",\"factIds\":[\"F-121\",\"F-134\",\"F-135\"]},{\"text\":\"该缺料项在采购总览中的采购状态为“待下单”，计划采购数量为 3 个，已下单数量为 0 个，已到货数量为 0 个，待采购数量为 3 个。\",\"factIds\":[\"F-005\",\"F-006\",\"F-007\",\"F-008\",\"F-009\",\"F-010\"]},{\"text\":\"ORDER-A 的当前成本为 1,120 元。\",\"factIds\":[\"F-071\"]}],\"goals\":[{\"questionIndex\":0,\"status\":\"COMPLETED\",\"factIds\":[\"F-001\",\"F-005\",\"F-006\",\"F-010\",\"F-121\",\"F-134\"]}]}"
         },
         {
           "attempt": 2,
@@ -1588,13 +1572,13 @@
             "detectedQuantityRole": "PLANNED_PURCHASE",
             "unit": null,
             "citedFactIds": [
-              "F-087"
+              "F-006"
             ],
             "compatibleFactIds": [],
             "reason": "NO_MATCHING_OPERATIONAL_QUANTITY_FACT"
           },
           "valid": false,
-          "raw": "{\"answer\":\"ORDER-A 已由正式订单体系唯一确认为订单。该订单的缺料物料为 D1-R1轴承-202，缺料集合共 1 项。该缺料的采购状态为“待下单”。D1-R1轴承-202 的计划采购数量为 3 个。D1-R1轴承-202 的待采购数量为 3 个，已下单数量为 0 个。\",\"claims\":[{\"text\":\"ORDER-A 已由正式订单体系唯一确认为订单。\",\"factIds\":[\"F-001\"]},{\"text\":\"该订单的缺料物料为 D1-R1轴承-202，缺料集合共 1 项。\",\"factIds\":[\"F-066\",\"F-079\"]},{\"text\":\"该缺料的采购状态为“待下单”。\",\"factIds\":[\"F-086\"]},{\"text\":\"D1-R1轴承-202 的计划采购数量为 3 个。\",\"factIds\":[\"F-087\"]},{\"text\":\"D1-R1轴承-202 的待采购数量为 3 个，已下单数量为 0 个。\",\"factIds\":[\"F-091\",\"F-088\"]}],\"goals\":[{\"questionIndex\":0,\"status\":\"COMPLETED\",\"factIds\":[\"F-001\",\"F-066\",\"F-079\",\"F-086\",\"F-087\",\"F-088\",\"F-091\"]}]}"
+          "raw": "{\"answer\":\"ORDER-A 已正式确认身份。就绪检查显示 ORDER-A 的缺料项为 D1-R1轴承-202，缺料项共 1 项。D1-R1轴承-202 的采购状态为“待下单”。D1-R1轴承-202 的计划采购数量为 3 个。D1-R1轴承-202 的待采购数量为 3 个。ORDER-A 的当前成本为 1,120 元。\",\"claims\":[{\"text\":\"ORDER-A 已正式确认身份。\",\"factIds\":[\"F-001\",\"F-057\"]},{\"text\":\"就绪检查显示 ORDER-A 的缺料项为 D1-R1轴承-202，缺料项共 1 项。\",\"factIds\":[\"F-121\",\"F-134\",\"F-135\"]},{\"text\":\"D1-R1轴承-202 的采购状态为“待下单”。\",\"factIds\":[\"F-005\"]},{\"text\":\"D1-R1轴承-202 的计划采购数量为 3 个。\",\"factIds\":[\"F-006\"]},{\"text\":\"D1-R1轴承-202 的待采购数量为 3 个。\",\"factIds\":[\"F-010\"]},{\"text\":\"ORDER-A 的当前成本为 1,120 元。\",\"factIds\":[\"F-071\"]}],\"goals\":[{\"questionIndex\":0,\"status\":\"COMPLETED\",\"factIds\":[\"F-001\",\"F-005\",\"F-006\",\"F-010\",\"F-121\",\"F-134\"]}]}"
         }
       ],
       "answerValidation": {
@@ -1612,24 +1596,24 @@
       },
       "context": {
         "rawOwnerInputTokensEst": 15,
-        "businessMemoTokensEst": 379,
-        "policyMemoTokensEst": 214,
+        "businessMemoTokensEst": 350,
+        "policyMemoTokensEst": 261,
         "ontologyContextTokensEst": 142,
         "apiIndexTokensEst": 3150,
-        "loadedSchemaTokensEst": 869,
-        "factCatalogChars": 5042,
-        "factCatalogFactCount": 19,
-        "totalApproxContextTokens": 13522
+        "loadedSchemaTokensEst": 966,
+        "factCatalogChars": 4856,
+        "factCatalogFactCount": 18,
+        "totalApproxContextTokens": 13344
       },
-      "durationMs": 16362
+      "durationMs": 16747
     },
     {
       "runId": "W1-06-1",
       "caseId": "W1-06",
       "runNumber": 1,
       "rawOwnerInput": "ORDER-A缺什么？缺的东西有没有采购？",
-      "businessMemoHash": "eca5dc1652eff0da6634e6069858e85c1580aa63c3080448a0f5d3b76cd67b21",
-      "policyMemoHash": "b168f8802c825e36580d47f41131b487a45bc49aadd57caeef479c4ef3ed7387",
+      "businessMemoHash": "f67d026ad63cdac23abf7c965d1381fd305e6f8dc8faaa27469047260cf8fec6",
+      "policyMemoHash": "194e1ecb49fb93b183de3ff966c1724e9b14cd36f5d0d7abe82d1fc40bd905ed",
       "outcome": {
         "pass": false,
         "validEnvelope": true,
@@ -1690,12 +1674,12 @@
       },
       "declaredStatus": "UNAVAILABLE",
       "memoTimings": {
-        "businessMs": 2302.765291,
-        "policyMs": 3036.622917
+        "businessMs": 1941.538417,
+        "policyMs": 2775.268875
       },
       "metrics": {
-        "mainModelCalls": 8,
-        "loadToolsCalls": 1,
+        "mainModelCalls": 9,
+        "loadToolsCalls": 3,
         "resolveCalls": 1,
         "businessToolCalls": 3,
         "noNewEvidenceEvents": 0,
@@ -1934,6 +1918,18 @@
           "businessExecution": true
         },
         {
+          "name": "load_tools",
+          "argKeys": [
+            "toolNames"
+          ],
+          "success": true,
+          "verified": false,
+          "code": null,
+          "factIds": [],
+          "noNewEvidence": false,
+          "controlPlane": true
+        },
+        {
           "name": "get_purchase_overview",
           "argKeys": [
             "pendingOnly"
@@ -2003,13 +1999,13 @@
           "businessExecution": true
         },
         {
-          "name": "get_order_knowledge_package",
+          "name": "load_tools",
           "argKeys": [
-            "orderId"
+            "toolNames"
           ],
-          "success": false,
+          "success": true,
           "verified": false,
-          "code": "DUPLICATE_TOOL_CALL",
+          "code": null,
           "factIds": [],
           "noNewEvidence": false,
           "controlPlane": true
@@ -2021,40 +2017,37 @@
           "attempt": 1,
           "code": "OPERATIONAL_QUANTITY_BINDING_MISMATCH",
           "detail": {
-            "claimText": "该订单当前物料缺口 1 项，物料为 D1-R1轴承-202，需求量为 10 个，可用量为 7 个，缺口数量为 3 个。",
+            "claimText": "订单 ORDER-A 缺的是零件 D1-R1轴承-202，需求数量 10 个，可用数量 7 个，缺口 3 个。",
             "amount": 1,
             "detectedQuantityRole": "SHORTAGE",
-            "unit": "count",
+            "unit": null,
             "citedFactIds": [
-              "F-086",
               "F-087",
               "F-088",
               "F-089"
             ],
             "compatibleFactIds": [],
-            "reason": "WRONG_QUANTITY_ROLE"
+            "reason": "NO_MATCHING_OPERATIONAL_QUANTITY_FACT"
           },
           "valid": false,
-          "raw": "{\"answer\":\"订单 ORDER-A 经正式身份解析确认，存在正式结果。该订单当前物料缺口 1 项，物料为 D1-R1轴承-202，需求量为 10 个，可用量为 7 个，缺口数量为 3 个。该缺料的采购状态为待下单，计划采购数量为 3 个，已下单数量为 0 个，已到货数量为 0 个，待采购数量为 3 个。该缺料尚无下单记录，不能视为已采购。\",\"claims\":[{\"text\":\"订单 ORDER-A 经正式身份解析确认，存在正式结果。\",\"factIds\":[\"F-001\",\"F-002\",\"F-002\",\"F-083\"]},{\"text\":\"该订单当前物料缺口 1 项，物料为 D1-R1轴承-202，需求量为 10 个，可用量为 7 个，缺口数量为 3 个。\",\"factIds\":[\"F-086\",\"F-087\",\"F-088\",\"F-089\"]},{\"text\":\"该缺料的采购状态为待下单，计划采购数量为 3 个，已下单数量为 0 个，已到货数量为 0 个，待采购数量为 3 个。\",\"factIds\":[\"F-164\",\"F-165\",\"F-166\",\"F-167\",\"F-169\"]},{\"text\":\"该缺料尚无下单记录，不能视为已采购。\",\"factIds\":[\"F-166\"]}],\"goals\":[{\"questionIndex\":0,\"status\":\"COMPLETED\",\"factIds\":[\"F-084\",\"F-086\",\"F-087\",\"F-088\",\"F-089\"]},{\"questionIndex\":1,\"status\":\"COMPLETED\",\"factIds\":[\"F-164\",\"F-165\",\"F-166\",\"F-167\",\"F-169\"]}]}"
+          "raw": "```json\n{\"answer\":\"订单 ORDER-A 的实时生产准备结论为“待补料”，仍需补齐 1 项物料。订单 ORDER-A 缺的是零件 D1-R1轴承-202，需求数量 10 个，可用数量 7 个，缺口 3 个。该缺料尚未采购到位，计划采购数量 3 个，已下单 0 个，已到货 0 个，已入库 0 个，采购状态为“待下单”。采购总览中该物料的计划采购数量为 3 个，待采购数量 3 个，已下单 0 个，已到货 0 个，已入库 0 个。\",\"claims\":[{\"text\":\"订单 ORDER-A 的实时生产准备结论为“待补料”，仍需补齐 1 项物料。\",\"factIds\":[\"F-084\",\"F-086\"]},{\"text\":\"订单 ORDER-A 缺的是零件 D1-R1轴承-202，需求数量 10 个，可用数量 7 个，缺口 3 个。\",\"factIds\":[\"F-087\",\"F-088\",\"F-089\"]},{\"text\":\"该缺料尚未采购到位，计划采购数量 3 个，已下单 0 个，已到货 0 个，已入库 0 个，采购状态为“待下单”。\",\"factIds\":[\"F-090\",\"F-091\",\"F-092\",\"F-093\",\"F-164\"]},{\"text\":\"采购总览中该物料的计划采购数量为 3 个，待采购数量 3 个，已下单 0 个，已到货 0 个，已入库 0 个。\",\"factIds\":[\"F-165\",\"F-169\",\"F-166\",\"F-167\",\"F-168\"]}],\"goals\":[{\"questionIndex\":0,\"status\":\"COMPLETED\",\"factIds\":[\"F-084\",\"F-086\",\"F-087\",\"F-088\",\"F-089\",\"F-090\",\"F-091\",\"F-092\",\"F-093\",\"F-164\",\"F-165\",\"F-166\",\"F-167\",\"F-168\",\"F-169\"]}]}\n```"
         },
         {
           "attempt": 2,
           "code": "OPERATIONAL_QUANTITY_BINDING_MISMATCH",
           "detail": {
-            "claimText": "订单 ORDER-A 的缺料项为 1 项，物料为 D1-R1轴承-202。",
+            "claimText": "订单 ORDER-A 的实时生产准备结论为“待补料”，仍有 1 项物料短缺。",
             "amount": 1,
-            "detectedQuantityRole": "SHORTAGE_LINE_COUNT",
-            "unit": null,
+            "detectedQuantityRole": "SHORTAGE",
+            "unit": "count",
             "citedFactIds": [
               "F-086"
             ],
-            "compatibleFactIds": [
-              "F-086"
-            ],
-            "reason": "OPERATIONAL_UNIT_MISSING"
+            "compatibleFactIds": [],
+            "reason": "WRONG_QUANTITY_ROLE"
           },
           "valid": false,
-          "raw": "{\"answer\":\"订单 ORDER-A 存在正式缺料检查结果，状态为待补料。订单 ORDER-A 的缺料项为 1 项，物料为 D1-R1轴承-202。D1-R1轴承-202 的需求数量为 10 个，可用数量为 7 个，缺口数量为 3 个。D1-R1轴承-202 的采购状态为待下单，计划采购数量为 3 个，已下单数量为 0 个，已到货数量为 0 个，待采购数量为 3 个。\",\"claims\":[{\"text\":\"订单 ORDER-A 存在正式缺料检查结果，状态为待补料。\",\"factIds\":[\"F-083\",\"F-084\"]},{\"text\":\"订单 ORDER-A 的缺料项为 1 项，物料为 D1-R1轴承-202。\",\"factIds\":[\"F-086\",\"F-141\"]},{\"text\":\"D1-R1轴承-202 的需求数量为 10 个，可用数量为 7 个，缺口数量为 3 个。\",\"factIds\":[\"F-087\",\"F-088\",\"F-089\"]},{\"text\":\"D1-R1轴承-202 的采购状态为待下单，计划采购数量为 3 个，已下单数量为 0 个，已到货数量为 0 个，待采购数量为 3 个。\",\"factIds\":[\"F-164\",\"F-165\",\"F-166\",\"F-167\",\"F-169\"]}],\"goals\":[{\"questionIndex\":0,\"status\":\"COMPLETED\",\"factIds\":[\"F-086\",\"F-087\",\"F-088\",\"F-089\",\"F-141\"]},{\"questionIndex\":1,\"status\":\"COMPLETED\",\"factIds\":[\"F-164\",\"F-165\",\"F-166\",\"F-167\",\"F-169\"]}]}"
+          "raw": "```json\n{\"answer\":\"订单 ORDER-A 的实时生产准备结论为“待补料”，仍有 1 项物料短缺。该短缺物料为 D1-R1轴承-202，需求数量 10 个，可用数量 7 个，缺口数量 3 个。该物料尚未采购到位，计划采购数量 3 个，已下单 0 个，已到货 0 个，已入库 0 个，采购状态为“待下单”。采购总览中该物料的计划采购数量为 3 个，待采购数量 3 个，已下单 0 个，已到货 0 个，已入库 0 个。\",\"claims\":[{\"text\":\"订单 ORDER-A 的实时生产准备结论为“待补料”，仍有 1 项物料短缺。\",\"factIds\":[\"F-084\",\"F-086\"]},{\"text\":\"该短缺物料为 D1-R1轴承-202，需求数量 10 个，可用数量 7 个，缺口数量 3 个。\",\"factIds\":[\"F-087\",\"F-088\",\"F-089\"]},{\"text\":\"该物料尚未采购到位，计划采购数量 3 个，已下单 0 个，已到货 0 个，已入库 0 个，采购状态为“待下单”。\",\"factIds\":[\"F-090\",\"F-091\",\"F-092\",\"F-093\",\"F-164\"]},{\"text\":\"采购总览中该物料的计划采购数量为 3 个，待采购数量 3 个，已下单 0 个，已到货 0 个，已入库 0 个。\",\"factIds\":[\"F-165\",\"F-169\",\"F-166\",\"F-167\",\"F-168\"]}],\"goals\":[{\"questionIndex\":0,\"status\":\"COMPLETED\",\"factIds\":[\"F-084\",\"F-086\",\"F-087\",\"F-088\",\"F-089\",\"F-090\",\"F-091\",\"F-092\",\"F-093\",\"F-164\",\"F-165\",\"F-166\",\"F-167\",\"F-168\",\"F-169\"]}]}\n```"
         }
       ],
       "answerValidation": {
@@ -2072,24 +2065,24 @@
       },
       "context": {
         "rawOwnerInputTokensEst": 13,
-        "businessMemoTokensEst": 310,
-        "policyMemoTokensEst": 328,
+        "businessMemoTokensEst": 214,
+        "policyMemoTokensEst": 323,
         "ontologyContextTokensEst": 142,
         "apiIndexTokensEst": 3150,
         "loadedSchemaTokensEst": 966,
         "factCatalogChars": 9433,
         "factCatalogFactCount": 32,
-        "totalApproxContextTokens": 16847
+        "totalApproxContextTokens": 16765
       },
-      "durationMs": 19795
+      "durationMs": 20975
     },
     {
       "runId": "W1-07-1",
       "caseId": "W1-07",
       "runNumber": 1,
       "rawOwnerInput": "V750-通用款做10台库存够不够？不够缺什么？",
-      "businessMemoHash": "317353c6aa9cb69b70929a7dc0fef3bf6fc31d00e3077702f4983d1b6ca9e542",
-      "policyMemoHash": "16e4ba507f8a0becad5bbf81e99856085461d5f40ceee4c11f66443e9add65ad",
+      "businessMemoHash": "aacd9cc685a8f08b4d9bd50f6718edff5d70c02ac95176593a719f0c4cb1cb16",
+      "policyMemoHash": "f916a05b8658e995c221194f83f14d04a306e61699c2aa3aead770aa551f23ff",
       "outcome": {
         "pass": false,
         "validEnvelope": true,
@@ -2150,8 +2143,8 @@
       },
       "declaredStatus": "UNAVAILABLE",
       "memoTimings": {
-        "businessMs": 3108.669875,
-        "policyMs": 2041.610791
+        "businessMs": 4076.006541,
+        "policyMs": 2809.602
       },
       "metrics": {
         "mainModelCalls": 6,
@@ -2169,13 +2162,12 @@
           "COMPLETION_REVIEW_CONFIRMED"
         ],
         "loadedToolNames": [
-          "search_parts",
           "get_all_recipes",
           "get_recipe_detail",
           "preview_virtual_readiness"
         ],
         "apiIndexFingerprint": "734be7888b47f19baf76b5f55282d408e2416eec0b2924c3a91b90d197473f18",
-        "loadedSchemaFingerprint": "d371340ad5d01d6c00642bd02fd356308fafc4f18174f0ec6a1aec7c4e7939c5"
+        "loadedSchemaFingerprint": "0a1b5d19662e674b0120b74d2c5617841b39113492f575d49c0c6a2f50b0ace2"
       },
       "traces": [
         {
@@ -2331,38 +2323,38 @@
           "attempt": 1,
           "code": "OPERATIONAL_QUANTITY_BINDING_MISMATCH",
           "detail": {
-            "claimText": "线圈 12-120 需求 10 套、可用 20 套，缺口 0 套。",
-            "amount": 12,
-            "detectedQuantityRole": "AVAILABLE",
+            "claimText": "唯一缺口物料为 D1-R1轴承-202，10 台需求 20 件，可用 0 件，缺口 20 件。",
+            "amount": 1,
+            "detectedQuantityRole": "SHORTAGE",
             "unit": null,
             "citedFactIds": [
-              "F-009",
-              "F-010",
-              "F-011"
+              "F-015",
+              "F-016",
+              "F-017"
             ],
             "compatibleFactIds": [],
             "reason": "NO_MATCHING_OPERATIONAL_QUANTITY_FACT"
           },
           "valid": false,
-          "raw": "{\"answer\":\"V750-通用款 做 10 台的虚拟齐套试算结果为缺料状态。线圈 12-120 需求 10 套、可用 20 套，缺口 0 套。D1-R1泵壳-V750 需求 10 件、可用 30 件，缺口 0 件。电缆-线径0.75mm² 需求 30 米、可用 30 米，缺口 0 米。D1-R1纸箱 需求 10 件、可用 30 件，缺口 0 件。D1-R1轴承-202 需求 20 件、可用 0 件，缺口 20 件。\",\"claims\":[{\"text\":\"V750-通用款 做 10 台的虚拟齐套试算结果为缺料状态。\",\"factIds\":[\"F-001\",\"F-002\",\"F-004\",\"F-005\",\"F-090\"]},{\"text\":\"线圈 12-120 需求 10 套、可用 20 套，缺口 0 套。\",\"factIds\":[\"F-009\",\"F-010\",\"F-011\"]},{\"text\":\"D1-R1泵壳-V750 需求 10 件、可用 30 件，缺口 0 件。\",\"factIds\":[\"F-012\",\"F-013\",\"F-014\"]},{\"text\":\"电缆-线径0.75mm² 需求 30 米、可用 30 米，缺口 0 米。\",\"factIds\":[\"F-018\",\"F-019\",\"F-020\"]},{\"text\":\"D1-R1纸箱 需求 10 件、可用 30 件，缺口 0 件。\",\"factIds\":[\"F-021\",\"F-022\",\"F-023\"]},{\"text\":\"D1-R1轴承-202 需求 20 件、可用 0 件，缺口 20 件。\",\"factIds\":[\"F-015\",\"F-016\",\"F-017\"]}],\"goals\":[{\"questionIndex\":0,\"status\":\"COMPLETED\",\"factIds\":[\"F-001\",\"F-002\",\"F-004\",\"F-005\",\"F-006\",\"F-090\",\"F-009\",\"F-010\",\"F-011\",\"F-012\",\"F-013\",\"F-014\",\"F-015\",\"F-016\",\"F-017\",\"F-018\",\"F-019\",\"F-020\",\"F-021\",\"F-022\",\"F-023\"]}]}"
+          "raw": "{\"answer\":\"按「V750-通用款」配方生产 10 台，库存齐料状态为不足。该判断基于现有库存扣除活动订单占用后的可用量口径，5 项库存管理物料已全部核对完成。唯一缺口物料为 D1-R1轴承-202，10 台需求 20 件，可用 0 件，缺口 20 件。其余物料均无缺口：线圈 12-120 可用 20 套、D1-R1泵壳-V750 可用 30 件、电缆-线径0.75mm² 可用 30 米、D1-R1纸箱 可用 30 件。\",\"claims\":[{\"text\":\"按「V750-通用款」配方生产 10 台，库存齐料状态为不足。\",\"factIds\":[\"F-004\",\"F-005\"]},{\"text\":\"该判断基于现有库存扣除活动订单占用后的可用量口径，5 项库存管理物料已全部核对完成。\",\"factIds\":[\"F-003\",\"F-006\",\"F-090\"]},{\"text\":\"唯一缺口物料为 D1-R1轴承-202，10 台需求 20 件，可用 0 件，缺口 20 件。\",\"factIds\":[\"F-015\",\"F-016\",\"F-017\"]},{\"text\":\"其余物料均无缺口：线圈 12-120 可用 20 套、D1-R1泵壳-V750 可用 30 件、电缆-线径0.75mm² 可用 30 米、D1-R1纸箱 可用 30 件。\",\"factIds\":[\"F-010\",\"F-013\",\"F-019\",\"F-022\"]}],\"goals\":[{\"questionIndex\":0,\"status\":\"COMPLETED\",\"factIds\":[\"F-004\",\"F-005\",\"F-017\"]}]}"
         },
         {
           "attempt": 2,
           "code": "OPERATIONAL_QUANTITY_BINDING_MISMATCH",
           "detail": {
-            "claimText": "线圈 12-120 的可用量为 20 套，缺口为 0 套。",
-            "amount": 12,
+            "claimText": "缺口物料为 D1-R1轴承-202，需求 20 件，缺口 20 件。",
+            "amount": 1,
             "detectedQuantityRole": "SHORTAGE",
             "unit": null,
             "citedFactIds": [
-              "F-010",
-              "F-011"
+              "F-015",
+              "F-017"
             ],
             "compatibleFactIds": [],
             "reason": "NO_MATCHING_OPERATIONAL_QUANTITY_FACT"
           },
           "valid": false,
-          "raw": "{\"answer\":\"V750-通用款 做 10 台的虚拟齐套试算结果为缺料状态。线圈 12-120 的可用量为 20 套，缺口为 0 套。D1-R1泵壳-V750 的可用量为 30 件，缺口为 0 件。D1-R1轴承-202 的缺口为 20 件，可用量为 0 件。\",\"claims\":[{\"text\":\"V750-通用款 做 10 台的虚拟齐套试算结果为缺料状态。\",\"factIds\":[\"F-001\",\"F-002\",\"F-004\",\"F-005\",\"F-090\"]},{\"text\":\"线圈 12-120 的可用量为 20 套，缺口为 0 套。\",\"factIds\":[\"F-010\",\"F-011\"]},{\"text\":\"D1-R1泵壳-V750 的可用量为 30 件，缺口为 0 件。\",\"factIds\":[\"F-013\",\"F-014\"]},{\"text\":\"D1-R1轴承-202 的缺口为 20 件，可用量为 0 件。\",\"factIds\":[\"F-016\",\"F-017\"]}],\"goals\":[{\"questionIndex\":0,\"status\":\"COMPLETED\",\"factIds\":[\"F-001\",\"F-002\",\"F-004\",\"F-005\",\"F-006\",\"F-090\",\"F-010\",\"F-011\",\"F-013\",\"F-014\",\"F-016\",\"F-017\"]}]}"
+          "raw": "{\"answer\":\"按「V750-通用款」配方生产 10 台，库存齐料状态为不足。该判断基于现有库存扣除活动订单占用后的可用量口径，5 项库存管理物料已全部核对完成。缺口物料为 D1-R1轴承-202，需求 20 件，缺口 20 件。其余物料均无缺口：线圈 12-120 可用 20 套、D1-R1泵壳-V750 可用 30 件、电缆-线径0.75mm² 可用 30 米、D1-R1纸箱 可用 30 件。\",\"claims\":[{\"text\":\"按「V750-通用款」配方生产 10 台，库存齐料状态为不足。\",\"factIds\":[\"F-004\",\"F-005\"]},{\"text\":\"该判断基于现有库存扣除活动订单占用后的可用量口径，5 项库存管理物料已全部核对完成。\",\"factIds\":[\"F-003\",\"F-006\",\"F-090\"]},{\"text\":\"缺口物料为 D1-R1轴承-202，需求 20 件，缺口 20 件。\",\"factIds\":[\"F-015\",\"F-017\"]},{\"text\":\"其余物料均无缺口：线圈 12-120 可用 20 套、D1-R1泵壳-V750 可用 30 件、电缆-线径0.75mm² 可用 30 米、D1-R1纸箱 可用 30 件。\",\"factIds\":[\"F-010\",\"F-013\",\"F-019\",\"F-022\"]}],\"goals\":[{\"questionIndex\":0,\"status\":\"COMPLETED\",\"factIds\":[\"F-004\",\"F-005\",\"F-017\"]}]}"
         }
       ],
       "answerValidation": {
@@ -2380,24 +2372,24 @@
       },
       "context": {
         "rawOwnerInputTokensEst": 15,
-        "businessMemoTokensEst": 613,
-        "policyMemoTokensEst": 173,
+        "businessMemoTokensEst": 742,
+        "policyMemoTokensEst": 290,
         "ontologyContextTokensEst": 142,
         "apiIndexTokensEst": 3150,
-        "loadedSchemaTokensEst": 1724,
+        "loadedSchemaTokensEst": 1075,
         "factCatalogChars": 9088,
         "factCatalogFactCount": 23,
-        "totalApproxContextTokens": 15331
+        "totalApproxContextTokens": 15604
       },
-      "durationMs": 16294
+      "durationMs": 16262
     },
     {
       "runId": "W1-08-1",
       "caseId": "W1-08",
       "runNumber": 1,
       "rawOwnerInput": "ORDER-U还有哪些物料目前无法确认库存？",
-      "businessMemoHash": "1dbaf3d30ef022b4532ce36b70978a0e35001e40e8cfcdbf5b57112517fbddb6",
-      "policyMemoHash": "63a9565baf029b76de1992c8f48fa1b94a5ec3a1d7b88754fa811311fc185819",
+      "businessMemoHash": "ecf525a03a62f9dcef071bb1558298592be2bbb010772699777529b84ffa1329",
+      "policyMemoHash": "748f681af15c269c41d79a92d435cb01906b8c87f2121d5f5ff7a6f28a15688a",
       "outcome": {
         "pass": false,
         "validEnvelope": true,
@@ -2458,14 +2450,14 @@
       },
       "declaredStatus": "UNAVAILABLE",
       "memoTimings": {
-        "businessMs": 2970.776834,
-        "policyMs": 2412.143042
+        "businessMs": 2380.697541,
+        "policyMs": 2363.839833
       },
       "metrics": {
-        "mainModelCalls": 6,
+        "mainModelCalls": 8,
         "loadToolsCalls": 1,
         "resolveCalls": 1,
-        "businessToolCalls": 1,
+        "businessToolCalls": 2,
         "noNewEvidenceEvents": 0,
         "duplicateFactsAvoided": 0,
         "noProgressEvents": 0,
@@ -2477,12 +2469,12 @@
           "COMPLETION_REVIEW_CONFIRMED"
         ],
         "loadedToolNames": [
+          "search_parts",
           "get_order_knowledge_package",
-          "check_order_readiness",
-          "get_recent_orders"
+          "check_order_readiness"
         ],
         "apiIndexFingerprint": "734be7888b47f19baf76b5f55282d408e2416eec0b2924c3a91b90d197473f18",
-        "loadedSchemaFingerprint": "328398c03335d449a8004473fd8b3ed8c9a183e81170896114f81e33880b37b8"
+        "loadedSchemaFingerprint": "671e42ca2e6786023be92d18c53ddf7d51ce44c94406e9c3c58c68243a6f5aa9"
       },
       "traces": [
         {
@@ -2514,7 +2506,7 @@
           "controlPlane": true
         },
         {
-          "name": "check_order_readiness",
+          "name": "get_order_knowledge_package",
           "argKeys": [
             "orderId"
           ],
@@ -2602,11 +2594,106 @@
             "F-079",
             "F-080",
             "F-081",
-            "F-082",
+            "F-082"
+          ],
+          "noNewEvidence": false,
+          "controlPlane": false,
+          "businessExecution": true
+        },
+        {
+          "name": "check_order_readiness",
+          "argKeys": [
+            "orderId"
+          ],
+          "success": true,
+          "verified": true,
+          "code": null,
+          "factIds": [
             "F-083",
             "F-084",
             "F-085",
-            "F-086"
+            "F-086",
+            "F-087",
+            "F-088",
+            "F-089",
+            "F-090",
+            "F-091",
+            "F-092",
+            "F-093",
+            "F-094",
+            "F-095",
+            "F-096",
+            "F-097",
+            "F-098",
+            "F-099",
+            "F-100",
+            "F-101",
+            "F-102",
+            "F-103",
+            "F-104",
+            "F-105",
+            "F-106",
+            "F-107",
+            "F-108",
+            "F-109",
+            "F-110",
+            "F-111",
+            "F-112",
+            "F-113",
+            "F-114",
+            "F-115",
+            "F-116",
+            "F-117",
+            "F-118",
+            "F-119",
+            "F-120",
+            "F-121",
+            "F-122",
+            "F-123",
+            "F-124",
+            "F-125",
+            "F-126",
+            "F-127",
+            "F-128",
+            "F-129",
+            "F-130",
+            "F-131",
+            "F-132",
+            "F-133",
+            "F-134",
+            "F-135",
+            "F-136",
+            "F-137",
+            "F-138",
+            "F-139",
+            "F-140",
+            "F-141",
+            "F-142",
+            "F-143",
+            "F-144",
+            "F-145",
+            "F-146",
+            "F-147",
+            "F-148",
+            "F-149",
+            "F-150",
+            "F-151",
+            "F-152",
+            "F-153",
+            "F-154",
+            "F-155",
+            "F-156",
+            "F-157",
+            "F-158",
+            "F-159",
+            "F-160",
+            "F-161",
+            "F-162",
+            "F-163",
+            "F-164",
+            "F-165",
+            "F-166",
+            "F-167"
           ],
           "noNewEvidence": false,
           "controlPlane": false,
@@ -2619,35 +2706,35 @@
           "attempt": 1,
           "code": "OPERATIONAL_QUANTITY_BINDING_MISMATCH",
           "detail": {
-            "claimText": "ORDER-U 已正式解析为唯一订单，其无法核对库存的缺料清单共 1 项，且该清单已完整枚举。",
+            "claimText": "订单 ORDER-U 无法确认库存的物料只有 1 项，即 D2-B2未绑定物料。",
             "amount": 1,
-            "detectedQuantityRole": "SHORTAGE",
+            "detectedQuantityRole": "AVAILABLE",
             "unit": "count",
             "citedFactIds": [
-              "F-005"
+              "F-086"
             ],
             "compatibleFactIds": [],
             "reason": "WRONG_QUANTITY_ROLE"
           },
           "valid": false,
-          "raw": "{\"answer\":\"ORDER-U 已正式解析为唯一订单，其无法核对库存的缺料清单共 1 项，且该清单已完整枚举。该无法确认库存的物料为“D2-B2未绑定物料”，属于存在采购需求但零件库中无可追溯库存项目的情形。该订单当前的正式就绪结论为阻塞（暂不能判定可生产）。\",\"claims\":[{\"text\":\"ORDER-U 已正式解析为唯一订单，其无法核对库存的缺料清单共 1 项，且该清单已完整枚举。\",\"factIds\":[\"F-001\",\"F-004\",\"F-005\"]},{\"text\":\"该无法确认库存的物料为“D2-B2未绑定物料”，属于存在采购需求但零件库中无可追溯库存项目的情形。\",\"factIds\":[\"F-006\",\"F-056\",\"F-070\"]},{\"text\":\"该订单当前的正式就绪结论为阻塞（暂不能判定可生产）。\",\"factIds\":[\"F-002\",\"F-003\"]}],\"goals\":[{\"questionIndex\":0,\"status\":\"COMPLETED\",\"factIds\":[\"F-004\",\"F-005\",\"F-006\"]}]}"
+          "raw": "{\"answer\":\"订单 ORDER-U 无法确认库存的物料只有 1 项，即 D2-B2未绑定物料。订单 ORDER-U 的生产准备状态为阻塞，无法确认库存的物料行数为 1 行。订单 ORDER-U 的成本金额为 0 元人民币，无法确认利润与成本口径。\",\"claims\":[{\"text\":\"订单 ORDER-U 无法确认库存的物料只有 1 项，即 D2-B2未绑定物料。\",\"factIds\":[\"F-063\",\"F-137\",\"F-086\"]},{\"text\":\"订单 ORDER-U 的生产准备状态为阻塞，无法确认库存的物料行数为 1 行。\",\"factIds\":[\"F-084\",\"F-086\"]},{\"text\":\"订单 ORDER-U 的成本金额为 0 元人民币，无法确认利润与成本口径。\",\"factIds\":[\"F-014\"]}],\"goals\":[{\"questionIndex\":0,\"status\":\"COMPLETED\",\"factIds\":[\"F-001\",\"F-083\",\"F-084\",\"F-085\",\"F-086\",\"F-063\",\"F-137\"]}]}"
         },
         {
           "attempt": 2,
           "code": "OPERATIONAL_QUANTITY_BINDING_MISMATCH",
           "detail": {
-            "claimText": "ORDER-U 的缺料行数量为 1 行，该缺料清单已完整枚举。",
+            "claimText": "订单 ORDER-U 存在 1 行缺口物料，为 D2-B2未绑定物料。",
             "amount": 1,
             "detectedQuantityRole": "SHORTAGE",
             "unit": null,
             "citedFactIds": [
-              "F-005"
+              "F-086"
             ],
             "compatibleFactIds": [],
             "reason": "WRONG_QUANTITY_ROLE"
           },
           "valid": false,
-          "raw": "{\"answer\":\"ORDER-U 已正式解析为唯一订单。ORDER-U 的缺料行数量为 1 行，该缺料清单已完整枚举。该无法确认库存的物料为“D2-B2未绑定物料”，其属于存在采购需求但无可追溯库存项目的情形。ORDER-U 当前的正式就绪结论为阻塞。\",\"claims\":[{\"text\":\"ORDER-U 已正式解析为唯一订单。\",\"factIds\":[\"F-001\"]},{\"text\":\"ORDER-U 的缺料行数量为 1 行，该缺料清单已完整枚举。\",\"factIds\":[\"F-004\",\"F-005\"]},{\"text\":\"该无法确认库存的物料为“D2-B2未绑定物料”，其属于存在采购需求但无可追溯库存项目的情形。\",\"factIds\":[\"F-006\",\"F-056\"]},{\"text\":\"ORDER-U 当前的正式就绪结论为阻塞。\",\"factIds\":[\"F-002\",\"F-003\"]}],\"goals\":[{\"questionIndex\":0,\"status\":\"COMPLETED\",\"factIds\":[\"F-004\",\"F-005\",\"F-006\"]}]}"
+          "raw": "{\"answer\":\"订单 ORDER-U 存在 1 行缺口物料，为 D2-B2未绑定物料。订单 ORDER-U 的生产准备状态为阻塞。订单 ORDER-U 的成本金额为 0 元人民币。\",\"claims\":[{\"text\":\"订单 ORDER-U 存在 1 行缺口物料，为 D2-B2未绑定物料。\",\"factIds\":[\"F-086\",\"F-063\",\"F-137\"]},{\"text\":\"订单 ORDER-U 的生产准备状态为阻塞。\",\"factIds\":[\"F-084\"]},{\"text\":\"订单 ORDER-U 的成本金额为 0 元人民币。\",\"factIds\":[\"F-014\"]}],\"goals\":[{\"questionIndex\":0,\"status\":\"COMPLETED\",\"factIds\":[\"F-001\",\"F-083\",\"F-084\",\"F-085\",\"F-086\",\"F-063\",\"F-137\"]}]}"
         }
       ],
       "answerValidation": {
@@ -2665,24 +2752,24 @@
       },
       "context": {
         "rawOwnerInputTokensEst": 13,
-        "businessMemoTokensEst": 399,
-        "policyMemoTokensEst": 246,
+        "businessMemoTokensEst": 365,
+        "policyMemoTokensEst": 195,
         "ontologyContextTokensEst": 142,
         "apiIndexTokensEst": 3150,
-        "loadedSchemaTokensEst": 754,
-        "factCatalogChars": 2184,
-        "factCatalogFactCount": 9,
-        "totalApproxContextTokens": 10797
+        "loadedSchemaTokensEst": 1154,
+        "factCatalogChars": 3440,
+        "factCatalogFactCount": 15,
+        "totalApproxContextTokens": 12593
       },
-      "durationMs": 14207
+      "durationMs": 17269
     },
     {
       "runId": "W1-09-1",
       "caseId": "W1-09",
       "runNumber": 1,
       "rawOwnerInput": "ORDER-B现在还有缺料吗？",
-      "businessMemoHash": "2d35e2b95f48bc6648f86ac34b609dfefaefef4983f6352106024e03f5854057",
-      "policyMemoHash": "1c79d5ac869cb71676bec5fd032d9319b23a60dad019f9f7ffd3be03b28ddf6d",
+      "businessMemoHash": "229e1d74a90c89eeb246097de2a861952b7de39fb07132c680e39df3cf569bab",
+      "policyMemoHash": "19ee1b9e02a15e5476cad48152188f9c48c59e6a1c2ac88fc9a96c00f6c43743",
       "outcome": {
         "pass": false,
         "validEnvelope": true,
@@ -2743,11 +2830,11 @@
       },
       "declaredStatus": "UNAVAILABLE",
       "memoTimings": {
-        "businessMs": 2021.173209,
-        "policyMs": 3068.725583
+        "businessMs": 2806.544,
+        "policyMs": 2355.5995
       },
       "metrics": {
-        "mainModelCalls": 7,
+        "mainModelCalls": 6,
         "loadToolsCalls": 1,
         "resolveCalls": 1,
         "businessToolCalls": 1,
@@ -2868,7 +2955,7 @@
           "attempt": 1,
           "code": "OPERATIONAL_QUANTITY_BINDING_MISMATCH",
           "detail": {
-            "claimText": "ORDER-B 的缺料行数为 0 条。",
+            "claimText": "订单 ORDER-B 的缺料行数为 0 条（单位：条）。",
             "amount": 0,
             "detectedQuantityRole": "SHORTAGE",
             "unit": "count",
@@ -2879,16 +2966,16 @@
             "reason": "WRONG_QUANTITY_ROLE"
           },
           "valid": false,
-          "raw": "{\"answer\":\"ORDER-B 已唯一解析为正式订单。ORDER-B 的生产准备检查结果为可生产，结果为正式查询所得。ORDER-B 的缺料清单已完整返回，共 0 条缺料记录。ORDER-B 的缺料行数为 0 条。\",\"claims\":[{\"text\":\"ORDER-B 已唯一解析为正式订单。\",\"factIds\":[\"F-001\"]},{\"text\":\"ORDER-B 的生产准备检查结果为可生产，结果为正式查询所得。\",\"factIds\":[\"F-002\",\"F-003\"]},{\"text\":\"ORDER-B 的缺料清单已完整返回，共 0 条缺料记录。\",\"factIds\":[\"F-004\",\"F-049\",\"F-050\"]},{\"text\":\"ORDER-B 的缺料行数为 0 条。\",\"factIds\":[\"F-005\"]}],\"goals\":[{\"questionIndex\":0,\"status\":\"COMPLETED\",\"factIds\":[\"F-003\",\"F-004\",\"F-005\"]}]}"
+          "raw": "{\"answer\":\"订单 ORDER-B 已通过正式身份解析确认，且正式订单就绪检查结果可用。订单 ORDER-B 的正式就绪状态为「可生产（ready）」。订单 ORDER-B 的缺料记录集合为完整返回，共 0 条缺料记录。订单 ORDER-B 的缺料行数为 0 条（单位：条）。\",\"claims\":[{\"text\":\"订单 ORDER-B 已通过正式身份解析确认，且正式订单就绪检查结果可用。\",\"factIds\":[\"F-001\",\"F-002\"]},{\"text\":\"订单 ORDER-B 的正式就绪状态为「可生产（ready）」。\",\"factIds\":[\"F-003\"]},{\"text\":\"订单 ORDER-B 的缺料记录集合为完整返回，共 0 条缺料记录。\",\"factIds\":[\"F-004\",\"F-050\"]},{\"text\":\"订单 ORDER-B 的缺料行数为 0 条（单位：条）。\",\"factIds\":[\"F-005\"]}],\"goals\":[{\"questionIndex\":0,\"status\":\"COMPLETED\",\"factIds\":[\"F-003\",\"F-004\",\"F-005\"]}]}"
         },
         {
           "attempt": 2,
           "code": "OPERATIONAL_QUANTITY_BINDING_MISMATCH",
           "detail": {
-            "claimText": "ORDER-B 的缺料行数为 0。",
+            "claimText": "订单 ORDER-B 的缺料行数为 0 条。",
             "amount": 0,
             "detectedQuantityRole": "SHORTAGE",
-            "unit": null,
+            "unit": "count",
             "citedFactIds": [
               "F-005"
             ],
@@ -2896,7 +2983,7 @@
             "reason": "WRONG_QUANTITY_ROLE"
           },
           "valid": false,
-          "raw": "{\"answer\":\"ORDER-B 已唯一解析为正式订单。ORDER-B 的生产准备检查结果为可生产，结果为正式查询所得。ORDER-B 的缺料清单已完整返回，共 0 条缺料记录。ORDER-B 的缺料行数为 0。\",\"claims\":[{\"text\":\"ORDER-B 已唯一解析为正式订单。\",\"factIds\":[\"F-001\"]},{\"text\":\"ORDER-B 的生产准备检查结果为可生产，结果为正式查询所得。\",\"factIds\":[\"F-002\",\"F-003\"]},{\"text\":\"ORDER-B 的缺料清单已完整返回，共 0 条缺料记录。\",\"factIds\":[\"F-004\",\"F-049\",\"F-050\"]},{\"text\":\"ORDER-B 的缺料行数为 0。\",\"factIds\":[\"F-005\"]}],\"goals\":[{\"questionIndex\":0,\"status\":\"COMPLETED\",\"factIds\":[\"F-003\",\"F-004\",\"F-005\"]}]}"
+          "raw": "{\"answer\":\"订单 ORDER-B 已通过正式身份解析确认，且正式订单就绪检查结果可用。订单 ORDER-B 的正式就绪状态为「可生产（ready）」。订单 ORDER-B 的缺料记录集合为完整返回，共 0 条缺料记录。订单 ORDER-B 的缺料行数为 0 条。\",\"claims\":[{\"text\":\"订单 ORDER-B 已通过正式身份解析确认，且正式订单就绪检查结果可用。\",\"factIds\":[\"F-001\",\"F-002\"]},{\"text\":\"订单 ORDER-B 的正式就绪状态为「可生产（ready）」。\",\"factIds\":[\"F-003\"]},{\"text\":\"订单 ORDER-B 的缺料记录集合为完整返回，共 0 条缺料记录。\",\"factIds\":[\"F-004\",\"F-050\"]},{\"text\":\"订单 ORDER-B 的缺料行数为 0 条。\",\"factIds\":[\"F-005\"]}],\"goals\":[{\"questionIndex\":0,\"status\":\"COMPLETED\",\"factIds\":[\"F-003\",\"F-004\",\"F-005\"]}]}"
         }
       ],
       "answerValidation": {
@@ -2914,24 +3001,24 @@
       },
       "context": {
         "rawOwnerInputTokensEst": 8,
-        "businessMemoTokensEst": 236,
-        "policyMemoTokensEst": 290,
+        "businessMemoTokensEst": 325,
+        "policyMemoTokensEst": 167,
         "ontologyContextTokensEst": 142,
         "apiIndexTokensEst": 3150,
         "loadedSchemaTokensEst": 506,
         "factCatalogChars": 1659,
         "factCatalogFactCount": 7,
-        "totalApproxContextTokens": 9130
+        "totalApproxContextTokens": 9151
       },
-      "durationMs": 12023
+      "durationMs": 11753
     },
     {
       "runId": "W1-10-1",
       "caseId": "W1-10",
       "runNumber": 1,
       "rawOwnerInput": "采购总览里所有待处理物料有哪些？",
-      "businessMemoHash": "aa630a114a19fc8900e28d2bbf5655b5c536094136780b40a843f1b14e904604",
-      "policyMemoHash": "6aa25314396fd9ddea492eb74cd35e64cfcf1a92ac5bcfb8a7750a0153e48545",
+      "businessMemoHash": "a82e49ccf37e3da9d6d0666e71c03468efa46b54fd4870dd10ff62017485fc41",
+      "policyMemoHash": "deea972ad1bc32ad1179f4766b71a7450f232cf3918a99fc29d8c74e7fae9eee",
       "outcome": {
         "pass": false,
         "validEnvelope": true,
@@ -2992,14 +3079,14 @@
       },
       "declaredStatus": "UNAVAILABLE",
       "memoTimings": {
-        "businessMs": 2694.145417,
-        "policyMs": 2506.827125
+        "businessMs": 2501.408333,
+        "policyMs": 2918.439416
       },
       "metrics": {
-        "mainModelCalls": 6,
+        "mainModelCalls": 8,
         "loadToolsCalls": 1,
-        "resolveCalls": 0,
-        "businessToolCalls": 1,
+        "resolveCalls": 2,
+        "businessToolCalls": 2,
         "noNewEvidenceEvents": 0,
         "duplicateFactsAvoided": 0,
         "noProgressEvents": 0,
@@ -3011,10 +3098,11 @@
           "COMPLETION_REVIEW_CONFIRMED"
         ],
         "loadedToolNames": [
+          "search_parts",
           "get_purchase_overview"
         ],
         "apiIndexFingerprint": "734be7888b47f19baf76b5f55282d408e2416eec0b2924c3a91b90d197473f18",
-        "loadedSchemaFingerprint": "71fa6147b2100d0de6c12dd858414eca1a17ba81d944b9f0c9b65dd5f129458d"
+        "loadedSchemaFingerprint": "8fcc32c5d1bcec5a982d017b8c8f6da66d4a09fd1510f52e00f7ca0d74bd2310"
       },
       "traces": [
         {
@@ -3031,9 +3119,7 @@
         },
         {
           "name": "get_purchase_overview",
-          "argKeys": [
-            "pendingOnly"
-          ],
+          "argKeys": [],
           "success": true,
           "verified": true,
           "code": null,
@@ -3097,17 +3183,152 @@
           "noNewEvidence": false,
           "controlPlane": false,
           "businessExecution": true
+        },
+        {
+          "name": "search_parts",
+          "argKeys": [],
+          "success": true,
+          "verified": true,
+          "code": null,
+          "factIds": [
+            "F-056",
+            "F-057",
+            "F-058",
+            "F-059",
+            "F-060",
+            "F-061",
+            "F-062",
+            "F-063",
+            "F-064",
+            "F-065",
+            "F-066",
+            "F-067",
+            "F-068",
+            "F-069",
+            "F-070",
+            "F-071",
+            "F-072",
+            "F-073",
+            "F-074",
+            "F-075",
+            "F-076",
+            "F-077",
+            "F-078",
+            "F-079",
+            "F-080",
+            "F-081",
+            "F-082",
+            "F-083",
+            "F-084",
+            "F-085",
+            "F-086",
+            "F-087",
+            "F-088",
+            "F-089",
+            "F-090",
+            "F-091",
+            "F-092",
+            "F-093",
+            "F-094",
+            "F-095",
+            "F-096",
+            "F-097",
+            "F-098",
+            "F-099",
+            "F-100",
+            "F-101",
+            "F-102",
+            "F-103",
+            "F-104",
+            "F-105",
+            "F-106",
+            "F-107",
+            "F-108",
+            "F-109",
+            "F-110",
+            "F-111",
+            "F-112",
+            "F-113",
+            "F-114",
+            "F-115",
+            "F-116",
+            "F-117",
+            "F-118",
+            "F-119",
+            "F-120",
+            "F-121",
+            "F-122",
+            "F-123",
+            "F-124",
+            "F-125",
+            "F-126",
+            "F-127",
+            "F-128",
+            "F-129",
+            "F-130",
+            "F-131",
+            "F-132",
+            "F-133",
+            "F-134",
+            "F-135",
+            "F-136"
+          ],
+          "noNewEvidence": false,
+          "controlPlane": false,
+          "businessExecution": true
+        },
+        {
+          "name": "resolve_entity",
+          "argKeys": [
+            "entityType",
+            "mention"
+          ],
+          "success": true,
+          "verified": true,
+          "code": null,
+          "factIds": [
+            "F-137"
+          ],
+          "noNewEvidence": false,
+          "controlPlane": false,
+          "businessExecution": true
+        },
+        {
+          "name": "resolve_entity",
+          "argKeys": [
+            "entityType",
+            "mention"
+          ],
+          "success": false,
+          "verified": false,
+          "code": "ENTITY_NOT_FOUND",
+          "factIds": [
+            "F-138"
+          ],
+          "noNewEvidence": false,
+          "controlPlane": false,
+          "businessExecution": false
         }
       ],
       "formalOutcomeReceipts": [],
       "finalizationAttempts": [
         {
           "attempt": 1,
+          "code": "CLAIM_UNGROUNDED",
+          "detail": {
+            "claimText": "您所说的“待处理物料”在当前正式能力中没有对应的正式状态语义，因此我无法按“待处理物料”这一口径直接给出清单。",
+            "reason": "EMPTY_FACT_IDS"
+          },
+          "valid": false,
+          "raw": "{\"answer\":\"您所说的“待处理物料”在当前正式能力中没有对应的正式状态语义，因此我无法按“待处理物料”这一口径直接给出清单。可查到的正式数据是采购任务总览，其完整集合共 2 条任务：D2-B2未绑定物料（尚未解析为正式零件身份）和 D1-R1轴承-202。D1-R1轴承-202 处于待下单阶段，计划采购 3 个，已下单 0 个，已到货 0 个，已入库 0 个，待采购 3 个。请明确您所指“待处理”的具体状态口径，我再据此核实。\",\"claims\":[{\"text\":\"您所说的“待处理物料”在当前正式能力中没有对应的正式状态语义，因此我无法按“待处理物料”这一口径直接给出清单。\",\"factIds\":[]},{\"text\":\"可查到的正式数据是采购任务总览，其完整集合共 2 条任务：D2-B2未绑定物料（尚未解析为正式零件身份）和 D1-R1轴承-202。\",\"factIds\":[\"F-002\",\"F-003\",\"F-138\",\"F-028\",\"F-045\"]},{\"text\":\"D1-R1轴承-202 处于待下单阶段，计划采购 3 个，已下单 0 个，已到货 0 个，已入库 0 个，待采购 3 个。\",\"factIds\":[\"F-004\",\"F-005\",\"F-006\",\"F-007\",\"F-008\",\"F-009\"]},{\"text\":\"请明确您所指“待处理”的具体状态口径，我再据此核实。\",\"factIds\":[]}],\"goals\":[{\"questionIndex\":0,\"status\":\"CLARIFICATION\",\"factIds\":[\"F-002\",\"F-003\",\"F-005\",\"F-009\",\"F-138\"]}]}"
+        },
+        {
+          "attempt": 2,
           "code": "OPERATIONAL_QUANTITY_BINDING_MISMATCH",
           "detail": {
-            "claimText": "其中 D1-R1轴承-202 的计划采购数量为 3 个，已下单、已到货、已入库均为 0 个，待采购数量为 3 个，采购状态为待下单。",
+            "claimText": "D1-R1轴承-202 处于待下单阶段，计划采购 3 个，已下单 0 个，已到货 0 个，已入库 0 个，待采购 3 个。",
             "amount": 1,
-            "detectedQuantityRole": "PLANNED_PURCHASE",
+            "detectedQuantityRole": "ORDERED",
             "unit": null,
             "citedFactIds": [
               "F-005",
@@ -3120,24 +3341,7 @@
             "reason": "NO_MATCHING_OPERATIONAL_QUANTITY_FACT"
           },
           "valid": false,
-          "raw": "{\"answer\":\"采购总览的待处理物料共 2 条，清单完整（共 2 条）。其中 D1-R1轴承-202 的计划采购数量为 3 个，已下单、已到货、已入库均为 0 个，待采购数量为 3 个，采购状态为待下单。另一条显示为 D2-B2未绑定物料，尚未绑定正式零件身份。\",\"claims\":[{\"text\":\"采购总览的待处理物料共 2 条，清单完整（共 2 条）。\",\"factIds\":[\"F-002\",\"F-028\",\"F-045\"]},{\"text\":\"其中 D1-R1轴承-202 的计划采购数量为 3 个，已下单、已到货、已入库均为 0 个，待采购数量为 3 个，采购状态为待下单。\",\"factIds\":[\"F-004\",\"F-005\",\"F-006\",\"F-007\",\"F-008\",\"F-009\"]},{\"text\":\"另一条显示为 D2-B2未绑定物料，尚未绑定正式零件身份。\",\"factIds\":[\"F-003\",\"F-028\"]}],\"goals\":[{\"questionIndex\":0,\"status\":\"COMPLETED\",\"factIds\":[\"F-002\",\"F-003\",\"F-004\",\"F-005\",\"F-028\",\"F-045\"]}]}"
-        },
-        {
-          "attempt": 2,
-          "code": "OPERATIONAL_QUANTITY_BINDING_MISMATCH",
-          "detail": {
-            "claimText": "其中一条为 D1-R1轴承-202，计划采购数量 3 个，采购状态为待下单。",
-            "amount": 1,
-            "detectedQuantityRole": "PLANNED_PURCHASE",
-            "unit": null,
-            "citedFactIds": [
-              "F-005"
-            ],
-            "compatibleFactIds": [],
-            "reason": "NO_MATCHING_OPERATIONAL_QUANTITY_FACT"
-          },
-          "valid": false,
-          "raw": "{\"answer\":\"采购总览的待处理物料清单完整，共 2 条。其中一条为 D1-R1轴承-202，计划采购数量 3 个，采购状态为待下单。D1-R1轴承-202 的已下单数量为 0 个。D1-R1轴承-202 的待采购数量为 3 个。另一条显示为 D2-B2未绑定物料，尚未绑定正式零件身份。\",\"claims\":[{\"text\":\"采购总览的待处理物料清单完整，共 2 条。\",\"factIds\":[\"F-002\",\"F-028\",\"F-045\"]},{\"text\":\"其中一条为 D1-R1轴承-202，计划采购数量 3 个，采购状态为待下单。\",\"factIds\":[\"F-004\",\"F-005\"]},{\"text\":\"D1-R1轴承-202 的已下单数量为 0 个。\",\"factIds\":[\"F-006\"]},{\"text\":\"D1-R1轴承-202 的待采购数量为 3 个。\",\"factIds\":[\"F-009\"]},{\"text\":\"另一条显示为 D2-B2未绑定物料，尚未绑定正式零件身份。\",\"factIds\":[\"F-003\",\"F-028\"]}],\"goals\":[{\"questionIndex\":0,\"status\":\"COMPLETED\",\"factIds\":[\"F-002\",\"F-003\",\"F-004\",\"F-005\",\"F-006\",\"F-009\",\"F-028\",\"F-045\"]}]}"
+          "raw": "{\"answer\":\"“待处理物料”这一口径在当前正式能力中没有对应的状态语义，无法据此直接给出清单。可查到的正式数据是采购任务总览，其完整集合共 2 条任务：D2-B2未绑定物料（尚未解析为正式零件身份）和 D1-R1轴承-202。D1-R1轴承-202 处于待下单阶段，计划采购 3 个，已下单 0 个，已到货 0 个，已入库 0 个，待采购 3 个。请明确您所指“待处理”的具体状态口径，我再据此核实。\",\"claims\":[{\"text\":\"可查到的正式数据是采购任务总览，其完整集合共 2 条任务：D2-B2未绑定物料（尚未解析为正式零件身份）和 D1-R1轴承-202。\",\"factIds\":[\"F-002\",\"F-003\",\"F-138\",\"F-028\",\"F-045\"]},{\"text\":\"D1-R1轴承-202 处于待下单阶段，计划采购 3 个，已下单 0 个，已到货 0 个，已入库 0 个，待采购 3 个。\",\"factIds\":[\"F-004\",\"F-005\",\"F-006\",\"F-007\",\"F-008\",\"F-009\"]}],\"goals\":[{\"questionIndex\":0,\"status\":\"CLARIFICATION\",\"factIds\":[\"F-002\",\"F-003\",\"F-005\",\"F-009\",\"F-138\"]}]}"
         }
       ],
       "answerValidation": {
@@ -3155,16 +3359,16 @@
       },
       "context": {
         "rawOwnerInputTokensEst": 12,
-        "businessMemoTokensEst": 473,
-        "policyMemoTokensEst": 245,
+        "businessMemoTokensEst": 388,
+        "policyMemoTokensEst": 299,
         "ontologyContextTokensEst": 142,
         "apiIndexTokensEst": 3150,
-        "loadedSchemaTokensEst": 207,
-        "factCatalogChars": 3420,
-        "factCatalogFactCount": 11,
-        "totalApproxContextTokens": 10711
+        "loadedSchemaTokensEst": 855,
+        "factCatalogChars": 4458,
+        "factCatalogFactCount": 18,
+        "totalApproxContextTokens": 13046
       },
-      "durationMs": 12998
+      "durationMs": 16099
     }
   ]
 }
