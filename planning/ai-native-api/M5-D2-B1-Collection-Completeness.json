@@ -1,0 +1,24 @@
+{
+  "stage": "D2-B1",
+  "runId": "d2-b1-collection-contract-20261004",
+  "completeCollection": {
+    "status": "PASS",
+    "rule": "Only producer metadata with complete=true, hasMore=false, and compatible returned/total counts becomes collection_completeness=COMPLETE."
+  },
+  "truncatedCollection": {
+    "status": "PASS",
+    "rule": "purchase overview returnedCount < summary.taskCount or queryReceipt.truncated/possiblyTruncated becomes PARTIAL."
+  },
+  "emptyCompleteShortage": {
+    "status": "PASS",
+    "rule": "No identified shortage can be stated only from formal READY plus a COMPLETE collection; absence of projected rows is insufficient."
+  },
+  "partialCannotClaimAll": {
+    "status": "PASS",
+    "validatorCode": "COLLECTION_COMPLETENESS_MISMATCH"
+  },
+  "unknownNumeric": {
+    "status": "PASS",
+    "rule": "null, undefined, and non-finite quantities are omitted rather than projected as zero."
+  }
+}

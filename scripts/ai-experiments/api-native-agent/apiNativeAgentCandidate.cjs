@@ -156,6 +156,13 @@ function candidateToolProjection(result, factIds) {
             reason: 'CANDIDATE_TOOL_RESULT_CONTEXT_LIMIT', maxChars: MAX_CURRENT_TOOL_RESULT_CHARS },
     };
 }
+function modelSafeQualifiers(value) {
+    if (Array.isArray(value)) return value.map(modelSafeQualifiers);
+    if (!value || typeof value !== 'object') return value;
+    return Object.fromEntries(Object.entries(value)
+        .filter(([key]) => !/(?:^|_)(?:id|canonicalid)$/i.test(key) && !/Id$/i.test(key))
+        .map(([key, child]) => [key, modelSafeQualifiers(child)]));
+}
 function renderClaimableFactsForModel(ledgerOrSnapshot) {
     const facts = Array.isArray(ledgerOrSnapshot?.facts) ? ledgerOrSnapshot.facts : [];
     const seen = new Set();
@@ -184,16 +191,27 @@ function renderClaimableFactsForModel(ledgerOrSnapshot) {
         const key = stableJson([entity, fact.predicate, fact.value, fact.unit, fact.basis, moneyRole, scenario, participants, fact.source?.tool]);
         if (seen.has(key)) continue;
         seen.add(key);
+        const qualifiers = fact.qualifiers || {};
         const claimType = moneyRole === 'CURRENT_FORMAL' || moneyRole === 'CURRENT_BASE' ? 'CURRENT_COST'
             : moneyRole === 'SCENARIO_CANDIDATE' ? 'SCENARIO_COST'
                 : moneyRole === 'SCENARIO_DIFFERENCE' ? 'SCENARIO_DELTA'
-                    : moneyRole === 'RECIPE_DIFFERENCE' ? 'RECIPE_COST_DIFFERENCE' : null;
-        const qualifiers = fact.qualifiers || {};
+                    : moneyRole === 'RECIPE_DIFFERENCE' ? 'RECIPE_COST_DIFFERENCE'
+                        : qualifiers.quantityRole ? 'OPERATIONAL_QUANTITY'
+                            : fact.predicate === 'collection_completeness' ? 'COLLECTION_COMPLETENESS' : null;
+        // Existing D1 catalog entries have dedicated scenario/participant
+        // fields. Operational evidence is the only new class whose role,
+        // unit/basis context and result-scoped collection reference need to
+        // be visible to the finalizer as generic qualifiers.
+        const modelQualifiers = ['OPERATIONAL_QUANTITY', 'COLLECTION_COMPLETENESS'].includes(claimType)
+            || fact.predicate === 'unresolved_requirement'
+            ? modelSafeQualifiers(qualifiers) : {};
         entries.push({ factId: fact.factId, ...(claimType ? { claimType } : {}),
             entity: fact.entity ? { type: fact.entity.type, canonicalName: fact.entity.canonicalName } : null,
             ...(participants ? { participants } : {}), predicate: fact.predicate, value: fact.value, unit: fact.unit, basis: fact.basis,
             ...(qualifiers.scenarioKey || qualifiers.label || qualifiers.role ? { scenario: { scenarioKey: qualifiers.scenarioKey || null, label: qualifiers.label || null, role: qualifiers.role || null } } : {}),
-            ...(qualifiers.direction ? { direction: qualifiers.direction } : {}), sourceTool: fact.source?.tool || null });
+            ...(qualifiers.direction ? { direction: qualifiers.direction } : {}),
+            ...(Object.keys(modelQualifiers).length ? { qualifiers: modelQualifiers } : {}),
+            sourceTool: fact.source?.tool || null });
     }
     return Object.freeze(entries);
 }
@@ -254,7 +272,7 @@ async function runApiNativeAgentCandidate(input = {}, dependencies = {}) {
     // Candidate-only projection asks the shared ledger to retain formal
     // scenario basis/delta facts. Default production callers retain their
     // existing ledger behavior unchanged.
-    const ledger = dependencies.factLedger || createFactLedger({ includeRecipeComparisonFacts: true, includeScenarioComparisonFacts: true, includeCoilDirectoryCostFacts: true, includeRecipeDetailCurrentCostFacts: true });
+    const ledger = dependencies.factLedger || createFactLedger({ includeRecipeComparisonFacts: true, includeScenarioComparisonFacts: true, includeCoilDirectoryCostFacts: true, includeRecipeDetailCurrentCostFacts: true, includeOperationalEvidenceFacts: true });
     const validator = dependencies.validateAnswer || validateAnswer;
     const maxMainModelCalls = Number.isSafeInteger(input.maxMainModelCalls)
         ? Math.max(1, Math.min(input.maxMainModelCalls, MAX_MAIN_MODEL_CALLS))
@@ -311,7 +329,7 @@ async function runApiNativeAgentCandidate(input = {}, dependencies = {}) {
             const outcomeSummary = finalizationEvidenceSummary(catalog, formalOutcomeReceipts);
             messages.push({ role: 'system', content: [
                 'FINALIZE phase: business tools are no longer available. Do not add facts, infer amounts, or call tools.',
-                'Return only the required answer JSON envelope. Cover every owner-requested outcome that has supporting Claimable Fact Catalog evidence. If the owner asks for a difference, directly state the formal difference using RECIPE_COST_DIFFERENCE or SCENARIO_DELTA; do not replace it with only two absolute costs. For a scenario request, use SCENARIO_COST for the candidate amount and SCENARIO_DELTA when the owner asks how much it changes. Claims may cite only this deterministic Claimable Fact Catalog. Every money sentence must include its exact canonical entity name from the cited Fact Catalog; never use a pronoun as the money subject. Each monetary factual sentence/claim may assert only one money role: current/base, scenario candidate, or difference. If you mention more than one, split them into separate sentences and give each sentence only its matching Fact IDs. Do not repeat a money amount in an uncited disclaimer: either keep it in the same cited sentence or make that disclaimer its own cited claim. For a CLARIFICATION or UNAVAILABLE response that states no verified business fact, use claims: [] and empty goal factIds; never create an uncited explanatory claim. Do not include internal IDs, suppliers, or unrelated metadata. Write one to four short factual sentences only: every claims[].text must be a byte-for-byte contiguous sentence copied from answer (including punctuation), and answer must contain no additional factual sentence without a claim.',
+                'Return only the required answer JSON envelope. Cover every owner-requested outcome that has supporting Claimable Fact Catalog evidence. If the owner asks for a difference, directly state the formal difference using RECIPE_COST_DIFFERENCE or SCENARIO_DELTA; do not replace it with only two absolute costs. For a scenario request, use SCENARIO_COST for the candidate amount and SCENARIO_DELTA when the owner asks how much it changes. Claims may cite only this deterministic Claimable Fact Catalog. Every money sentence must include its exact canonical entity name from the cited Fact Catalog; never use a pronoun as the money subject. Each monetary factual sentence/claim may assert only one money role: current/base, scenario candidate, or difference. If you mention more than one, split them into separate sentences and give each sentence only its matching Fact IDs. Operational quantity claims must cite the exact quantityRole and unit (required, available, shortage, or purchase progress); never substitute one role or unit for another. Do not call a partial collection complete, and do not infer that purchase covers a shortage unless a formal fact says so. Do not repeat a money amount in an uncited disclaimer: either keep it in the same cited sentence or make that disclaimer its own cited claim. For a CLARIFICATION or UNAVAILABLE response that states no verified business fact, use claims: [] and empty goal factIds; never create an uncited explanatory claim. Do not include internal IDs, suppliers, or unrelated metadata. Write one to four short factual sentences only: every claims[].text must be a byte-for-byte contiguous sentence copied from answer (including punctuation), and answer must contain no additional factual sentence without a claim.',
                 `CLAIMABLE FACT CATALOG:\n${JSON.stringify(catalog)}`,
                 `FINALIZATION EVIDENCE SUMMARY (control evidence only; no amounts):\n${JSON.stringify(outcomeSummary)}`,
                 'Every claim must have one or more verified Fact IDs. Omit a narrative sentence instead of emitting a claim with empty factIds. Prior drafts are non-authoritative. A prior UNAVAILABLE/PARTIAL statement cannot override APPLIED, COMPARABLE formal outcome evidence or the Claimable Fact Catalog.',

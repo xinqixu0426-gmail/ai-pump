@@ -1,0 +1,37 @@
+{
+  "stage": "D2-B1",
+  "runId": "d2-b1-deterministic-regression-20261004",
+  "modelCalls": 0,
+  "focusedTests": {
+    "files": [
+      "tests/d2OperationalEvidence.test.cjs",
+      "tests/orderReadiness.test.cjs",
+      "tests/orderQueries.test.cjs",
+      "tests/virtualReadinessPreview.test.cjs"
+    ],
+    "pass": 29,
+    "fail": 0,
+    "coverage": [
+      "formal virtual readiness result to ledger",
+      "formal order readiness result to ledger",
+      "formal purchase overview through executor receipt to ledger",
+      "formal order detail collection and snapshot boundary",
+      "quantity entity/role/unit binding",
+      "unresolved and completeness fail-closed behavior",
+      "model-facing internal ID suppression"
+    ]
+  },
+  "fullRepository": {
+    "npmTest": { "pass": 2318, "fail": 0 },
+    "verifyApiContract": { "pass": 29, "fail": 0 },
+    "deepApi": { "pass": 486, "fail": 0, "sourceMode": "CANONICAL_DETERMINISTIC", "localPumpDbUsed": false },
+    "lint": "PASS",
+    "build": "PASS",
+    "aiArchitecture": { "pass": 9, "fail": 0 },
+    "aiAssistantRelease": "PASS"
+  },
+  "initialSandboxConstraint": {
+    "observed": "Loopback HTTP integration tests cannot listen under the workspace sandbox.",
+    "resolution": "The required full test gate was rerun under approved local test execution; no deployment or production access occurred."
+  }
+}

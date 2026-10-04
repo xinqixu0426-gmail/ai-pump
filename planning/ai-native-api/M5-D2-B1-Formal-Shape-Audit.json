@@ -1,0 +1,48 @@
+{
+  "stage": "D2-B1",
+  "runId": "d2-b1-formal-shape-audit-20261004",
+  "sourceCommit": "d0bde8bb4a25139dcd9837344b09b28b16dd322c",
+  "modelCalls": 0,
+  "businessDataMutation": 0,
+  "producers": {
+    "preview_virtual_readiness": {
+      "source": "api/services/virtualReadinessPreview.cjs#createVirtualReadinessPreview",
+      "executor": "api/routes/ai/executors/businessExecutors.cjs",
+      "identity": "requirements[].partId or requirements[].coilId when formally resolved; otherwise unresolvedRequirements[]",
+      "quantities": ["virtualRequiredQty", "availableForVirtualQty", "shortageQty"],
+      "unit": "inventoryUnit",
+      "status": "status with inventoryBasis and scenarioKey",
+      "collections": ["collections.requirements", "collections.shortages", "collections.unresolvedRequirements"],
+      "truncation": "Collections are response-complete only when their formal complete field is true; incomplete results remain incomplete."
+    },
+    "check_order_readiness": {
+      "source": "api/services/orderReadiness.cjs#buildOrderReadiness",
+      "executor": "api/routes/ai/executors/orderExecutors.cjs",
+      "identity": "shortages[].partId or shortages[].coilId when the planner has a formal material binding",
+      "quantities": ["requiredQty", "availableQty", "shortageQty", "plannedQty", "orderedQty", "receivedQty", "stockedQty"],
+      "unit": "purchaseUnit",
+      "status": "verdict, canProduce, metrics.shortageLineCount, metrics.unresolvedLineCount",
+      "collections": ["collections.shortages"],
+      "unresolved": "A part/coil requirement without canonical ID remains an unresolved requirement and cannot become a canonical shortage fact."
+    },
+    "get_order_detail": {
+      "source": "api/routes/ai/executors/orderExecutors.cjs#executeOrderTool",
+      "identity": "resolved order binding; order items preserve recipeName only as an order snapshot",
+      "quantities": ["items[].qty"],
+      "unit": "COUNT for formal order-line quantity",
+      "status": "order.status",
+      "collections": ["order.collections.items", "order.collections.purchaseList", "order.collections.todos"],
+      "snapshotBoundary": "An order-line recipe snapshot is not promoted to CURRENT_CANONICAL_RECIPE."
+    },
+    "get_purchase_overview": {
+      "source": "api/services/orderQueries.cjs#createOrderQueries#getPurchaseOverview",
+      "executor": "api/routes/ai/executors/orderExecutors.cjs#executeOrderTool",
+      "identity": "tasks[].partId or tasks[].coilId when carried by the formal purchase plan",
+      "quantities": ["plannedQty", "orderedQty", "receivedQty", "stockedQty", "pendingQty"],
+      "unit": "purchaseUnit",
+      "status": "procurementStage",
+      "collections": ["returnedCount", "summary.taskCount", "truncated", "queryReceipt.possiblyTruncated"],
+      "supplier": "supplier is a formal string attribute, not a new Supplier entity."
+    }
+  }
+}

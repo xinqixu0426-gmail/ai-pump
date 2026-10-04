@@ -1,6 +1,7 @@
 const { parsePositiveId } = require('./validation.cjs');
 const { ORDER_STATUSES } = require('./orderWorkflow.cjs');
 const { purchaseRowIdentity } = require('./purchaseIdentity.cjs');
+const { procurementStage } = require('./procurementProgress.cjs');
 const {
     normalizeOptionalBoolean,
     normalizeOptionalEnum,
@@ -24,6 +25,11 @@ function parseJsonArray(value) {
     } catch {
         return [];
     }
+}
+
+function canonicalId(value) {
+    const id = Number(value);
+    return Number.isSafeInteger(id) && id > 0 ? id : null;
 }
 
 function createOrderQueries({
@@ -82,8 +88,14 @@ function createOrderQueries({
                 const supplier = String(item.supplier || '').trim();
                 const model = String(item.model || item.name || '').trim();
                 const key = purchaseRowIdentity(item);
+                const partId = canonicalId(item.partId);
+                const coilId = canonicalId(item.coilId);
+                const inventoryType = String(item.inventoryType || '').trim();
                 const current = tasksByKey.get(key) || {
                     identityKey: key,
+                    ...(partId ? { partId } : {}),
+                    ...(coilId ? { coilId } : {}),
+                    ...(inventoryType ? { inventoryType } : {}),
                     supplier,
                     supplierLabel: supplier || '未指定供应商',
                     model,
@@ -110,7 +122,9 @@ function createOrderQueries({
         const supplier = normalizeQueryText(options.supplier, 'supplier').toLocaleLowerCase();
         const pendingOnly = normalizeOptionalBoolean(options.pendingOnly, 'pendingOnly') ?? false;
         const allTasks = [...tasksByKey.values()]
-            .map(task => ({ ...task, orderCount: task.orderIds.length }))
+            .map(task => ({ ...task, orderCount: task.orderIds.length,
+                procurementStage: procurementStage({ ...task, shortageQty: task.plannedQty }),
+            }))
             .filter(task => (
                 (!supplier || task.supplierLabel.toLocaleLowerCase().includes(supplier))
                 && (!pendingOnly || task.pendingQty > 0)

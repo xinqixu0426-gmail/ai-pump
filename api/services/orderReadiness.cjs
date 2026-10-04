@@ -1,5 +1,6 @@
 const { TERMINAL_ORDER_STATUSES, normalizePurchaseItem } = require('./orderWorkflow.cjs');
 const { isPackagingEstimatePart } = require('./packagingEstimate.cjs');
+const { procurementStage } = require('./procurementProgress.cjs');
 
 const STEP_LABELS = {
     order: '订单状态',
@@ -50,16 +51,6 @@ function recipeExists(item, recipesById, recipesByName) {
     return Boolean(name && recipesByName.has(name));
 }
 
-function procurementStage(item, shortageQty) {
-    if (shortageQty <= 0) return '库存已满足';
-    const normalized = normalizePurchaseItem(item);
-    if (normalized.plannedQty <= 0) return '未生成采购计划';
-    if (normalized.orderedQty < normalized.plannedQty) return '待下单';
-    if (normalized.receivedQty < normalized.orderedQty) return '待到货';
-    if (normalized.stockedQty < normalized.receivedQty) return '待入库';
-    return '库存仍不足';
-}
-
 function action(key, label, path, reason) {
     return { key, label, path, reason };
 }
@@ -104,6 +95,9 @@ function terminalReadiness(order, items, generatedAt) {
             ...['recipe', 'parts', 'coils', 'procurement', 'cost'].map(key => step(key, 'skipped', '未执行。')),
         ],
         shortages: [],
+        collections: {
+            shortages: { returnedCount: 0, totalCount: 0, complete: true, hasMore: false },
+        },
         blockers: [],
         warnings: [],
         recommendedActions: [],
@@ -253,6 +247,12 @@ function buildOrderReadiness(options = {}) {
                 : 'part';
         const row = {
             identityKey: String(item.identityKey || ''),
+            // The readiness planner already uses these formal catalog IDs to
+            // decide whether a requirement is resolvable.  Return them on
+            // the read-only result so downstream evidence can bind a shortage
+            // to the exact material instead of matching model text.
+            partId: Number.isSafeInteger(Number(item.partId)) && Number(item.partId) > 0 ? Number(item.partId) : null,
+            coilId: Number.isSafeInteger(Number(item.coilId)) && Number(item.coilId) > 0 ? Number(item.coilId) : null,
             model: String(item.model || item.name || ''),
             name: String(item.name || item.model || ''),
             supplier: String(item.supplier || ''),
@@ -265,7 +265,7 @@ function buildOrderReadiness(options = {}) {
             orderedQty: item.orderedQty,
             receivedQty: item.receivedQty,
             stockedQty: item.stockedQty,
-            procurementStage: procurementStage(item, shortageQty),
+            procurementStage: procurementStage({ ...item, shortageQty }),
         };
         if (shortageQty > 0) shortages.push(row);
 
@@ -435,6 +435,9 @@ function buildOrderReadiness(options = {}) {
         },
         steps,
         shortages,
+        collections: {
+            shortages: { returnedCount: shortages.length, totalCount: shortages.length, complete: true, hasMore: false },
+        },
         blockers,
         warnings,
         recommendedActions: uniqueActions(actions),

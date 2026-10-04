@@ -133,6 +133,103 @@ function claimMoneyBinding(claim, verified, allFacts) {
     }
     return { valid: true, detail: null };
 }
+
+function operationalFactsForClaim(claim, verified) {
+    return claim.factIds.map(id => verified.get(id)).filter(fact => fact?.qualifiers?.quantityRole);
+}
+function normalizeOperationalUnit(unit) {
+    const normalized = String(unit || '').trim().toLowerCase();
+    const aliases = {
+        piece: 'piece', pieces: 'piece', '个': 'piece', '件': 'piece',
+        set: 'set', sets: 'set', '套': 'set',
+        count: 'count', '项': 'count', '条': 'count', '台': 'count',
+        meter: 'meter', metres: 'meter', metre: 'meter', m: 'meter', '米': 'meter',
+        kg: 'kg', kilogram: 'kg', kilograms: 'kg', '千克': 'kg', '公斤': 'kg',
+    };
+    return aliases[normalized] || normalized || null;
+}
+function operationalQuantityMentions(clause) {
+    const matches = [];
+    const expression = /(\d+(?:\.\d+)?)\s*(个|件|套|项|条|台|米|m\b|kg\b|千克|公斤|piece(?:s)?|set(?:s)?|count|meter(?:s)?|metre(?:s)?|kilogram(?:s)?)?/gi;
+    let match;
+    while ((match = expression.exec(clause))) {
+        const before = clause.slice(Math.max(0, match.index - 28), match.index);
+        const after = clause.slice(match.index + match[0].length, Math.min(clause.length, match.index + match[0].length + 20));
+        const context = `${before}${after}`;
+        let role = null;
+        if (/(?:缺料|短缺).{0,6}(?:项|条)|(?:项|条).{0,6}(?:缺料|短缺)/.test(context)) role = 'SHORTAGE_LINE_COUNT';
+        else if (/(?:缺|短缺|不足)/.test(context)) role = 'SHORTAGE';
+        else if (/(?:已入库|入库)/.test(context)) role = 'STOCKED';
+        else if (/(?:已到货|到货)/.test(context)) role = 'RECEIVED';
+        else if (/(?:已下单|下单)/.test(context)) role = 'ORDERED';
+        else if (/(?:待采购|待下单)/.test(context)) role = 'PENDING_PURCHASE';
+        else if (/(?:计划采购|计划)/.test(context)) role = 'PLANNED_PURCHASE';
+        else if (/(?:可用|库存)/.test(context)) role = 'AVAILABLE';
+        else if (/(?:需要|需用|需求|required)/i.test(context)) role = 'REQUIRED';
+        else if (/(?:订单.*(?:数量|台)|数量.*订单)/.test(context)) role = 'ORDER_LINE';
+        if (role) matches.push({ value: Number(match[1]), unit: normalizeOperationalUnit(match[2]), role, text: match[0] });
+    }
+    return matches.filter(item => Number.isFinite(item.value));
+}
+function quantityFailure(reason, claim, mention, cited, allFacts) {
+    return {
+        valid: false,
+        detail: {
+            claimText: claim.text,
+            amount: mention.value,
+            detectedQuantityRole: mention.role,
+            unit: mention.unit,
+            citedFactIds: cited.map(fact => fact.factId),
+            compatibleFactIds: allFacts.filter(fact => fact?.qualifiers?.quantityRole === mention.role
+                && Number(fact.value) === mention.value).map(fact => fact.factId),
+            reason,
+        },
+    };
+}
+function claimOperationalQuantityBinding(claim, verified, allFacts) {
+    const cited = operationalFactsForClaim(claim, verified);
+    if (!cited.length) return { valid: true, detail: null };
+    const clauses = claim.text.split(/[；;。]/).filter(Boolean);
+    for (const clause of clauses) {
+        for (const mention of operationalQuantityMentions(clause)) {
+            const matchingValue = cited.filter(fact => Math.abs(Number(fact.value) - mention.value) <= 0.000001);
+            if (!matchingValue.length) return quantityFailure('NO_MATCHING_OPERATIONAL_QUANTITY_FACT', claim, mention, cited, allFacts);
+            const matchingRole = matchingValue.filter(fact => fact.qualifiers.quantityRole === mention.role);
+            if (!matchingRole.length) return quantityFailure('WRONG_QUANTITY_ROLE', claim, mention, cited, allFacts);
+            if (!mention.unit) return quantityFailure('OPERATIONAL_UNIT_MISSING', claim, mention, cited, allFacts);
+            if (!matchingRole.some(fact => normalizeOperationalUnit(fact.unit) === mention.unit)) {
+                return quantityFailure('WRONG_OPERATIONAL_UNIT', claim, mention, cited, allFacts);
+            }
+            const names = [...new Set(allFacts.filter(fact => fact?.qualifiers?.quantityRole)
+                .map(fact => fact?.entity?.canonicalName).filter(Boolean))];
+            const mentioned = names.filter(name => clause.includes(name));
+            if (mentioned.length && !matchingRole.some(fact => mentioned.includes(fact?.entity?.canonicalName))) {
+                return quantityFailure('WRONG_OPERATIONAL_ENTITY', claim, mention, cited, allFacts);
+            }
+        }
+    }
+    return { valid: true, detail: null };
+}
+function claimCollectionCompletenessBinding(claim, verified) {
+    if (!/(?:全部|所有|只有这些|仅有这些)/.test(claim.text)) return { valid: true, detail: null };
+    const cited = claim.factIds.map(id => verified.get(id)).filter(Boolean);
+    const operational = cited.some(fact => fact?.qualifiers?.quantityRole || ['readiness_status', 'unresolved_requirement'].includes(fact?.predicate));
+    if (!operational) return { valid: true, detail: null };
+    const completeness = cited.filter(fact => fact?.predicate === 'collection_completeness');
+    if (!completeness.some(fact => fact.value === 'COMPLETE' && fact.qualifiers?.complete === true)) {
+        return { valid: false, detail: { claimText: claim.text, reason: 'PARTIAL_COLLECTION_CANNOT_CLAIM_ALL', citedFactIds: cited.map(fact => fact.factId) } };
+    }
+    return { valid: true, detail: null };
+}
+function claimNoShortageBinding(claim, verified) {
+    if (!/(?:无|没有).{0,8}(?:缺料|短缺)|(?:未发现).{0,8}(?:缺料|短缺)/.test(claim.text)) return { valid: true, detail: null };
+    const cited = claim.factIds.map(id => verified.get(id)).filter(Boolean);
+    const readinessReady = cited.some(fact => fact?.predicate === 'readiness_status' && ['READY', 'ready'].includes(String(fact.value)));
+    const complete = cited.some(fact => fact?.predicate === 'collection_completeness' && fact.value === 'COMPLETE' && fact.qualifiers?.complete === true);
+    return readinessReady && complete
+        ? { valid: true, detail: null }
+        : { valid: false, detail: { claimText: claim.text, reason: 'NO_SHORTAGE_REQUIRES_COMPLETE_FORMAL_RESULT', citedFactIds: cited.map(fact => fact.factId) } };
+}
 function expectedGoalIndexes(judge = {}) {
     const questions = Array.isArray(judge.questions) ? judge.questions : [];
     return questions.map((_, index) => index);
@@ -159,6 +256,12 @@ function validateAnswer(content, { ledger, judge = {}, mode = 'READ', proposalOn
         if (claim.factIds.some(id => !verified.has(id))) return validationFailure('CLAIM_FACT_UNVERIFIED');
         const moneyBinding = claimMoneyBinding(claim, verified, facts);
         if (!moneyBinding.valid) return validationFailure('MONEY_CLAIM_BINDING_MISMATCH', moneyBinding.detail);
+        const operationalBinding = claimOperationalQuantityBinding(claim, verified, facts);
+        if (!operationalBinding.valid) return validationFailure('OPERATIONAL_QUANTITY_BINDING_MISMATCH', operationalBinding.detail);
+        const completenessBinding = claimCollectionCompletenessBinding(claim, verified);
+        if (!completenessBinding.valid) return validationFailure('COLLECTION_COMPLETENESS_MISMATCH', completenessBinding.detail);
+        const noShortageBinding = claimNoShortageBinding(claim, verified);
+        if (!noShortageBinding.valid) return validationFailure('COLLECTION_COMPLETENESS_MISMATCH', noShortageBinding.detail);
     }
     for (const clause of answer.split(/[；;。]/).map(item => item.trim()).filter(Boolean)) {
         if (moneyMentions(clause).length && !claims.some(claim => claim.text.includes(clause))) {

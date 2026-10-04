@@ -383,6 +383,11 @@ async function executeOrderTool(toolName, args, internalFetch, options = {}) {
                     items,
                     purchaseList,
                     todos,
+                    collections: {
+                        items: { returnedCount: items.length, totalCount: items.length, complete: true, hasMore: false },
+                        purchaseList: { returnedCount: purchaseList.length, totalCount: purchaseList.length, complete: true, hasMore: false },
+                        todos: { returnedCount: todos.length, totalCount: todos.length, complete: true, hasMore: false },
+                    },
                     totalCost: Math.round(totalCost * 100) / 100,
                     totalPrice: Math.round(totalPrice * 100) / 100,
                     totalProfit: Math.round((totalPrice - totalCost) * 100) / 100,

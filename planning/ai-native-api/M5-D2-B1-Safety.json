@@ -1,0 +1,27 @@
+{
+  "stage": "D2-B1",
+  "runId": "d2-b1-safety-20261004",
+  "modelCalls": 0,
+  "writeCapabilityChanged": false,
+  "apiIndex": {
+    "countBefore": 31,
+    "countAfter": 31,
+    "fingerprintBefore": "734be7888b47f19baf76b5f55282d408e2416eec0b2924c3a91b90d197473f18",
+    "fingerprintAfter": "734be7888b47f19baf76b5f55282d408e2416eec0b2924c3a91b90d197473f18"
+  },
+  "writeExecutions": 0,
+  "businessDbMutations": 0,
+  "dbSchemaChanged": false,
+  "realBusinessDbAccess": false,
+  "safetyAssertions": {
+    "unresolvedRequirementIsNotResolvedShortage": "PASS",
+    "unknownQuantityDoesNotBecomeZero": "PASS",
+    "wrongEntityQuantityRejected": "PASS",
+    "wrongQuantityRoleRejected": "PASS",
+    "wrongUnitRejected": "PASS",
+    "partialCollectionCannotClaimAll": "PASS",
+    "modelFacingCatalogHidesInternalIds": "PASS",
+    "ledgerDoesNotComputePurchaseCoverage": "PASS",
+    "writeToolsUnchanged": "PASS"
+  }
+}

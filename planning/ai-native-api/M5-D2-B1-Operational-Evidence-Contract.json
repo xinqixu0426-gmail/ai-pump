@@ -1,0 +1,35 @@
+{
+  "stage": "D2-B1",
+  "contractVersion": 1,
+  "sourceAuthority": "Verified successful formal read/preview result only",
+  "ledgerRule": "The ledger projects producer values and never computes readiness, shortage, coverage, procurement quantities, or cost.",
+  "predicates": {
+    "readiness_status": { "values": "formal producer status/verdict", "context": ["producer", "basis", "scenarioKey", "canProduce"] },
+    "required_quantity": { "quantityRole": "REQUIRED" },
+    "available_quantity": { "quantityRole": "AVAILABLE" },
+    "shortage_quantity": { "quantityRole": "SHORTAGE" },
+    "purchase_quantity": { "quantityRole": "PLANNED_PURCHASE" },
+    "purchase_quantity_ordered": { "quantityRole": "ORDERED" },
+    "purchase_quantity_received": { "quantityRole": "RECEIVED" },
+    "purchase_quantity_stocked": { "quantityRole": "STOCKED" },
+    "purchase_pending_quantity": { "quantityRole": "PENDING_PURCHASE" },
+    "shortage_line_count": { "quantityRole": "SHORTAGE_LINE_COUNT" },
+    "order_line_quantity": { "quantityRole": "ORDER_LINE" },
+    "purchase_status": { "context": ["supplier", "inventoryType", "procurementStage"] },
+    "order_status": {},
+    "order_snapshot_recipe": { "relationKind": "ORDER_SNAPSHOT_RECIPE" },
+    "collection_completeness": { "values": ["COMPLETE", "PARTIAL"], "context": ["collectionRef", "returnedCount", "totalCount", "hasMore"] },
+    "unresolved_requirement": { "entity": null, "context": ["requirementRef", "inventoryType", "displayName"] }
+  },
+  "binding": {
+    "resolvedMaterial": "Internal partId/coilId binds the fact to the exact formal Part/Coil; model-facing catalog shows canonical name but hides numeric ID.",
+    "requirementRef": "Result-scoped grouping reference binds required/available/shortage facts without creating a database Requirement entity.",
+    "unresolved": "Missing canonical identity or missing required quantity remains explicit and never becomes zero or a resolved shortage."
+  },
+  "validation": {
+    "quantity": "Claim value, quantity role, unit and named entity must match cited formal facts.",
+    "collection": "Claims using complete/all language require cited COMPLETE formal collection evidence.",
+    "noShortage": "No-shortage language requires a formal READY readiness fact plus complete collection evidence.",
+    "crossDomain": "The ledger does not infer whether purchase quantity covers a shortage."
+  }
+}

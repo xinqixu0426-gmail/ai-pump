@@ -99,6 +99,7 @@ test('A3 registry audit aligns formal route contracts and preserves the existing
     // Keep the baseline assertion strict for every other protected surface.
     const allowedLaterChanges = new Set([
         'api/routes/ai/executors/costExecutors.cjs',
+        'api/routes/ai/executors/orderExecutors.cjs',
         'api/services/aiFormalToolDefinitions.cjs',
     ]);
     assert.deepEqual(
@@ -115,5 +116,10 @@ test('A3 registry audit aligns formal route contracts and preserves the existing
         const source = require('node:fs').readFileSync(`${__dirname}/../api/services/aiFormalToolDefinitions.cjs`, 'utf8');
         assert.match(source, /rotorProcessMode/);
         assert.match(source, /stainless_shaft_joint/);
+    }
+    if (changedPaths.includes('api/routes/ai/executors/orderExecutors.cjs')) {
+        const source = require('node:fs').readFileSync(`${__dirname}/../api/routes/ai/executors/orderExecutors.cjs`, 'utf8');
+        assert.match(source, /collections:\s*\{/);
+        assert.match(source, /items: \{ returnedCount: items\.length, totalCount: items\.length, complete: true/);
     }
 });

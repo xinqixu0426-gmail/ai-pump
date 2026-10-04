@@ -96,6 +96,11 @@ function incompleteResult({ recipe = null, scenarioKey, configurationHash = null
         sourceVersions: readSet.slice(0, MAX_SOURCE_VERSIONS), sourceVersionCount: readSet.length,
         sourceVersionsComplete: readSet.length <= MAX_SOURCE_VERSIONS, coverage,
         requirements: [], shortages: [], unresolvedRequirements, excludedRequirements: [],
+        collections: {
+            requirements: { returnedCount: 0, totalCount: 0, complete: false, hasMore: false },
+            shortages: { returnedCount: 0, totalCount: 0, complete: false, hasMore: false },
+            unresolvedRequirements: { returnedCount: unresolvedRequirements.length, totalCount: unresolvedRequirements.length, complete: true, hasMore: false },
+        },
         calculatedAt: new Date().toISOString(), warnings,
     };
 }
@@ -255,6 +260,11 @@ function createVirtualReadinessPreview(dependencies = {}) {
                 sourceVersions: sourceVersions.slice(0, MAX_SOURCE_VERSIONS), sourceVersionCount: sourceVersions.length,
                 sourceVersionsComplete: sourceVersions.length <= MAX_SOURCE_VERSIONS, coverage, requirements, shortages,
                 unresolvedRequirements: [], excludedRequirements, calculatedAt: new Date().toISOString(),
+                collections: {
+                    requirements: { returnedCount: requirements.length, totalCount: requirements.length, complete: true, hasMore: false },
+                    shortages: { returnedCount: shortages.length, totalCount: shortages.length, complete: true, hasMore: false },
+                    unresolvedRequirements: { returnedCount: 0, totalCount: 0, complete: true, hasMore: false },
+                },
                 warnings: excludedRequirements.length ? ['EXCLUDED_NON_STOCK_REQUIREMENTS'] : [],
             };
             return result;

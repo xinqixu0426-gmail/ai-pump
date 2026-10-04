@@ -1,6 +1,7 @@
 const test = require('node:test');
 const assert = require('node:assert/strict');
 const { buildOrderReadiness } = require('../api/services/orderReadiness.cjs');
+const { createFactLedger } = require('../api/services/ai-assistant/factLedger.cjs');
 
 const now = new Date('2026-07-29T00:00:00.000Z');
 const recipe = { id: 7, name: 'V750' };
@@ -117,6 +118,45 @@ test('订单生产准备：按当前可用库存判断缺料，不把已下单�
     assert.equal(result.shortages[1].procurementStage, '待入库');
     assert.equal(result.steps.find(item => item.key === 'procurement').status, 'warning');
     assert.equal(result.recommendedActions.some(item => item.path === '/purchase'), true);
+});
+
+test('D2-W1 formal order readiness output preserves canonical shortage identity for the structured ledger', () => {
+    const formal = buildOrderReadiness({
+        order: order({ status: '采购中' }), recipes: [recipe], plan: {
+            purchaseList: [purchase({ totalQty: 4, currentStock: 1, plannedQty: 3, orderedQty: 3, receivedQty: 0, stockedQty: 0 })],
+        }, now,
+    });
+    assert.equal(formal.shortages[0].partId, 1);
+    assert.equal(formal.collections.shortages.complete, true);
+    const ledger = createFactLedger({ includeOperationalEvidenceFacts: true });
+    ledger.appendToolResult({ toolName: 'check_order_readiness', args: { orderId: 12 },
+        entityBindings: new Map([['order:12', { verified: true, canonicalName: 'HT-12' }]]),
+        result: { success: true, verified: true, data: formal } });
+    const facts = ledger.snapshot().facts;
+    const shortage = facts.find(item => item.predicate === 'shortage_quantity');
+    assert.deepEqual(shortage.entity, { type: 'part', id: 1, canonicalName: '轴承' });
+    assert.equal(shortage.value, formal.shortages[0].shortageQty);
+    assert.equal(shortage.unit, '个');
+    assert.equal(shortage.qualifiers.procurementStage, formal.shortages[0].procurementStage);
+});
+
+test('D2-W1 formal order readiness preserves a resolved coil shortage as a coil, never as a name-matched part', () => {
+    const formal = buildOrderReadiness({
+        order: order({ status: '采购中' }), recipes: [recipe], plan: {
+            purchaseList: [purchase({
+                identityKey: 'coil:3', model: '12-160', name: '线圈转子', inventoryType: 'coil',
+                partId: undefined, coilId: 3, totalQty: 2, currentStock: 0, plannedQty: 2,
+                orderedQty: 0, receivedQty: 0, stockedQty: 0, purchaseUnit: '套',
+            })],
+        }, now,
+    });
+    const ledger = createFactLedger({ includeOperationalEvidenceFacts: true });
+    ledger.appendToolResult({ toolName: 'check_order_readiness', args: { orderId: 12 },
+        entityBindings: new Map([['order:12', { verified: true, canonicalName: 'HT-12' }]]),
+        result: { success: true, verified: true, data: formal } });
+    const shortage = ledger.snapshot().facts.find(item => item.predicate === 'shortage_quantity');
+    assert.deepEqual(shortage.entity, { type: 'coil', id: 3, canonicalName: '12-160' });
+    assert.equal(shortage.unit, '套');
 });
 
 test('订单生产准备：外包装估算占位项阻止订单进入正式采购', () => {

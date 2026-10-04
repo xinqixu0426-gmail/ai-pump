@@ -206,6 +206,202 @@ function coilDirectoryCostFacts(data, base) {
     return facts;
 }
 
+function positiveId(value) {
+    const id = Number(value);
+    return Number.isSafeInteger(id) && id > 0 ? id : null;
+}
+
+function materialEntity(row = {}) {
+    const resourceType = String(row.resourceType || row.inventoryType || '').toUpperCase();
+    const coilId = positiveId(row.coilId);
+    const partId = positiveId(row.partId);
+    if ((resourceType === 'COIL' || resourceType === 'COILS' || row.inventoryType === 'coil') && coilId) {
+        const canonicalName = text(row.schemeCode) || text(row.model) || text(row.name);
+        return canonicalName ? { type: 'coil', id: coilId, canonicalName } : null;
+    }
+    if ((resourceType === 'PART' || resourceType === 'PARTS' || row.inventoryType === 'part' || partId) && partId) {
+        const canonicalName = text(row.model) || text(row.name);
+        return canonicalName ? { type: 'part', id: partId, canonicalName } : null;
+    }
+    return null;
+}
+
+function collectionCompletenessFact({ entity, collectionRef, source, base, complete, returnedCount, totalCount, hasMore = false }) {
+    const normalizedReturned = finite(returnedCount);
+    const normalizedTotal = finite(totalCount);
+    const isComplete = complete === true && hasMore !== true
+        && (normalizedReturned === null || normalizedTotal === null || normalizedReturned === normalizedTotal);
+    return makeFact({ entity, predicate: 'collection_completeness', value: isComplete ? 'COMPLETE' : 'PARTIAL',
+        basis: null, capabilityId: base.capabilityId, tool: base.tool,
+        qualifiers: {
+            collectionRef, source,
+            complete: isComplete,
+            hasMore: hasMore === true || !isComplete,
+            ...(normalizedReturned !== null ? { returnedCount: normalizedReturned } : {}),
+            ...(normalizedTotal !== null ? { totalCount: normalizedTotal } : {}),
+        } });
+}
+
+function operationalQuantityFacts(row, { entity, base, requirementRef, basis, context = {}, fields = {} }) {
+    if (!entity) return [];
+    const unit = text(row.inventoryUnit) || text(row.purchaseUnit) || null;
+    const facts = [];
+    for (const [predicate, descriptor] of Object.entries(fields)) {
+        const value = finite(row[descriptor.field]);
+        if (value === null) continue;
+        facts.push(makeFact({ entity, predicate, value, unit, basis, capabilityId: base.capabilityId, tool: base.tool,
+            qualifiers: { quantityRole: descriptor.role, requirementRef, ...context } }));
+    }
+    return facts;
+}
+
+function unresolvedRequirementFact(row, { base, requirementRef, basis, context = {} }) {
+    return makeFact({ entity: null, predicate: 'unresolved_requirement', value: text(row.code) || text(row.reasonCode)
+        || text(row.model) || 'UNRESOLVED_REQUIREMENT', basis, capabilityId: base.capabilityId, tool: base.tool,
+    qualifiers: { requirementRef, inventoryType: text(row.inventoryType) || text(row.resourceType) || null,
+        ...(text(row.model) || text(row.name) ? { displayName: text(row.model) || text(row.name) } : {}), ...context } });
+}
+
+// Operational read/preview producers already own readiness and procurement
+// arithmetic.  This adapter copies their formal result rows into a compact,
+// shared evidence vocabulary; it never derives shortage, availability,
+// purchase coverage, readiness, or procurement state.
+function operationalEvidenceFacts(data, base, result = {}) {
+    if (!data || typeof data !== 'object') return [];
+    const facts = [];
+    const add = fact => facts.push(fact);
+    const collection = (entity, collectionRef, source, metadata = {}) => add(collectionCompletenessFact({
+        entity, collectionRef, source, base,
+        complete: metadata.complete, returnedCount: metadata.returnedCount,
+        totalCount: metadata.totalCount, hasMore: metadata.hasMore,
+    }));
+    const quantities = (row, entity, requirementRef, basis, context, fields) => {
+        for (const fact of operationalQuantityFacts(row, { entity, base, requirementRef, basis, context, fields })) add(fact);
+    };
+
+    if (base.tool === 'preview_virtual_readiness') {
+        const recipe = base.entity;
+        const basis = text(data.inventoryBasis) || null;
+        if (text(data.status)) add(makeFact({ entity: recipe, predicate: 'readiness_status', value: text(data.status), basis,
+            capabilityId: base.capabilityId, tool: base.tool,
+            qualifiers: { producer: 'virtual_readiness', scenarioKey: text(data.scenarioKey), targetQuantity: finite(data.quantity), coverageComplete: data.coverage?.complete === true } }));
+        const collections = data.collections || {};
+        collection(recipe, 'virtual_requirements', 'virtual_readiness', collections.requirements || {
+            complete: data.coverage?.complete === true, returnedCount: Array.isArray(data.requirements) ? data.requirements.length : null,
+            totalCount: data.coverage?.requirementCount,
+        });
+        collection(recipe, 'virtual_shortages', 'virtual_readiness', collections.shortages || {
+            complete: data.coverage?.complete === true, returnedCount: Array.isArray(data.shortages) ? data.shortages.length : null,
+            totalCount: data.coverage?.shortageCount,
+        });
+        collection(recipe, 'virtual_unresolved_requirements', 'virtual_readiness', collections.unresolvedRequirements || {
+            complete: true, returnedCount: Array.isArray(data.unresolvedRequirements) ? data.unresolvedRequirements.length : null,
+            totalCount: data.coverage?.unresolvedCount,
+        });
+        for (const [index, row] of (Array.isArray(data.requirements) ? data.requirements : []).entries()) {
+            const requirementRef = `virtual_requirements:${index}`;
+            const entity = materialEntity(row);
+            if (!entity) { add(unresolvedRequirementFact(row, { base, requirementRef, basis, context: { producer: 'virtual_readiness', scenarioKey: text(data.scenarioKey) } })); continue; }
+            quantities(row, entity, requirementRef, basis, { producer: 'virtual_readiness', inventoryType: text(row.inventoryType) || text(row.resourceType), scenarioKey: text(data.scenarioKey) }, {
+                required_quantity: { field: 'virtualRequiredQty', role: 'REQUIRED' },
+                available_quantity: { field: 'availableForVirtualQty', role: 'AVAILABLE' },
+                shortage_quantity: { field: 'shortageQty', role: 'SHORTAGE' },
+            });
+        }
+        for (const [index, row] of (Array.isArray(data.unresolvedRequirements) ? data.unresolvedRequirements : []).entries()) {
+            add(unresolvedRequirementFact(row, { base, requirementRef: `virtual_unresolved_requirements:${index}`, basis,
+                context: { producer: 'virtual_readiness', scenarioKey: text(data.scenarioKey) } }));
+        }
+    }
+
+    if (base.tool === 'check_order_readiness') {
+        const order = base.entity;
+        const basis = 'FORMAL_ORDER_READINESS';
+        if (text(data.verdict)) add(makeFact({ entity: order, predicate: 'readiness_status', value: text(data.verdict), basis,
+            capabilityId: base.capabilityId, tool: base.tool,
+            qualifiers: { producer: 'order_readiness', canProduce: data.canProduce === true,
+                shortageLineCount: finite(data.metrics?.shortageLineCount), unresolvedLineCount: finite(data.metrics?.unresolvedLineCount) } }));
+        const metadata = data.collections?.shortages || { complete: true,
+            returnedCount: Array.isArray(data.shortages) ? data.shortages.length : null,
+            totalCount: finite(data.metrics?.shortageLineCount) };
+        collection(order, 'order_shortages', 'order_readiness', metadata);
+        const metric = finite(data.metrics?.shortageLineCount);
+        if (metric !== null) add(makeFact({ entity: order, predicate: 'shortage_line_count', value: metric, unit: 'COUNT', basis,
+            capabilityId: base.capabilityId, tool: base.tool, qualifiers: { quantityRole: 'SHORTAGE_LINE_COUNT', collectionRef: 'order_shortages' } }));
+        for (const [index, row] of (Array.isArray(data.shortages) ? data.shortages : []).entries()) {
+            const requirementRef = `order_shortages:${index}`;
+            const entity = materialEntity(row);
+            if (!entity) { add(unresolvedRequirementFact(row, { base, requirementRef, basis, context: { producer: 'order_readiness', orderContext: true } })); continue; }
+            quantities(row, entity, requirementRef, basis, { producer: 'order_readiness', orderContext: true,
+                inventoryType: text(row.inventoryType), procurementStage: text(row.procurementStage) }, {
+                required_quantity: { field: 'requiredQty', role: 'REQUIRED' },
+                available_quantity: { field: 'availableQty', role: 'AVAILABLE' },
+                shortage_quantity: { field: 'shortageQty', role: 'SHORTAGE' },
+                purchase_quantity: { field: 'plannedQty', role: 'PLANNED_PURCHASE' },
+                purchase_quantity_ordered: { field: 'orderedQty', role: 'ORDERED' },
+                purchase_quantity_received: { field: 'receivedQty', role: 'RECEIVED' },
+                purchase_quantity_stocked: { field: 'stockedQty', role: 'STOCKED' },
+            });
+        }
+    }
+
+    if (base.tool === 'get_order_detail') {
+        const order = base.entity;
+        const detail = data.order && typeof data.order === 'object' ? data.order : data;
+        const basis = 'FORMAL_ORDER_DETAIL';
+        if (text(detail.status)) add(makeFact({ entity: order, predicate: 'order_status', value: text(detail.status), basis,
+            capabilityId: base.capabilityId, tool: base.tool }));
+        if (text(detail.customerName)) add(makeFact({ entity: order, predicate: 'order_customer_attribute', value: text(detail.customerName), basis,
+            capabilityId: base.capabilityId, tool: base.tool }));
+        if (text(detail.contractNo)) add(makeFact({ entity: order, predicate: 'order_contract_number', value: text(detail.contractNo), basis,
+            capabilityId: base.capabilityId, tool: base.tool }));
+        const collections = detail.collections || {};
+        collection(order, 'order_lines', 'order_detail', collections.items || { complete: false });
+        collection(order, 'order_purchase_list', 'order_detail', collections.purchaseList || { complete: false });
+        collection(order, 'order_todos', 'order_detail', collections.todos || { complete: false });
+        for (const [index, row] of (Array.isArray(detail.items) ? detail.items : []).entries()) {
+            const lineRef = `order_lines:${index}`;
+            const quantity = finite(row.qty);
+            const snapshotName = text(row.recipeName);
+            if (snapshotName) add(makeFact({ entity: order, predicate: 'order_snapshot_recipe', value: snapshotName, basis,
+                capabilityId: base.capabilityId, tool: base.tool, qualifiers: { lineRef, relationKind: 'ORDER_SNAPSHOT_RECIPE' } }));
+            if (quantity !== null) add(makeFact({ entity: order, predicate: 'order_line_quantity', value: quantity, unit: 'COUNT', basis,
+                capabilityId: base.capabilityId, tool: base.tool,
+                qualifiers: { quantityRole: 'ORDER_LINE', lineRef, ...(snapshotName ? { recipeSnapshotName: snapshotName } : {}) } }));
+        }
+    }
+
+    if (base.tool === 'get_purchase_overview') {
+        const basis = 'FORMAL_PURCHASE_OVERVIEW';
+        const receipt = result.queryReceipt || {};
+        const returnedCount = finite(data.returnedCount ?? receipt.returnedCount);
+        const totalCount = finite(data.summary?.taskCount ?? receipt.totalCount);
+        collection(null, 'purchase_tasks', 'purchase_overview', {
+            complete: receipt.truncated !== true && receipt.possiblyTruncated !== true && data.truncated !== true
+                && returnedCount !== null && totalCount !== null && returnedCount === totalCount,
+            returnedCount, totalCount,
+            hasMore: receipt.truncated === true || receipt.possiblyTruncated === true || data.truncated === true,
+        });
+        for (const [index, row] of (Array.isArray(data.tasks) ? data.tasks : []).entries()) {
+            const requirementRef = `purchase_tasks:${index}`;
+            const entity = materialEntity(row);
+            if (!entity) { add(unresolvedRequirementFact(row, { base, requirementRef, basis, context: { producer: 'purchase_overview' } })); continue; }
+            if (text(row.procurementStage)) add(makeFact({ entity, predicate: 'purchase_status', value: text(row.procurementStage), basis,
+                capabilityId: base.capabilityId, tool: base.tool,
+                qualifiers: { requirementRef, supplier: text(row.supplier), inventoryType: text(row.inventoryType), producer: 'purchase_overview' } }));
+            quantities(row, entity, requirementRef, basis, { producer: 'purchase_overview', supplier: text(row.supplier),
+                inventoryType: text(row.inventoryType), procurementStage: text(row.procurementStage) }, {
+                purchase_quantity: { field: 'plannedQty', role: 'PLANNED_PURCHASE' },
+                purchase_quantity_ordered: { field: 'orderedQty', role: 'ORDERED' },
+                purchase_quantity_received: { field: 'receivedQty', role: 'RECEIVED' },
+                purchase_quantity_stocked: { field: 'stockedQty', role: 'STOCKED' },
+                purchase_pending_quantity: { field: 'pendingQty', role: 'PENDING_PURCHASE' },
+            });
+        }
+    }
+    return facts;
+}
+
 function genericFormalFacts(data, base, limit = 80) {
     const facts = [];
     const visit = (value, path, depth) => {
@@ -238,6 +434,7 @@ function createFactLedger(options = {}) {
     const includeRecipeComparisonFacts = options.includeRecipeComparisonFacts === true;
     const includeCoilDirectoryCostFacts = options.includeCoilDirectoryCostFacts === true;
     const includeRecipeDetailCurrentCostFacts = options.includeRecipeDetailCurrentCostFacts === true;
+    const includeOperationalEvidenceFacts = options.includeOperationalEvidenceFacts === true;
     const facts = [];
     const observations = [];
     let sequence = 0;
@@ -277,6 +474,9 @@ function createFactLedger(options = {}) {
                 }
                 if (includeCoilDirectoryCostFacts) {
                     for (const fact of coilDirectoryCostFacts(data, { entity, tool, capabilityId })) added.push(append(fact));
+                }
+                if (includeOperationalEvidenceFacts) {
+                    for (const fact of operationalEvidenceFacts(data, { entity, tool, capabilityId }, result)) added.push(append(fact));
                 }
                 for (const fact of genericFormalFacts(data, { entity, tool, capabilityId })) added.push(append(fact));
                 if (Array.isArray(data) && data.length === 0) {
@@ -353,4 +553,4 @@ function modelProjection(result, factIds) {
         projection: { truncated, collections } };
 }
 
-module.exports = { MAX_MODEL_PROJECTION_BYTES, coilDirectoryCostFacts, createFactLedger, modelProjection, recipeComparisonFacts, recipeDetailCurrentCostFacts, scenarioComparisonFacts };
+module.exports = { MAX_MODEL_PROJECTION_BYTES, coilDirectoryCostFacts, createFactLedger, modelProjection, operationalEvidenceFacts, recipeComparisonFacts, recipeDetailCurrentCostFacts, scenarioComparisonFacts };

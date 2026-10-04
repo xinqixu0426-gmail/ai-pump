@@ -2,6 +2,7 @@
 
 const test = require('node:test');
 const assert = require('node:assert/strict');
+const { once } = require('node:events');
 const { spawnSync } = require('node:child_process');
 const fs = require('node:fs');
 const os = require('node:os');
@@ -19,6 +20,7 @@ const {
 const { createRecipeQueries } = require('../api/services/recipeQueries.cjs');
 const { createRecipeScenarioComparison } = require('../api/services/recipeScenarioComparison.cjs');
 const { createVirtualReadinessPreview, normalizeVirtualReadinessRequest, VirtualReadinessPreviewError } = require('../api/services/virtualReadinessPreview.cjs');
+const { createFactLedger } = require('../api/services/ai-assistant/factLedger.cjs');
 const inventoryRouter = require('../api/routes/inventory.cjs');
 
 function service({ afterComparison = null } = {}) {
@@ -96,6 +98,25 @@ test('N4.2B uses the shared planner for stable ready, shortage, supplier identit
     assert.equal(shortage.requirements[0].shortageQty, 200);
     assert.equal(shortage.shortages[0].shortageQty, 200);
     assert.notEqual(shortage.readSetHash, first.readSetHash, 'formal stock mutation must change read-set hash');
+});
+
+test('D2-W1 formal virtual readiness service output projects exact operational evidence without recalculating quantities', t => {
+    const fixture = createFixture(t, { stock: 7 });
+    const formal = service().preview(request(fixture.recipeId, 10));
+    assert.equal(formal.status, 'SHORTAGE');
+    const ledger = createFactLedger({ includeOperationalEvidenceFacts: true });
+    ledger.appendToolResult({
+        toolName: 'preview_virtual_readiness', args: { basisRef: { recipeId: fixture.recipeId } },
+        entityBindings: new Map([[`recipe:${fixture.recipeId}`, { verified: true, canonicalName: fixture.unique }]]),
+        result: { success: true, verified: true, data: formal },
+    });
+    const facts = ledger.snapshot().facts;
+    const shortage = facts.find(item => item.predicate === 'shortage_quantity');
+    assert.equal(shortage.value, formal.requirements[0].shortageQty);
+    assert.equal(shortage.unit, formal.requirements[0].inventoryUnit);
+    assert.deepEqual(shortage.entity, { type: 'part', id: fixture.partId, canonicalName: fixture.model });
+    assert.equal(shortage.qualifiers.quantityRole, 'SHORTAGE');
+    assert.equal(facts.some(item => item.predicate === 'collection_completeness' && item.value === 'COMPLETE'), true);
 });
 
 test('N4-AUDIT-FIX-01：virtual readiness 只评估通过正式 surface policy 的情景', t => {
@@ -256,9 +277,8 @@ test('N4.2B formal inventory endpoint returns the identical strict preview envel
     const app = express();
     app.use(express.json());
     app.use('/api/inventory', inventoryRouter);
-    const server = await new Promise(resolve => {
-        const listening = app.listen(0, '127.0.0.1', () => resolve(listening));
-    });
+    const server = app.listen(0, '127.0.0.1');
+    await once(server, 'listening');
     t.after(async () => {
         server.closeAllConnections?.();
         await new Promise((resolve, reject) => server.close(error => error ? reject(error) : resolve()));

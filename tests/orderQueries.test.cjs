@@ -41,8 +41,11 @@ function createFixture() {
             purchaseListJson: JSON.stringify([
                 {
                     identityKey: 'S||A',
+                    partId: 31,
+                    inventoryType: 'part',
                     supplier: 'S',
                     model: 'A',
+                    purchaseUnit: '个',
                     plannedQty: 10,
                     orderedQty: 4,
                     receivedQty: 2,
@@ -62,8 +65,11 @@ function createFixture() {
             contractNo: 'HT-002',
             purchaseList: [{
                 identityKey: 'S||A',
+                partId: 31,
+                inventoryType: 'part',
                 supplier: 'S',
                 model: 'A',
+                purchaseUnit: '个',
                 plannedQty: 5,
                 purchased: true,
                 receivedQty: 5,
@@ -178,12 +184,14 @@ test('订单 Query 采购总览只聚合活动订单的当前采购计划', () =
         assert.deepEqual(
             overview.tasks.find(task => task.model === 'A'),
             {
-                identityKey: 'model:["A","S"]',
+                identityKey: 'part:31|configuration:["个",1,null,null,null]',
+                partId: 31,
+                inventoryType: 'part',
                 supplier: 'S',
                 supplierLabel: 'S',
                 model: 'A',
                 name: 'A',
-                purchaseUnit: '',
+                purchaseUnit: '个',
                 specification: '',
                 plannedQty: 15,
                 orderedQty: 9,
@@ -192,6 +200,7 @@ test('订单 Query 采购总览只聚合活动订单的当前采购计划', () =
                 pendingQty: 6,
                 orderIds: [1, 2],
                 orderCount: 2,
+                procurementStage: '待下单',
             }
         );
         assert.equal(overview.tasks.some(task => task.model === 'C'), false);
