@@ -1,0 +1,24 @@
+{
+  "phase": "D2-B2-R6H4-B",
+  "kind": "acceptance-only deterministic scorer",
+  "productRuntimeImported": false,
+  "dimensions": {
+    "ORDER_SHORTAGE": ["readiness_status", "shortage_line_count", "required_quantity", "available_quantity", "shortage_quantity", "unresolved_requirement", "order_status"],
+    "ORDER_PRODUCTS": ["order_snapshot_recipe", "order_line_quantity", "order_status"],
+    "PROCUREMENT": ["purchase_status", "purchase_quantity", "purchase_quantity_ordered", "purchase_quantity_received", "purchase_quantity_stocked", "purchase_pending_quantity", "collection_completeness"],
+    "SHORTAGE_PROCUREMENT": "union of shortage and procurement fact classes",
+    "VIRTUAL_READINESS": ["readiness_status", "required_quantity", "available_quantity", "shortage_quantity"],
+    "CURRENT_COST": ["current_cost", "total_cost"],
+    "KNOWLEDGE_HISTORY": ["auxiliary_knowledge_retrieval"]
+  },
+  "deterministicTests": {
+    "AR-01 shortage good": "PASS",
+    "AR-02 shortage dump": "PASS",
+    "AR-03 order products good": "PASS",
+    "AR-04 order products dump": "PASS",
+    "AR-05 procurement good": "PASS",
+    "AR-06 shortage plus procurement good": "PASS",
+    "AR-07 necessary context": "PASS"
+  },
+  "contract": "Scores cited Fact Ledger predicate classes and case scopes; it never selects tools or changes product runtime behavior."
+}

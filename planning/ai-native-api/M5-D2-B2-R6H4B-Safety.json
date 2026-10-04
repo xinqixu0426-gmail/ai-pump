@@ -1,0 +1,12 @@
+{
+  "phase": "D2-B2-R6H4-B",
+  "modelCalls": 0,
+  "freshAcceptanceRun": false,
+  "businessDbMutation": 0,
+  "writeExecutions": 0,
+  "realBusinessDbTouched": false,
+  "secretScan": "PASS",
+  "unknownSafetyValuesDefaultedToZero": false,
+  "unknownSafetyPolicy": "Assembler rejects a required run that lacks its safety envelope; undefined is never aggregated as zero.",
+  "productChanged": false
+}

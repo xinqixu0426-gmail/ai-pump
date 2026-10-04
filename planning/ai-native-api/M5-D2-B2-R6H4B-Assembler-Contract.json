@@ -1,0 +1,44 @@
+{
+  "phase": "D2-B2-R6H4-B",
+  "assembler": "scripts/ai-experiments/api-native-agent/d2B2R6AcceptanceAssembler.cjs",
+  "canonicalWriter": true,
+  "runnersWriteOnlyRunUniqueStaging": true,
+  "requiredInputs": {
+    "domainCorpusRunId": 1,
+    "ragAuthorityRunIds": 4,
+    "targetedRunIds": 14,
+    "d1ProtectionRunId": 1,
+    "productFreezeCommit": "cdebfb5ef6f83a4c8b39e93f3f0dcc39077e2251",
+    "harnessFreezeCommit": "required"
+  },
+  "requiredResultCounts": {
+    "domainCorpus": 12,
+    "ragAuthority": 4,
+    "targeted": 14,
+    "d1Protection": 4
+  },
+  "targetedComposition": {
+    "W1-06": 5,
+    "SHORTAGE_ONLY": 3,
+    "PENDING_PURCHASE": 3,
+    "ORDER_PRODUCTS": 3
+  },
+  "failClosed": [
+    "R6_ACCEPTANCE_REQUIRED_RUN_MISSING",
+    "R6_ACCEPTANCE_FREEZE_MISMATCH",
+    "R6_ACCEPTANCE_TARGETED_COMPOSITION_INVALID",
+    "R6_ACCEPTANCE_INCOMPLETE_SAFETY",
+    "R6_ACCEPTANCE_SECRET_SCAN_FAILED"
+  ],
+  "deterministicTests": {
+    "AS-01..04 required run absence": "PASS",
+    "AS-05 duplicate run id": "PASS",
+    "AS-06 product freeze mismatch": "PASS",
+    "AS-07 harness freeze mismatch contract": "PASS",
+    "AS-08 targeted composition": "PASS",
+    "AS-09 incomplete safety": "PASS",
+    "AS-10 canonical output": "PASS",
+    "AS-11 secret scan": "PASS",
+    "AS-12 staging-only writer": "PASS"
+  }
+}

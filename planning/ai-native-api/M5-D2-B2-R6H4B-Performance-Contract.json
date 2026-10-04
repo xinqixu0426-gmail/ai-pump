@@ -1,0 +1,24 @@
+{
+  "phase": "D2-B2-R6H4-B",
+  "source": "serialized acceptance runs only",
+  "noBusinessExecution": true,
+  "metrics": [
+    "averageSelectedDomains",
+    "averageDomainApiSetSize",
+    "averageExecutedApis",
+    "averageNotApplicableApis",
+    "averageBlockedApis",
+    "averageRagCalls",
+    "averageModelCalls",
+    "averageBusinessToolCalls",
+    "medianDurationMs",
+    "p95DurationMs",
+    "averageContextTokens"
+  ],
+  "percentile": "nearest-rank deterministic percentile over finite serialized durations",
+  "deterministicTests": {
+    "PF-01 averages": "PASS",
+    "PF-02 median": "PASS",
+    "PF-03 p95": "PASS"
+  }
+}
