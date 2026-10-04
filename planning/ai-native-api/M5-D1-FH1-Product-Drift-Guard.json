@@ -1,0 +1,16 @@
+{
+  "productBaselineCommit": "82b0dce603c7ee2c715a55799ce1b04db0344bc7",
+  "guard": "git diff --name-only PRODUCT_BASELINE...HEAD, assessed against the reviewed harness allowlist",
+  "allowedPatterns": [
+    "planning/ai-native-api/M5-D1-FINAL-*",
+    "planning/ai-native-api/M5-D1-FH1-*",
+    "scripts/ai-experiments/api-native-agent/d1FinalAcceptanceEvaluator.cjs",
+    "scripts/ai-experiments/api-native-agent/d1FinalAcceptanceOracles.cjs",
+    "scripts/ai-experiments/api-native-agent/d1FinalProductDriftGuard.cjs",
+    "scripts/ai-experiments/api-native-agent/run-d1-final-controlled.cjs",
+    "scripts/ai-experiments/api-native-agent/run-d1-final-real-catalog.cjs",
+    "tests/d1FinalAcceptanceEvaluator.test.cjs"
+  ],
+  "protectedPaths": ["api/**", "scripts/ai-experiments/business-policy-intent/**", "scripts/ai-experiments/api-native-agent/apiNativeAgentCandidate.cjs", "scripts/ai-experiments/api-native-agent/d1r1ControlledFixture.cjs", "planning/business-understanding/**"],
+  "resultBeforeHarnessCommit": "PASS for committed source; harness files are in the reviewed allowlist and are committed separately by FH1."
+}

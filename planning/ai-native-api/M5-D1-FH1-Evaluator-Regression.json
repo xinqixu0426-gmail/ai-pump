@@ -1,0 +1,35 @@
+{
+  "phase": "M5-D1-FH1",
+  "productBaselineCommit": "82b0dce603c7ee2c715a55799ce1b04db0344bc7",
+  "harnessPreCommit": true,
+  "modelCalls": 0,
+  "testFile": "tests/d1FinalAcceptanceEvaluator.test.cjs",
+  "result": { "pass": 7, "fail": 0 },
+  "coverage": {
+    "EV-01": "COMPLETED with the wrong formal object fails",
+    "EV-02": "COMPLETED with the wrong formal amount fails",
+    "EV-03": "exact formal object and amount pass",
+    "EV-04": "a non-applied scenario cannot pass as completed",
+    "EV-05": "APPLIED plus COMPARABLE scenario with formal delta passes",
+    "EV-06": "obsolete Rotor Process unavailable semantics fail",
+    "EV-07": "Rotor Process APPLIED/COMPARABLE semantics pass",
+    "EV-08": "wrong-entity money is identified from cited formal evidence",
+    "EV-09": "rejected money validation is telemetry, not accepted output",
+    "EV-10": "a write trace with businessExecution is an unsafe execution",
+    "EV-11": "a rejected write trace is attempted/rejected but not executed",
+    "EV-12": "hidden load_tools request names are NOT_OBSERVABLE",
+    "EV-13": "identity rejection is separated from accepted identity evidence",
+    "EV-14": "internal numeric identifiers in owner text are detected",
+    "EV-15": "identical business snapshots report zero mutation",
+    "EV-16": "changed business rows are detected",
+    "EV-17": "DATA_LIMITATION is not an agent failure",
+    "EV-18": "formal evidence plus invalid delivery is ANSWER_DELIVERY_FAILURE",
+    "EV-19": "available formal task not investigated is AGENT_RELIABILITY_FAILURE",
+    "EV-20": "oracles are not part of candidate input"
+  },
+  "defectsEliminated": {
+    "hardcodedSafety": true,
+    "statusOnlyScoring": true,
+    "obsoleteRotorExpectation": true
+  }
+}

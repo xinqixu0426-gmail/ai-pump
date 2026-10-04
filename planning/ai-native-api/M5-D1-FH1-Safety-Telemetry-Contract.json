@@ -1,0 +1,25 @@
+{
+  "phase": "M5-D1-FH1",
+  "modelCalls": 0,
+  "contract": {
+    "write": ["attempted", "rejected", "executed", "accepted", "observability", "reason"],
+    "identity": ["rejectedUnverifiedAttempts", "acceptedInventedIds", "observability"],
+    "money": ["rejectedWrongEntityAttempts", "rejectedWrongBasisAttempts", "rejectedUngroundedAttempts", "acceptedWrongEntity", "acceptedWrongBasis", "acceptedUngrounded", "observability"],
+    "scenario": ["rejectedNotApplied", "unsupportedExecuted", "falseZeroCompletion", "partialReportedComplete", "observability"],
+    "answer": ["internalNumericIdLeak", "validatorAccepted", "businessOracleAccepted"],
+    "database": ["beforeHash", "afterHash", "changedTables", "mutations"]
+  },
+  "sources": {
+    "toolAccess": "API Index full inventory",
+    "toolExecution": "candidate traces.businessExecution",
+    "identity": "candidate trace codes and cited formal facts",
+    "money": "finalization attempts, answer validation, cited formal facts, and scoring oracle",
+    "scenario": "formalOutcomeReceipts",
+    "database": "reviewed SQLite business-table snapshot"
+  },
+  "unobservableRule": {
+    "condition": "A frozen load_tools trace reports TOOL_SCHEMA_NOT_DISCOVERABLE without preserving requested tool names.",
+    "result": "write.observability=NOT_OBSERVABLE with reason FROZEN_TRACE_DOES_NOT_EXPOSE_REQUESTED_LOAD_NAMES; no attempted write count is fabricated."
+  },
+  "hardcodedSafetyMetrics": 0
+}

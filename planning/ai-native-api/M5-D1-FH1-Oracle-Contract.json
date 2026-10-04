@@ -1,0 +1,27 @@
+{
+  "phase": "M5-D1-FH1",
+  "modelCalls": 0,
+  "oracleIsolation": "Formal Executor read/preview calls build scoring-only values. Oracles are never supplied to the Candidate, Business Memo, Policy Memo, API Index, Tool result, or Fact Ledger.",
+  "controlledFixture": {
+    "runtime": "isolated temporary SQLite + real Express routes + real Executor",
+    "formalApiOnly": true,
+    "databaseMutation": { "changedTables": [], "mutations": 0 },
+    "oraclesObserved": {
+      "D1-01": { "kind": "COIL_COUNT", "count": 2, "queryComplete": true },
+      "D1-03": { "kind": "RECIPE_DIFFERENCE", "left": "V750-通用款", "right": "V110-通用款", "delta": 10 },
+      "D1-04": { "kind": "COIL_COSTS", "records": [{ "schemeCode": "12-120-A", "amount": 66, "basis": "CURRENT_FORMAL" }, { "schemeCode": "12-130-A", "amount": 76, "basis": "CURRENT_FORMAL" }] },
+      "D1-05": { "kind": "SCENARIO", "override": "hasFloat", "application": "APPLIED", "comparison": "COMPARABLE", "candidate": 242, "delta": 18 },
+      "D1-06": { "kind": "SCENARIO", "override": "surfaceTreatmentMode", "application": "APPLIED", "comparison": "COMPARABLE", "candidate": 249, "delta": 25 },
+      "D1-07": { "kind": "ROTOR_PROCESS_SCENARIO", "override": "rotorProcessMode", "application": "APPLIED", "comparison": "COMPARABLE", "candidate": 230, "delta": 6 },
+      "D1-08": { "kind": "SCENARIO", "overrides": ["cableLength", "packingParts"], "application": "APPLIED", "comparison": "COMPARABLE", "candidate": 272, "delta": 48 },
+      "D1-10": { "kind": "AMBIGUITY", "candidates": ["V750-通用款", "V750-豪贝款"] }
+    }
+  },
+  "realCatalog": {
+    "builder": "buildRealCatalogCases",
+    "dynamicCases": ["REAL-01", "REAL-02", "REAL-03", "REAL-04", "REAL-05", "REAL-06", "REAL-RP-01"],
+    "dataLimitation": "A missing cost-complete record, a non-applicable scenario, or a non-APPLIED/non-COMPARABLE formal result is classified as DATA_LIMITATION rather than Agent failure.",
+    "allowWrite": false,
+    "executedInFH1": false
+  }
+}
