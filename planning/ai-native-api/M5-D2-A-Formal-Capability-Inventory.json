@@ -1,0 +1,74 @@
+{
+  "phase": "M5-D2-A",
+  "auditMode": "READ_ONLY_SOURCE_AUDIT",
+  "sourceCommit": "220251cb326567135d0fc3182d547b7f2b3752b8",
+  "d1ProductBaseline": "f68dbaf024f3f424d7052da88d0009f6b7dd8043",
+  "counts": {
+    "executorActions": 84,
+    "aiCapabilities": 84,
+    "formalBusinessCapabilities": 153,
+    "formalBusinessByAccess": { "query": 46, "preview": 6, "write": 101 },
+    "formalBusinessByOperation": { "query": 46, "preview": 6, "command": 78, "maintenance": 23 },
+    "aiByAccess": { "read": 55, "write": 29 },
+    "aiByOperation": { "query": 38, "preview": 17, "command": 29 },
+    "apiIndexFullInventory": 84,
+    "apiIndexExposed": 31,
+    "privateFormalOrDeferred": 53,
+    "privateReadPreview": 24,
+    "writeProtected": 29
+  },
+  "apiIndex": {
+    "fingerprint": "734be7888b47f19baf76b5f55282d408e2416eec0b2924c3a91b90d197473f18",
+    "exposedReadPreviewTools": [
+      "search_business_changes", "search_parts", "get_coil_specs", "search_coils", "calculate_coil_cost", "get_copper_price",
+      "get_factory_knowledge_detail", "search_factory_knowledge", "get_order_knowledge_package", "check_order_readiness", "get_order_detail", "get_purchase_overview", "get_recent_orders",
+      "get_quotation_detail", "search_customer_history", "search_customers", "search_quotations", "explain_cost_change",
+      "get_all_recipes", "get_recipe_detail", "get_recipe_parts", "get_recipe_technical_files", "get_recipe_technical_profile", "get_recipes_by_coil", "get_recipes_by_part", "get_template_detail", "search_templates",
+      "compare_recipe_scenarios", "compare_recipes", "preview_profitability", "preview_virtual_readiness"
+    ],
+    "notExposedReasons": {
+      "WRITE_PROTECTED": 29,
+      "DEFERRED_UNLINKED_READ_OR_PREVIEW": 24,
+      "examples": {
+        "notNativeReady": ["preview_recipe_cost", "build_recipe_bom_draft", "preview_pump_shell_cost", "build_quotation_draft", "inspect_quotation_file", "get_order_readiness_overview", "plan_order_readiness_actions", "get_dashboard_summary"],
+        "writeOrMaintenance": ["create_recipe", "update_recipe", "create_order", "update_order_status", "adjust_part_stock", "adjust_coil_stock", "archive_factory_file", "sync_factory_knowledge"]
+      }
+    }
+  },
+  "formalCapabilityDomains": {
+    "ai": 24,
+    "business_history": 2,
+    "catalog": 21,
+    "coil": 8,
+    "configuration": 1,
+    "cost": 6,
+    "customer": 5,
+    "drawing": 6,
+    "file": 6,
+    "inventory": 3,
+    "knowledge": 7,
+    "management": 1,
+    "order": 14,
+    "procurement": 1,
+    "purchasing": 3,
+    "quality": 5,
+    "quotation": 10,
+    "recipe": 23,
+    "recipes": 3,
+    "rotor": 2,
+    "template": 2
+  },
+  "formalPreviewProducers": [
+    "recipes.scenario_compare_preview",
+    "cost.profitability_preview",
+    "inventory.virtual_readiness_preview",
+    "catalog.name_preview",
+    "coils.cost_preview",
+    "quotations.inquiry_summary_draft"
+  ],
+  "auditNotes": [
+    "Counts are read from api/capabilities/registry.cjs and buildApiIndex(), not copied from prior D1 reports.",
+    "The 31 exposed entries remain lightweight discovery records; schemas are loaded only on demand.",
+    "A formal capability or executor route is not treated as Native-ready until identity, structured claimable evidence and validator-compatible delivery are all present."
+  ]
+}

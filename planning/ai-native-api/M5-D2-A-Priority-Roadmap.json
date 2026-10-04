@@ -1,0 +1,28 @@
+{
+  "phase": "M5-D2-A",
+  "scoring": {"ownerFrequency":"high=3","businessImportance":"high=3","formalReadiness":"high=3","implementationScope":"smaller is better","safetyRisk":"read/preview preferred","crossDomainReuse":"high=3","nativeLeverage":"high=3"},
+  "priorities": {
+    "P0": [
+      {"capability":"virtual readiness shortages","value":"Owner can ask capacity and shortages using existing preview","layers":["Fact Ledger","Claimable Catalog","Answer Validator","targeted evaluator"],"risk":"read/preview; preserve formal allocation authority","reuse":["recipe inventory","order shortage","procurement"]},
+      {"capability":"order detail and order readiness structured facts","value":"Existing formal order reads can answer high-frequency operational questions","layers":["executor result contract audit","Fact Ledger","Claimable Catalog"],"risk":"identity-safe order line and collection completeness","reuse":["orders","customer history","procurement"]},
+      {"capability":"purchase overview and shortage-to-purchase relation","value":"Closes the owner question 'what is missing and is it already being purchased?'","layers":["formal relation adapter","Fact Ledger","Claimable Catalog"],"risk":"never infer supplier/purchase linkage from names","reuse":["procurement","order readiness","management"]}
+    ],
+    "P1": [
+      {"capability":"profitability producer","value":"Formal preview already exposed; needs claimable margin/profit semantics","layers":["Fact Ledger","Claimable Catalog","Answer Validator"],"risk":"explicit scenario/basis binding"},
+      {"capability":"customer, quotation and commercial-history collections","value":"Existing formal reads cover customer commercial investigations","layers":["identity contract audit","collection facts","relation projection"],"risk":"quotation identity is not yet resolver-supported"},
+      {"capability":"template cost/component producer","value":"Extends recipe investigation into the shell-template source","layers":["Fact Ledger","relation projection"],"risk":"keep template/part canonical bindings"},
+      {"capability":"cost-change explanation","value":"Combines formal business events with cost comparison","layers":["event/result structured producer","cross-domain evidence"],"risk":"do not call knowledge prose a cost authority"}
+    ],
+    "P2": [
+      {"capability":"preview_recipe_cost complete/incomplete contract","value":"Useful only if its owner-facing semantics are distinct from scenario comparison","layers":["capability link","schema","evidence projection"],"risk":"pricingComplete=false must remain incomplete, never zero"},
+      {"capability":"technical file and quotation-file facts","value":"Improves document-backed investigation","layers":["safe metadata projection","formal parser error semantics"],"risk":"extracted text remains non-formal until bound"},
+      {"capability":"dashboard, quality and management read surfaces","value":"Broadens management questions after core operational producers are reliable","layers":["formal links","structured summaries"],"risk":"avoid broad preloading and maintenance controls"}
+    ]
+  },
+  "waves": [
+    {"wave":"D2 Wave 1","goal":"Turn existing inventory/order/procurement read-preview results into identity-bound shortage and purchase evidence.","capabilities":["preview_virtual_readiness","check_order_readiness","get_order_detail","get_purchase_overview"],"whyNow":"Highest owner value with existing formal APIs and no write expansion.","layers":["Native formal adapters","Fact Ledger","Claimable Catalog","Answer Validator","controlled fixtures/evaluator"],"risk":"collection completeness and canonical part/purchase relation safety","successGate":"Formal shortage rows, order identity and purchase linkage can support read-only owner answers; missing/unresolved data stays explicit; no write tool exposure."},
+    {"wave":"D2 Wave 2","goal":"Add commercial and profitability structured producers.","capabilities":["preview_profitability","search_customers","search_customer_history","search_quotations","get_quotation_detail","get_template_detail","search_business_changes"],"whyNow":"Reuses Wave 1 relation patterns and grows customer/quotation owner coverage.","layers":["identity contract review","structured numeric/collection facts","claim validation"],"risk":"quotation identity and basis-specific margin facts","successGate":"Customer, quotation, profitability and cost-change answers are formally grounded with correct basis and collection completeness."},
+    {"wave":"D2 Wave 3","goal":"Evaluate distinct deferred/file/management producers without inflating the discovery surface.","capabilities":["preview_recipe_cost","build_recipe_bom_draft","preview_pump_shell_cost","get_recipe_technical_files","inspect_quotation_file","dashboard/quality reads"],"whyNow":"Lower-frequency or potentially redundant producers should follow proven structured-producer patterns.","layers":["capability registration where justified","schema","safe projection","formal error semantics"],"risk":"duplicate cost pathways, incomplete pricing, non-formal extracted text","successGate":"Every newly discoverable tool has a distinct formal owner task, safe structured output and targeted evidence; redundant paths stay private."}
+  ],
+  "recommendedNextPhase":"D2 Wave 1 structured shortage/order/procurement producer design and deterministic contract tests; no write expansion."
+}

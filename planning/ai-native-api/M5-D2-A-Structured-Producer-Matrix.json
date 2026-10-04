@@ -1,0 +1,141 @@
+{
+  "phase": "M5-D2-A",
+  "chain": ["Business API", "Executor", "Tool schema", "Agent adapter", "Fact Ledger", "Claimable Catalog", "Answer Validator"],
+  "qualityLegend": ["IDENTITY_READY", "NUMERIC_READY", "MONEY_ROLE_READY", "RELATION_READY", "COLLECTION_COMPLETE_READY", "SCENARIO_READY", "ERROR_SEMANTICS_READY", "ANSWER_VALIDATION_READY"],
+  "producers": [
+    {
+      "capability":"get_recipe_detail currentCost.currentTotalCost",
+      "businessApi":"GET /api/recipes/:id",
+      "executor":"queryExecutors:get_recipe_detail",
+      "nativeExposure":"API Index exposed (reviewed composite)",
+      "quality":{"IDENTITY_READY":true,"NUMERIC_READY":true,"MONEY_ROLE_READY":true,"RELATION_READY":true,"COLLECTION_COMPLETE_READY":false,"SCENARIO_READY":false,"ERROR_SEMANTICS_READY":true,"ANSWER_VALIDATION_READY":true},
+      "status":"NATIVE_READY","breakpoint":null,"notes":"R6 projects only costComplete currentCost.currentTotalCost as CURRENT_FORMAL."
+    },
+    {
+      "capability":"compare_recipes",
+      "businessApi":"formal recipe comparison read/preview",
+      "executor":"queryExecutors:compare_recipes",
+      "nativeExposure":"API Index exposed",
+      "quality":{"IDENTITY_READY":true,"NUMERIC_READY":true,"MONEY_ROLE_READY":true,"RELATION_READY":true,"COLLECTION_COMPLETE_READY":false,"SCENARIO_READY":false,"ERROR_SEMANTICS_READY":true,"ANSWER_VALIDATION_READY":true},
+      "status":"NATIVE_READY","breakpoint":null,"notes":"Directional RECIPE_DIFFERENCE retains participants and RIGHT_MINUS_LEFT."
+    },
+    {
+      "capability":"compare_recipe_scenarios",
+      "businessApi":"POST /api/recipes/:id/scenario-compare-preview",
+      "executor":"recipe executor/formal adapter",
+      "nativeExposure":"API Index exposed",
+      "quality":{"IDENTITY_READY":true,"NUMERIC_READY":true,"MONEY_ROLE_READY":true,"RELATION_READY":true,"COLLECTION_COMPLETE_READY":false,"SCENARIO_READY":true,"ERROR_SEMANTICS_READY":true,"ANSWER_VALIDATION_READY":true},
+      "status":"NATIVE_READY","breakpoint":null,"notes":"Float, cable, packing, surface treatment and Rotor Process are structured scenario facts."
+    },
+    {
+      "capability":"search_coils directory cost",
+      "businessApi":"GET /api/coils",
+      "executor":"queryExecutors:search_coils",
+      "nativeExposure":"API Index exposed",
+      "quality":{"IDENTITY_READY":true,"NUMERIC_READY":true,"MONEY_ROLE_READY":true,"RELATION_READY":true,"COLLECTION_COMPLETE_READY":true,"SCENARIO_READY":false,"ERROR_SEMANTICS_READY":true,"ANSWER_VALIDATION_READY":true},
+      "status":"NATIVE_READY","breakpoint":null,"notes":"Only formal per-record cost is promoted; unitPrice/kitPrice remain parameters."
+    },
+    {
+      "capability":"calculate_coil_cost",
+      "businessApi":"POST /api/coils/calculate",
+      "executor":"costExecutors:calculate_coil_cost",
+      "nativeExposure":"API Index exposed",
+      "quality":{"IDENTITY_READY":true,"NUMERIC_READY":true,"MONEY_ROLE_READY":true,"RELATION_READY":true,"COLLECTION_COMPLETE_READY":false,"SCENARIO_READY":false,"ERROR_SEMANTICS_READY":true,"ANSWER_VALIDATION_READY":true},
+      "status":"NATIVE_READY","breakpoint":null,"notes":"Formal calculation totalCost is explicitly projected."
+    },
+    {
+      "capability":"preview_profitability",
+      "businessApi":"formal profitability preview",
+      "executor":"brokered preview_profitability",
+      "nativeExposure":"API Index exposed",
+      "quality":{"IDENTITY_READY":true,"NUMERIC_READY":true,"MONEY_ROLE_READY":false,"RELATION_READY":true,"COLLECTION_COMPLETE_READY":false,"SCENARIO_READY":true,"ERROR_SEMANTICS_READY":true,"ANSWER_VALIDATION_READY":false},
+      "status":"CAPABILITY_EXISTS_BUT_NOT_NATIVE_READY","breakpoint":"STRUCTURED_EVIDENCE_GAP at Fact Ledger/Claimable Catalog","proposedRepair":"Project a bounded profitability result with explicit cost basis, scenario binding, gross-profit and margin claim types; extend validator only for those formal predicates.","expectedReuse":"quotation, pricing, recipe and cross-domain margin questions"
+    },
+    {
+      "capability":"preview_virtual_readiness",
+      "businessApi":"formal virtual readiness preview",
+      "executor":"brokered preview_virtual_readiness",
+      "nativeExposure":"API Index exposed",
+      "quality":{"IDENTITY_READY":true,"NUMERIC_READY":true,"MONEY_ROLE_READY":false,"RELATION_READY":false,"COLLECTION_COMPLETE_READY":false,"SCENARIO_READY":true,"ERROR_SEMANTICS_READY":true,"ANSWER_VALIDATION_READY":false},
+      "status":"CAPABILITY_EXISTS_BUT_NOT_NATIVE_READY","breakpoint":"STRUCTURED_EVIDENCE_GAP at shortage-row projection","proposedRepair":"Project each formal shortage with canonical part binding, required/available/shortage quantity, unit, readiness basis and completeness status.","expectedReuse":"recipe capacity, shortage, order readiness and procurement reconciliation"
+    },
+    {
+      "capability":"check_order_readiness",
+      "businessApi":"formal order readiness read",
+      "executor":"orderExecutors:check_order_readiness",
+      "nativeExposure":"API Index exposed",
+      "quality":{"IDENTITY_READY":true,"NUMERIC_READY":true,"MONEY_ROLE_READY":false,"RELATION_READY":false,"COLLECTION_COMPLETE_READY":false,"SCENARIO_READY":false,"ERROR_SEMANTICS_READY":true,"ANSWER_VALIDATION_READY":false},
+      "status":"CAPABILITY_EXISTS_BUT_NOT_NATIVE_READY","breakpoint":"STRUCTURED_EVIDENCE_GAP at order shortage and order-line relations","proposedRepair":"Create identity-bound order readiness, line and shortage facts without copying allocation arithmetic.","expectedReuse":"owner order shortage and management follow-up questions"
+    },
+    {
+      "capability":"get_order_detail",
+      "businessApi":"formal order detail read",
+      "executor":"business/query composite",
+      "nativeExposure":"API Index exposed (reviewed composite)",
+      "quality":{"IDENTITY_READY":true,"NUMERIC_READY":false,"MONEY_ROLE_READY":false,"RELATION_READY":false,"COLLECTION_COMPLETE_READY":false,"SCENARIO_READY":false,"ERROR_SEMANTICS_READY":true,"ANSWER_VALIDATION_READY":false},
+      "status":"CAPABILITY_EXISTS_BUT_NOT_NATIVE_READY","breakpoint":"STRUCTURED_EVIDENCE_GAP at order/customer/recipe line projection","proposedRepair":"Add structured order detail facts and collection-completeness receipts.","expectedReuse":"order detail, customer history and order-to-procurement investigations"
+    },
+    {
+      "capability":"get_purchase_overview",
+      "businessApi":"formal purchasing overview read",
+      "executor":"orderExecutors:get_purchase_overview",
+      "nativeExposure":"API Index exposed",
+      "quality":{"IDENTITY_READY":false,"NUMERIC_READY":false,"MONEY_ROLE_READY":false,"RELATION_READY":false,"COLLECTION_COMPLETE_READY":false,"SCENARIO_READY":false,"ERROR_SEMANTICS_READY":true,"ANSWER_VALIDATION_READY":false},
+      "status":"CAPABILITY_EXISTS_BUT_NOT_NATIVE_READY","breakpoint":"IDENTITY_GAP plus STRUCTURED_EVIDENCE_GAP","proposedRepair":"Bind purchase rows to canonical part/supplier identities where formal data provides them, then emit status and quantity facts.","expectedReuse":"procurement follow-up and shortage reconciliation"
+    },
+    {
+      "capability":"search_quotations/get_quotation_detail",
+      "businessApi":"formal quotation list/detail reads",
+      "executor":"businessExecutors/queryExecutors",
+      "nativeExposure":"API Index exposed",
+      "quality":{"IDENTITY_READY":false,"NUMERIC_READY":false,"MONEY_ROLE_READY":false,"RELATION_READY":false,"COLLECTION_COMPLETE_READY":false,"SCENARIO_READY":false,"ERROR_SEMANTICS_READY":true,"ANSWER_VALIDATION_READY":false},
+      "status":"CAPABILITY_EXISTS_BUT_NOT_NATIVE_READY","breakpoint":"IDENTITY_GAP and STRUCTURED_EVIDENCE_GAP","proposedRepair":"First define quotation identity-safe list/detail result projection; do not add quotation resolver until the formal business-key contract is reviewed.","expectedReuse":"customer commercial history and quotation detail"
+    },
+    {
+      "capability":"search_customers/search_customer_history",
+      "businessApi":"formal customer list/history reads",
+      "executor":"businessExecutors",
+      "nativeExposure":"API Index exposed",
+      "quality":{"IDENTITY_READY":true,"NUMERIC_READY":false,"MONEY_ROLE_READY":false,"RELATION_READY":false,"COLLECTION_COMPLETE_READY":false,"SCENARIO_READY":false,"ERROR_SEMANTICS_READY":true,"ANSWER_VALIDATION_READY":false},
+      "status":"CAPABILITY_EXISTS_BUT_NOT_NATIVE_READY","breakpoint":"STRUCTURED_EVIDENCE_GAP at customer-to-order/quotation collections","proposedRepair":"Use resolved customer identity and project separately complete order and quotation collections with pagination/completeness markers.","expectedReuse":"customer history and cross-domain sales questions"
+    },
+    {
+      "capability":"get_template_detail",
+      "businessApi":"formal template detail read",
+      "executor":"queryExecutors:get_template_detail",
+      "nativeExposure":"API Index exposed",
+      "quality":{"IDENTITY_READY":true,"NUMERIC_READY":false,"MONEY_ROLE_READY":false,"RELATION_READY":true,"COLLECTION_COMPLETE_READY":false,"SCENARIO_READY":false,"ERROR_SEMANTICS_READY":true,"ANSWER_VALIDATION_READY":false},
+      "status":"CAPABILITY_EXISTS_BUT_NOT_NATIVE_READY","breakpoint":"STRUCTURED_EVIDENCE_GAP","proposedRepair":"Project template components/cost basis and canonical shell-part relationship; retain existing template identity controls.","expectedReuse":"template composition, cost and recipe-template questions"
+    },
+    {
+      "capability":"preview_recipe_cost",
+      "businessApi":"formal recipe cost preview route",
+      "executor":"recipe/cost executor path",
+      "nativeExposure":"not discoverable: DEFERRED_UNLINKED",
+      "quality":{"IDENTITY_READY":true,"NUMERIC_READY":true,"MONEY_ROLE_READY":false,"RELATION_READY":true,"COLLECTION_COMPLETE_READY":false,"SCENARIO_READY":true,"ERROR_SEMANTICS_READY":true,"ANSWER_VALIDATION_READY":false},
+      "status":"CAPABILITY_EXISTS_BUT_NOT_NATIVE_READY","breakpoint":"MISSING_NATIVE_EXPOSURE plus STRUCTURED_EVIDENCE_GAP","proposedRepair":"Audit pricingComplete/error contract, then register a formal link and structured complete-vs-incomplete preview facts if it adds a non-duplicative read path.","expectedReuse":"quoted cost and incomplete-cost explanations"
+    },
+    {
+      "capability":"build_recipe_bom_draft/preview_pump_shell_cost",
+      "businessApi":"formal read/preview producers",
+      "executor":"recipe executor path",
+      "nativeExposure":"not discoverable: DEFERRED_UNLINKED",
+      "quality":{"IDENTITY_READY":true,"NUMERIC_READY":true,"MONEY_ROLE_READY":false,"RELATION_READY":false,"COLLECTION_COMPLETE_READY":false,"SCENARIO_READY":true,"ERROR_SEMANTICS_READY":true,"ANSWER_VALIDATION_READY":false},
+      "status":"CAPABILITY_EXISTS_BUT_NOT_NATIVE_READY","breakpoint":"MISSING_NATIVE_EXPOSURE","proposedRepair":"Assess redundancy against scenario preview before exposure; expose only if the result has a distinct owner-facing question and structured producer contract.","expectedReuse":"BOM and shell-cost investigation"
+    },
+    {
+      "capability":"get_recipe_technical_files / inspect_quotation_file",
+      "businessApi":"formal technical-file and file-inspection producers",
+      "executor":"query/business executor paths",
+      "nativeExposure":"technical files exposed; quotation file inspection deferred",
+      "quality":{"IDENTITY_READY":true,"NUMERIC_READY":false,"MONEY_ROLE_READY":false,"RELATION_READY":false,"COLLECTION_COMPLETE_READY":false,"SCENARIO_READY":false,"ERROR_SEMANTICS_READY":false,"ANSWER_VALIDATION_READY":false},
+      "status":"PARTIAL","breakpoint":"STRUCTURED_EVIDENCE_GAP and FORMAL_ERROR_GAP","proposedRepair":"Use safe file metadata, completeness and formal parser outcome facts; keep extracted free text non-formal unless formally bound.","expectedReuse":"technical document and quotation-file questions"
+    }
+  ],
+  "historicalCandidates": {
+    "preview_recipe_cost_pricingComplete_false":"NOT_NATIVE_READY: API/executor path exists, but it is DEFERRED_UNLINKED and has no bounded complete/incomplete structured producer contract.",
+    "preview_virtual_readiness_unresolvedRequirements":"PARTIALLY_RESOLVED: tool is exposed and formal preview exists; per-shortage canonical relation/completeness evidence remains absent.",
+    "order_shortage":"NOT_NATIVE_READY: check_order_readiness is exposed, but its shortage/line evidence is not structured for reliable owner claims.",
+    "procurement_shortage":"NOT_NATIVE_READY: purchase overview exists and is exposed, but there is no formal Native relation projection from shortage items to purchase rows."
+  }
+}
