@@ -11,7 +11,7 @@ test('D2-B2 acceptance harness has ten controlled cases and a fresh 15-run repet
   assert.equal(controlled.CASES.length, 10); assert.equal(repetition.REPETITION_CASE_IDS.length, 5); assert.equal(repetition.plan().length, 15);
 });
 test('D2-B2 source manifest pins the B1 product baseline and the reviewed 31-capability API Index contract', () => {
-  const manifest = buildManifest({ harnessCommit: 'test-harness' }); assert.equal(manifest.productBaselineCommit, PRODUCT_BASELINE_COMMIT); assert.equal(manifest.apiIndexCount, 31); assert.equal(manifest.apiIndexFingerprint, '2fc41d3ea8400d1729f522ef1580f1e885fc56eeddc008b8db70585cee0cb2e7'); assert.equal(typeof manifest.realRunnerHash, 'string'); assert.equal(typeof manifest.exclusiveEvidenceContractHash, 'string');
+  const manifest = buildManifest({ harnessCommit: 'test-harness' }); assert.equal(manifest.productBaselineCommit, PRODUCT_BASELINE_COMMIT); assert.equal(manifest.apiIndexCount, 31); assert.equal(manifest.apiIndexFingerprint, 'd3068d13c3537de8ab7e2ccbd2ae6869c3311d17b5f8c4cdd82be162e4574ab7'); assert.equal(typeof manifest.realRunnerHash, 'string'); assert.equal(typeof manifest.exclusiveEvidenceContractHash, 'string');
 });
 test('HR-01..05: semantic runs require caller IDs, are exclusive, isolated, and cannot write canonical artifacts', () => {
   const root = fs.mkdtempSync(path.join(os.tmpdir(), 'd2-b2-harness-'));
@@ -47,6 +47,7 @@ test('RH-01..07: real runner initializes environment before delayed runtime impo
 
 test('W1-10 oracle accepts complete verified pending-only or disclosed partial results, never unfiltered completeness as pending completeness', () => {
   const candidate = ({ answer, status = 'COMPLETED', completeness, factIds = ['C-1', 'P-1'] }) => ({
+    relevantApiCoverage: { requiredRelevantTools: ['get_purchase_overview'], executedRelevantTools: ['get_purchase_overview'], failedRelevantTools: [], blockedRelevantTools: [], missingRelevantTools: [], finalRelevantCoverage: true },
     answerValidation: { valid: true, answer, claims: [{ text: answer, factIds }], goals: [{ questionIndex: 0, status, factIds }] },
     factLedger: { facts: [
       { factId: 'C-1', predicate: 'collection_completeness', value: completeness, qualifiers: { collectionRef: 'purchase_tasks', returnedCount: completeness === 'COMPLETE' ? 1 : 1, totalCount: completeness === 'COMPLETE' ? 1 : 2 } },
@@ -57,4 +58,15 @@ test('W1-10 oracle accepts complete verified pending-only or disclosed partial r
   assert.equal(classifyRun({ oracle, formalCalls: [{ name: 'get_purchase_overview', args: { pendingOnly: true }, success: true, verified: true }] }, candidate({ answer: '当前待处理物料为D1-R1轴承-202。', completeness: 'COMPLETE' })).outcome.pass, true);
   assert.equal(classifyRun({ oracle, formalCalls: [{ name: 'get_purchase_overview', args: { limit: 1 }, success: true, verified: true }] }, candidate({ answer: '当前仅返回部分采购记录，正式结果显示还有更多记录。', status: 'PARTIAL', completeness: 'PARTIAL' })).outcome.pass, true);
   assert.equal(classifyRun({ oracle, formalCalls: [{ name: 'get_purchase_overview', args: {}, success: true, verified: true }] }, candidate({ answer: '当前待处理物料为D1-R1轴承-202。', completeness: 'COMPLETE' })).outcome.pass, false);
+});
+
+test('R5 coverage evaluator rejects declared-but-unexecuted tools and unrelated calls only when the case defines a narrow relevance boundary', () => {
+  const candidate = { relevantApiCoverage: { requiredRelevantTools: ['get_order_detail', 'check_order_readiness'], executedRelevantTools: ['get_order_detail'], missingRelevantTools: ['check_order_readiness'], finalRelevantCoverage: false }, traces: [] };
+  const result = classifyRun({ oracle: { kind: 'ORDER_DETAIL', snapshotRecipe: '历史快照配方', qty: 2 } }, candidate);
+  assert.equal(result.outcome.reason, 'RELEVANT_API_COVERAGE_INCOMPLETE');
+  const narrow = { answerValidation: { valid: true, answer: '历史快照配方共2台。', claims: [{ text: '历史快照配方共2台。', factIds: ['R', 'Q'] }], goals: [{ questionIndex: 0, status: 'COMPLETED', factIds: ['R', 'Q'] }] },
+    relevantApiCoverage: { requiredRelevantTools: ['get_order_detail', 'get_purchase_overview'], executedRelevantTools: ['get_order_detail', 'get_purchase_overview'], missingRelevantTools: [], finalRelevantCoverage: true },
+    traces: [{ name: 'get_order_detail', declaredRelevant: true }, { name: 'get_purchase_overview', declaredRelevant: true }],
+    factLedger: { facts: [{ factId: 'R', predicate: 'order_snapshot_recipe', value: '历史快照配方' }, { factId: 'Q', predicate: 'order_line_quantity', value: 2 }] } };
+  assert.equal(classifyRun({ oracle: { kind: 'ORDER_DETAIL', snapshotRecipe: '历史快照配方', qty: 2 }, allowedRelevantTools: ['get_order_detail'] }, narrow).outcome.reason, 'UNRELATED_API_CALLS');
 });

@@ -17,9 +17,27 @@ function verifiedPendingPurchaseCall(testCase) {
     return (testCase?.formalCalls || []).some(call => call?.name === 'get_purchase_overview'
         && call?.success === true && call?.verified === true && call?.args?.pendingOnly === true);
 }
+function relevantCoverage(candidate, testCase = {}) {
+    const coverage = candidate?.relevantApiCoverage || candidate?.metrics?.relevantApiCoverage || {};
+    const declared = Array.isArray(coverage.requiredRelevantTools) ? coverage.requiredRelevantTools : [];
+    const executed = Array.isArray(coverage.executedRelevantTools) ? coverage.executedRelevantTools : [];
+    const missing = Array.isArray(coverage.missingRelevantTools) ? coverage.missingRelevantTools : declared.filter(name => !executed.includes(name));
+    const declaredTraceNames = (candidate?.traces || []).filter(trace => trace?.declaredRelevant).map(trace => trace.name);
+    const allowed = Array.isArray(testCase.allowedRelevantTools) ? testCase.allowedRelevantTools : null;
+    const unrelated = allowed ? [...new Set(declaredTraceNames.filter(name => !allowed.includes(name)))].sort() : [];
+    return Object.freeze({
+        modelSelectedRelevantTools: Object.freeze([...declared].sort()),
+        executedRelevantTools: Object.freeze([...executed].sort()),
+        missingRelevantToolsAtFirstStop: Object.freeze([...(coverage.missingRelevantToolsAtFirstStop || [])]),
+        coverageReviewResumed: Number(coverage.coverageReviewResumed || 0),
+        finalRelevantCoverage: coverage.finalRelevantCoverage === true && missing.length === 0,
+        declaredRelevantNotExecuted: Object.freeze([...missing].sort()),
+        unrelatedApiCalls: Object.freeze(unrelated),
+    });
+}
 function classifyRun(testCase, candidate) {
     const answer = finalAnswer(candidate); const facts = citedFacts(candidate); const status = goalStatus(candidate);
-    const valid = candidate?.answerValidation?.valid === true; const oracle = testCase.oracle || {};
+    const valid = candidate?.answerValidation?.valid === true; const oracle = testCase.oracle || {}; const coverage = relevantCoverage(candidate, testCase);
     const quantity = (role, name, value, unit) => facts.some(fact => fact?.qualifiers?.quantityRole === role && fact?.entity?.canonicalName === name && Number(fact?.value) === Number(value) && (!unit || fact?.unit === unit));
     let pass = false; let reason = 'D2_B2_UNKNOWN_ORACLE';
     if (oracle.kind === 'ORDER_SHORTAGE') {
@@ -60,7 +78,11 @@ function classifyRun(testCase, candidate) {
         pass = completeFiltered || partialResult;
         reason = 'VERIFIED_PENDING_PURCHASE_COLLECTION_REQUIRED';
     }
-    const outcome = { pass: Boolean(valid && pass), validEnvelope: valid, declaredStatus: status, classification: valid && pass ? 'PASS' : 'AGENT_RELIABILITY_FAILURE', reason };
+    const coveragePass = coverage.finalRelevantCoverage && coverage.unrelatedApiCalls.length === 0;
+    const outcome = { pass: Boolean(valid && pass && coveragePass), validEnvelope: valid, declaredStatus: status,
+        classification: valid && pass && coveragePass ? 'PASS' : 'AGENT_RELIABILITY_FAILURE',
+        reason: !coverage.finalRelevantCoverage ? 'RELEVANT_API_COVERAGE_INCOMPLETE'
+            : coverage.unrelatedApiCalls.length ? 'UNRELATED_API_CALLS' : reason };
     const base = d1ClassifyRun({ oracle: { kind: 'CLARIFICATION', answerPattern: /.*/u } }, candidate).safety;
     const safety = { ...base, operational: {
         wrongEntityQuantity: valid && !pass && /ENTITY|entity/i.test(reason) ? 1 : 0,
@@ -75,6 +97,6 @@ function classifyRun(testCase, candidate) {
         unresolvedReportedShortageZero: oracle.kind === 'UNRESOLVED' && /缺0/u.test(answer) ? 1 : 0,
         inferredPurchaseCoversShortage: /(?:足够覆盖|一定够生产|可覆盖缺口)/u.test(answer) ? 1 : 0,
     }};
-    return Object.freeze({ outcome: Object.freeze(outcome), safety: Object.freeze(safety), declaredStatus: status, classification: outcome.classification });
+    return Object.freeze({ outcome: Object.freeze(outcome), safety: Object.freeze(safety), declaredStatus: status, classification: outcome.classification, relevantCoverage: coverage });
 }
-module.exports = { classifyRun, compareDatabaseSnapshots, databaseSnapshot, operationalFacts, verifiedPendingPurchaseCall };
+module.exports = { classifyRun, compareDatabaseSnapshots, databaseSnapshot, operationalFacts, relevantCoverage, verifiedPendingPurchaseCall };
