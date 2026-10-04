@@ -8,7 +8,8 @@ const { freshMemos } = require('./run-d1-r1-controlled.cjs');
 const { runApiNativeAgentCandidate } = require('./apiNativeAgentCandidate.cjs');
 const { buildControlledOracles } = require('./d2B2AcceptanceOracles.cjs');
 const { classifyRun, databaseSnapshot, compareDatabaseSnapshots } = require('./d2B2AcceptanceEvaluator.cjs');
-const { serializeRun, writeArtifacts } = require('./d2B2AcceptanceEvidence.cjs');
+const { serializeRun } = require('./d2B2AcceptanceEvidence.cjs');
+const { createExclusiveRun, requireRunId, writeStagedRun } = require('./d2B2AcceptanceStaging.cjs');
 
 const CASES = Object.freeze([
     ['W1-01', 'ORDER-A现在缺什么？各缺多少？'], ['W1-02', 'ORDER-A现在能直接生产吗？'],
@@ -32,10 +33,13 @@ async function main(outputDirectory = path.join(process.cwd(), 'planning/ai-nati
         const { executeToolCall } = require('../../../api/routes/ai/executor.cjs');
         const before = databaseSnapshot(fixture.db); const oracleById = await buildControlledOracles(executeToolCall, fixture.ids);
         if (process.env.D2_B2_PREFLIGHT_ONLY === '1') return Object.freeze({ phase: 'M5-D2-B2', preflight: true, fixtureRuntime: fixture.fixtureKind, oracleCount: Object.keys(oracleById).length, modelCallsEnabled: false });
+        const selectedIds = process.env.D2_B2_CASE_IDS ? process.env.D2_B2_CASE_IDS.split(',').map(value => value.trim()).filter(Boolean) : CASES.map(([id]) => id);
+        const selected = CASES.filter(([id]) => selectedIds.includes(id));
+        if (!selected.length || selected.length !== selectedIds.length) throw new Error('D2_B2_CASE_SELECTION_INVALID');
         const results = [];
-        for (const [id, rawOwnerInput] of CASES) results.push(await runCandidateCase({ id, rawOwnerInput, oracle: oracleById[id] }, env, executeToolCall));
-        const output = Object.freeze({ phase: 'M5-D2-B2', fixtureRuntime: fixture.fixtureKind, modelCallsEnabled: true, database: compareDatabaseSnapshots(before, databaseSnapshot(fixture.db)), results: results.map(serializeRun) });
-        writeArtifacts(outputDirectory, { controlledSmoke: output }); return output;
+        for (const [id, rawOwnerInput] of selected) results.push(await runCandidateCase({ id, rawOwnerInput, oracle: oracleById[id] }, env, executeToolCall));
+        const output = Object.freeze({ phase: 'M5-D2-B2', kind: 'controlled', runId: requireRunId(process.env.D2_B2_RUN_ID), fixtureRuntime: fixture.fixtureKind, modelCallsEnabled: true, database: compareDatabaseSnapshots(before, databaseSnapshot(fixture.db)), results: results.map(serializeRun) });
+        writeStagedRun(createExclusiveRun(outputDirectory, { kind: 'controlled', runId: output.runId }), output); return output;
     } finally { await fixture.close(); }
 }
 if (require.main === module) main(process.env.D2_B2_OUTPUT_DIR).then(result => console.log(JSON.stringify({ preflight: result.preflight === true, cases: result.results?.length || 0, database: result.database || null }, null, 2))).catch(error => { console.error(error.stack || error.message); process.exitCode = 1; });
