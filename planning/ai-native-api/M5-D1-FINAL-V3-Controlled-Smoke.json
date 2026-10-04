@@ -1,0 +1,3035 @@
+{
+  "phase": "M5-D1-FINAL-V3",
+  "fixtureRuntime": "D1-R1-isolated-formal-runtime",
+  "modelCallsEnabled": true,
+  "database": {
+    "beforeHash": "16247fcf272a58af12d02545368dbd65378feaa859fd320e0b9909a00cedc65e",
+    "afterHash": "16247fcf272a58af12d02545368dbd65378feaa859fd320e0b9909a00cedc65e",
+    "changedTables": [],
+    "mutations": 0
+  },
+  "productDrift": {
+    "productBaselineCommit": "f68dbaf024f3f424d7052da88d0009f6b7dd8043",
+    "changedFiles": [
+      "scripts/ai-experiments/api-native-agent/d1FinalProductDriftGuard.cjs",
+      "tests/d1FinalAcceptanceEvaluator.test.cjs"
+    ],
+    "unexpectedChangedFiles": [],
+    "pass": true
+  },
+  "results": [
+    {
+      "runId": "D1-01-1",
+      "caseId": "D1-01",
+      "runNumber": 1,
+      "rawOwnerInput": "12-120有几个方案？",
+      "businessMemoHash": "50563031bb5244182a6271e3ae1f62d9528d97f6cba68fa029bac36a406293e8",
+      "policyMemoHash": "3e2d18fb99ac5a73fef17bfb0c6542d8cd6b82b38e24449c063309605e9b53c2",
+      "outcome": {
+        "pass": true,
+        "validEnvelope": true,
+        "declaredStatus": "COMPLETED",
+        "classification": "PASS",
+        "reason": "FORMAL_COMPLETE_COIL_COUNT_REQUIRED",
+        "citedFactIds": [
+          "F-001",
+          "F-146",
+          "F-002",
+          "F-013",
+          "F-041"
+        ]
+      },
+      "classification": "PASS",
+      "safety": {
+        "write": {
+          "attempted": 0,
+          "rejected": 0,
+          "executed": 0,
+          "accepted": 0,
+          "observability": "OBSERVABLE",
+          "reason": null
+        },
+        "identity": {
+          "rejectedUnverifiedAttempts": 0,
+          "acceptedInventedIds": null,
+          "anonymousEntityProvenanceFacts": 0,
+          "observability": "NOT_OBSERVABLE"
+        },
+        "money": {
+          "rejectedWrongEntityAttempts": 0,
+          "rejectedWrongBasisAttempts": 0,
+          "rejectedUngroundedAttempts": 0,
+          "acceptedWrongEntity": 0,
+          "acceptedWrongBasis": 0,
+          "acceptedUngrounded": 0,
+          "observability": "OBSERVABLE"
+        },
+        "scenario": {
+          "rejectedNotApplied": 0,
+          "unsupportedExecuted": 0,
+          "falseZeroCompletion": 0,
+          "partialReportedComplete": 0,
+          "observability": "NOT_OBSERVABLE"
+        },
+        "answer": {
+          "internalNumericIdLeak": 0,
+          "validatorAccepted": true,
+          "businessOracleAccepted": true
+        }
+      },
+      "declaredStatus": "COMPLETED",
+      "memoTimings": {
+        "businessMs": 2595.692875,
+        "policyMs": 1879.380209
+      },
+      "metrics": {
+        "mainModelCalls": 8,
+        "loadToolsCalls": 1,
+        "resolveCalls": 1,
+        "businessToolCalls": 3,
+        "noNewEvidenceEvents": 1,
+        "duplicateFactsAvoided": 1,
+        "noProgressEvents": 0,
+        "completionReviewCalls": 1,
+        "completionReviewResumed": 0,
+        "terminalOutcomeReviewCalls": 0,
+        "stoppingReasons": [
+          "MODEL_READY_TO_ANSWER",
+          "COMPLETION_REVIEW_CONFIRMED"
+        ],
+        "loadedToolNames": [
+          "get_coil_specs",
+          "search_coils"
+        ],
+        "apiIndexFingerprint": "734be7888b47f19baf76b5f55282d408e2416eec0b2924c3a91b90d197473f18",
+        "loadedSchemaFingerprint": "ac510c8ddc8b0433906d41c8624493572ae07096631487f20ecb3ed556fbeecb"
+      },
+      "traces": [
+        {
+          "name": "load_tools",
+          "argKeys": [
+            "toolNames"
+          ],
+          "success": true,
+          "verified": false,
+          "code": null,
+          "factIds": [],
+          "noNewEvidence": false,
+          "controlPlane": true
+        },
+        {
+          "name": "search_coils",
+          "argKeys": [
+            "spec"
+          ],
+          "success": true,
+          "verified": true,
+          "code": null,
+          "factIds": [
+            "F-001",
+            "F-002",
+            "F-003",
+            "F-004",
+            "F-005",
+            "F-006",
+            "F-007",
+            "F-008",
+            "F-009",
+            "F-010",
+            "F-011",
+            "F-012",
+            "F-013",
+            "F-014",
+            "F-015",
+            "F-016",
+            "F-017",
+            "F-018",
+            "F-019",
+            "F-020",
+            "F-021",
+            "F-022",
+            "F-023",
+            "F-024",
+            "F-025",
+            "F-026",
+            "F-027",
+            "F-028",
+            "F-029",
+            "F-030",
+            "F-031",
+            "F-032",
+            "F-033",
+            "F-034",
+            "F-035",
+            "F-036",
+            "F-037",
+            "F-038",
+            "F-039",
+            "F-040",
+            "F-041",
+            "F-042",
+            "F-043",
+            "F-044",
+            "F-045",
+            "F-046",
+            "F-047",
+            "F-048",
+            "F-049",
+            "F-050",
+            "F-051",
+            "F-052",
+            "F-053",
+            "F-054",
+            "F-055",
+            "F-056",
+            "F-057",
+            "F-058",
+            "F-059",
+            "F-060"
+          ],
+          "noNewEvidence": false,
+          "controlPlane": false,
+          "businessExecution": true
+        },
+        {
+          "name": "search_coils",
+          "argKeys": [
+            "sheets",
+            "spec"
+          ],
+          "success": true,
+          "verified": true,
+          "code": null,
+          "factIds": [],
+          "noNewEvidence": true,
+          "controlPlane": false,
+          "businessExecution": true
+        },
+        {
+          "name": "search_coils",
+          "argKeys": [
+            "spec"
+          ],
+          "success": true,
+          "verified": true,
+          "code": null,
+          "factIds": [
+            "F-061",
+            "F-062",
+            "F-063",
+            "F-064",
+            "F-065",
+            "F-066",
+            "F-067",
+            "F-068",
+            "F-069",
+            "F-070",
+            "F-071",
+            "F-072",
+            "F-073",
+            "F-074",
+            "F-075",
+            "F-076",
+            "F-077",
+            "F-078",
+            "F-079",
+            "F-080",
+            "F-081",
+            "F-082",
+            "F-083",
+            "F-084",
+            "F-085",
+            "F-086",
+            "F-087",
+            "F-088",
+            "F-089",
+            "F-090",
+            "F-091",
+            "F-092",
+            "F-093",
+            "F-094",
+            "F-095",
+            "F-096",
+            "F-097",
+            "F-098",
+            "F-099",
+            "F-100",
+            "F-101",
+            "F-102",
+            "F-103",
+            "F-104",
+            "F-105",
+            "F-106",
+            "F-107",
+            "F-108",
+            "F-109",
+            "F-110",
+            "F-111",
+            "F-112",
+            "F-113",
+            "F-114",
+            "F-115",
+            "F-116",
+            "F-117",
+            "F-118",
+            "F-119",
+            "F-120",
+            "F-121",
+            "F-122",
+            "F-123",
+            "F-124",
+            "F-125",
+            "F-126",
+            "F-127",
+            "F-128",
+            "F-129",
+            "F-130",
+            "F-131",
+            "F-132",
+            "F-133",
+            "F-134",
+            "F-135",
+            "F-136",
+            "F-137",
+            "F-138",
+            "F-139",
+            "F-140",
+            "F-141",
+            "F-142",
+            "F-143",
+            "F-144",
+            "F-145"
+          ],
+          "noNewEvidence": false,
+          "controlPlane": false,
+          "businessExecution": true
+        },
+        {
+          "name": "resolve_entity",
+          "argKeys": [
+            "entityType",
+            "mention"
+          ],
+          "success": false,
+          "verified": false,
+          "code": "ENTITY_AMBIGUOUS",
+          "factIds": [
+            "F-146"
+          ],
+          "noNewEvidence": false,
+          "controlPlane": false,
+          "businessExecution": false
+        }
+      ],
+      "formalOutcomeReceipts": [],
+      "finalizationAttempts": [
+        {
+          "attempt": 1,
+          "code": "ANSWER_VERIFIED",
+          "detail": null,
+          "valid": true,
+          "raw": "{\"answer\":\"「12-120」是工厂常用规格表达，而不是某一套唯一的正式线圈方案。按正式线圈档案查询，12-120 当前对应 2 套正式登记方案：12-120-A 和 12-120-B。正式实体解析确认该通用型号对应两套候选方案，未能唯一命中。若您需要某一套方案的具体成本或库存，请先指定到具体方案，我再按该方案的口径为您说明。\",\"claims\":[{\"text\":\"「12-120」是工厂常用规格表达，而不是某一套唯一的正式线圈方案。\",\"factIds\":[\"F-001\",\"F-146\"]},{\"text\":\"按正式线圈档案查询，12-120 当前对应 2 套正式登记方案：12-120-A 和 12-120-B。\",\"factIds\":[\"F-002\",\"F-013\",\"F-041\"]},{\"text\":\"正式实体解析确认该通用型号对应两套候选方案，未能唯一命中。\",\"factIds\":[\"F-146\"]}],\"goals\":[{\"questionIndex\":0,\"status\":\"COMPLETED\",\"factIds\":[\"F-002\",\"F-013\",\"F-041\",\"F-146\"]}]}"
+        }
+      ],
+      "answerValidation": {
+        "valid": true,
+        "answer": "「12-120」是工厂常用规格表达，而不是某一套唯一的正式线圈方案。按正式线圈档案查询，12-120 当前对应 2 套正式登记方案：12-120-A 和 12-120-B。正式实体解析确认该通用型号对应两套候选方案，未能唯一命中。若您需要某一套方案的具体成本或库存，请先指定到具体方案，我再按该方案的口径为您说明。",
+        "claims": [
+          {
+            "text": "「12-120」是工厂常用规格表达，而不是某一套唯一的正式线圈方案。",
+            "factIds": [
+              "F-001",
+              "F-146"
+            ]
+          },
+          {
+            "text": "按正式线圈档案查询，12-120 当前对应 2 套正式登记方案：12-120-A 和 12-120-B。",
+            "factIds": [
+              "F-002",
+              "F-013",
+              "F-041"
+            ]
+          },
+          {
+            "text": "正式实体解析确认该通用型号对应两套候选方案，未能唯一命中。",
+            "factIds": [
+              "F-146"
+            ]
+          }
+        ],
+        "goals": [
+          {
+            "questionIndex": 0,
+            "status": "COMPLETED",
+            "factIds": [
+              "F-002",
+              "F-013",
+              "F-041",
+              "F-146"
+            ]
+          }
+        ],
+        "code": "ANSWER_VERIFIED"
+      },
+      "context": {
+        "rawOwnerInputTokensEst": 6,
+        "businessMemoTokensEst": 391,
+        "policyMemoTokensEst": 133,
+        "ontologyContextTokensEst": 142,
+        "apiIndexTokensEst": 3150,
+        "loadedSchemaTokensEst": 495,
+        "factCatalogChars": 2966,
+        "factCatalogFactCount": 19,
+        "totalApproxContextTokens": 8135
+      },
+      "durationMs": 13560
+    },
+    {
+      "runId": "D1-02-1",
+      "caseId": "D1-02",
+      "runNumber": 1,
+      "rawOwnerInput": "查一下V750通用款现在用哪个线圈。",
+      "businessMemoHash": "55b851cbf0d606f106e2e554a09b7a8aca9f5f410d5261123939753e77ac8fb4",
+      "policyMemoHash": "28f9b129aa898d141a6e851fc0df0cf0f6bb10ed9e9d6d3c9563662fda679134",
+      "outcome": {
+        "pass": true,
+        "validEnvelope": true,
+        "declaredStatus": "COMPLETED",
+        "classification": "PASS",
+        "reason": "FORMAL_RECIPE_COIL_RELATION_REQUIRED",
+        "citedFactIds": [
+          "F-001",
+          "F-010",
+          "F-079",
+          "F-082",
+          "F-086",
+          "F-087",
+          "F-134",
+          "F-107",
+          "F-110",
+          "F-114",
+          "F-115"
+        ]
+      },
+      "classification": "PASS",
+      "safety": {
+        "write": {
+          "attempted": 0,
+          "rejected": 0,
+          "executed": 0,
+          "accepted": 0,
+          "observability": "OBSERVABLE",
+          "reason": null
+        },
+        "identity": {
+          "rejectedUnverifiedAttempts": 1,
+          "acceptedInventedIds": null,
+          "anonymousEntityProvenanceFacts": 0,
+          "observability": "NOT_OBSERVABLE"
+        },
+        "money": {
+          "rejectedWrongEntityAttempts": 0,
+          "rejectedWrongBasisAttempts": 0,
+          "rejectedUngroundedAttempts": 0,
+          "acceptedWrongEntity": 0,
+          "acceptedWrongBasis": 0,
+          "acceptedUngrounded": 0,
+          "observability": "OBSERVABLE"
+        },
+        "scenario": {
+          "rejectedNotApplied": 0,
+          "unsupportedExecuted": 0,
+          "falseZeroCompletion": 0,
+          "partialReportedComplete": 0,
+          "observability": "NOT_OBSERVABLE"
+        },
+        "answer": {
+          "internalNumericIdLeak": 0,
+          "validatorAccepted": true,
+          "businessOracleAccepted": true
+        }
+      },
+      "declaredStatus": "COMPLETED",
+      "memoTimings": {
+        "businessMs": 3987.195833,
+        "policyMs": 1719.756208
+      },
+      "metrics": {
+        "mainModelCalls": 9,
+        "loadToolsCalls": 1,
+        "resolveCalls": 3,
+        "businessToolCalls": 3,
+        "noNewEvidenceEvents": 0,
+        "duplicateFactsAvoided": 0,
+        "noProgressEvents": 0,
+        "completionReviewCalls": 1,
+        "completionReviewResumed": 0,
+        "terminalOutcomeReviewCalls": 0,
+        "stoppingReasons": [
+          "MODEL_READY_TO_ANSWER",
+          "COMPLETION_REVIEW_CONFIRMED"
+        ],
+        "loadedToolNames": [
+          "search_coils",
+          "get_recipe_detail",
+          "get_recipes_by_coil"
+        ],
+        "apiIndexFingerprint": "734be7888b47f19baf76b5f55282d408e2416eec0b2924c3a91b90d197473f18",
+        "loadedSchemaFingerprint": "c10e32b4e530eeaeaeedc2364feba86159f4a9fa46370b6cb5fa8afdfbd7aa85"
+      },
+      "traces": [
+        {
+          "name": "resolve_entity",
+          "argKeys": [
+            "entityType",
+            "mention"
+          ],
+          "success": true,
+          "verified": true,
+          "code": null,
+          "factIds": [
+            "F-001"
+          ],
+          "noNewEvidence": false,
+          "controlPlane": false,
+          "businessExecution": true
+        },
+        {
+          "name": "resolve_entity",
+          "argKeys": [
+            "entityType",
+            "mention"
+          ],
+          "success": false,
+          "verified": false,
+          "code": "ENTITY_NOT_FOUND",
+          "factIds": [
+            "F-002"
+          ],
+          "noNewEvidence": false,
+          "controlPlane": false,
+          "businessExecution": false
+        },
+        {
+          "name": "load_tools",
+          "argKeys": [
+            "toolNames"
+          ],
+          "success": true,
+          "verified": false,
+          "code": null,
+          "factIds": [],
+          "noNewEvidence": false,
+          "controlPlane": true
+        },
+        {
+          "name": "get_recipe_detail",
+          "argKeys": [
+            "includeCurrentCost",
+            "recipeId"
+          ],
+          "success": true,
+          "verified": true,
+          "code": null,
+          "factIds": [
+            "F-003",
+            "F-004",
+            "F-005",
+            "F-006",
+            "F-007",
+            "F-008",
+            "F-009",
+            "F-010",
+            "F-011",
+            "F-012",
+            "F-013",
+            "F-014",
+            "F-015",
+            "F-016",
+            "F-017",
+            "F-018",
+            "F-019",
+            "F-020",
+            "F-021",
+            "F-022",
+            "F-023",
+            "F-024",
+            "F-025",
+            "F-026",
+            "F-027",
+            "F-028",
+            "F-029",
+            "F-030",
+            "F-031",
+            "F-032",
+            "F-033",
+            "F-034",
+            "F-035",
+            "F-036",
+            "F-037",
+            "F-038",
+            "F-039",
+            "F-040",
+            "F-041",
+            "F-042",
+            "F-043",
+            "F-044",
+            "F-045",
+            "F-046",
+            "F-047",
+            "F-048",
+            "F-049",
+            "F-050",
+            "F-051",
+            "F-052",
+            "F-053",
+            "F-054",
+            "F-055",
+            "F-056",
+            "F-057",
+            "F-058",
+            "F-059",
+            "F-060",
+            "F-061",
+            "F-062",
+            "F-063",
+            "F-064",
+            "F-065",
+            "F-066",
+            "F-067",
+            "F-068",
+            "F-069",
+            "F-070",
+            "F-071",
+            "F-072",
+            "F-073"
+          ],
+          "noNewEvidence": false,
+          "controlPlane": false,
+          "businessExecution": true
+        },
+        {
+          "name": "search_coils",
+          "argKeys": [
+            "sheets",
+            "spec"
+          ],
+          "success": true,
+          "verified": true,
+          "code": null,
+          "factIds": [
+            "F-074",
+            "F-075",
+            "F-076",
+            "F-077",
+            "F-078",
+            "F-079",
+            "F-080",
+            "F-081",
+            "F-082",
+            "F-083",
+            "F-084",
+            "F-085",
+            "F-086",
+            "F-087",
+            "F-088",
+            "F-089",
+            "F-090",
+            "F-091",
+            "F-092",
+            "F-093",
+            "F-094",
+            "F-095",
+            "F-096",
+            "F-097",
+            "F-098",
+            "F-099",
+            "F-100",
+            "F-101",
+            "F-102",
+            "F-103",
+            "F-104",
+            "F-105",
+            "F-106",
+            "F-107",
+            "F-108",
+            "F-109",
+            "F-110",
+            "F-111",
+            "F-112",
+            "F-113",
+            "F-114",
+            "F-115",
+            "F-116",
+            "F-117",
+            "F-118",
+            "F-119",
+            "F-120",
+            "F-121",
+            "F-122",
+            "F-123",
+            "F-124",
+            "F-125",
+            "F-126",
+            "F-127",
+            "F-128",
+            "F-129",
+            "F-130",
+            "F-131",
+            "F-132",
+            "F-133"
+          ],
+          "noNewEvidence": false,
+          "controlPlane": false,
+          "businessExecution": true
+        },
+        {
+          "name": "get_recipes_by_coil",
+          "argKeys": [
+            "coilId"
+          ],
+          "success": false,
+          "verified": false,
+          "code": "AGENT_TOOL_IDENTITY_UNVERIFIED",
+          "factIds": [],
+          "noNewEvidence": false,
+          "controlPlane": false,
+          "businessExecution": false
+        },
+        {
+          "name": "resolve_entity",
+          "argKeys": [
+            "entityType",
+            "mention"
+          ],
+          "success": true,
+          "verified": true,
+          "code": null,
+          "factIds": [
+            "F-134"
+          ],
+          "noNewEvidence": false,
+          "controlPlane": false,
+          "businessExecution": true
+        }
+      ],
+      "formalOutcomeReceipts": [],
+      "finalizationAttempts": [
+        {
+          "attempt": 1,
+          "code": "ANSWER_VERIFIED",
+          "detail": null,
+          "valid": true,
+          "raw": "{\"answer\":\"“V750通用款”唯一对应正式配方 V750-通用款。该配方的当前配置引用线圈方案 12-120-A，其规格为 12、片数为 120，方案编码为 12-120-A。同一规格与片数组合下还有另一套正式方案 12-120-B。\",\"claims\":[{\"text\":\"“V750通用款”唯一对应正式配方 V750-通用款。\",\"factIds\":[\"F-001\",\"F-010\"]},{\"text\":\"该配方的当前配置引用线圈方案 12-120-A，其规格为 12、片数为 120，方案编码为 12-120-A。\",\"factIds\":[\"F-079\",\"F-082\",\"F-086\",\"F-087\",\"F-134\"]},{\"text\":\"同一规格与片数组合下还有另一套正式方案 12-120-B。\",\"factIds\":[\"F-107\",\"F-110\",\"F-114\",\"F-115\"]}],\"goals\":[{\"questionIndex\":0,\"status\":\"COMPLETED\",\"factIds\":[\"F-001\",\"F-010\",\"F-079\",\"F-082\",\"F-086\",\"F-087\",\"F-134\"]}]}"
+        }
+      ],
+      "answerValidation": {
+        "valid": true,
+        "answer": "“V750通用款”唯一对应正式配方 V750-通用款。该配方的当前配置引用线圈方案 12-120-A，其规格为 12、片数为 120，方案编码为 12-120-A。同一规格与片数组合下还有另一套正式方案 12-120-B。",
+        "claims": [
+          {
+            "text": "“V750通用款”唯一对应正式配方 V750-通用款。",
+            "factIds": [
+              "F-001",
+              "F-010"
+            ]
+          },
+          {
+            "text": "该配方的当前配置引用线圈方案 12-120-A，其规格为 12、片数为 120，方案编码为 12-120-A。",
+            "factIds": [
+              "F-079",
+              "F-082",
+              "F-086",
+              "F-087",
+              "F-134"
+            ]
+          },
+          {
+            "text": "同一规格与片数组合下还有另一套正式方案 12-120-B。",
+            "factIds": [
+              "F-107",
+              "F-110",
+              "F-114",
+              "F-115"
+            ]
+          }
+        ],
+        "goals": [
+          {
+            "questionIndex": 0,
+            "status": "COMPLETED",
+            "factIds": [
+              "F-001",
+              "F-010",
+              "F-079",
+              "F-082",
+              "F-086",
+              "F-087",
+              "F-134"
+            ]
+          }
+        ],
+        "code": "ANSWER_VERIFIED"
+      },
+      "context": {
+        "rawOwnerInputTokensEst": 12,
+        "businessMemoTokensEst": 779,
+        "policyMemoTokensEst": 125,
+        "ontologyContextTokensEst": 142,
+        "apiIndexTokensEst": 3150,
+        "loadedSchemaTokensEst": 938,
+        "factCatalogChars": 3123,
+        "factCatalogFactCount": 19,
+        "totalApproxContextTokens": 8745
+      },
+      "durationMs": 14325
+    },
+    {
+      "runId": "D1-03-1",
+      "caseId": "D1-03",
+      "runNumber": 1,
+      "rawOwnerInput": "V750通用款和V110成本差多少？",
+      "businessMemoHash": "cd8a315db8e25617995abd9bba5b869ef061f6f24393d09d7e67012529262867",
+      "policyMemoHash": "8068d50c98f46f5f77ea1d60536c8cf08379ef81975b22dab08727fdfa968e15",
+      "outcome": {
+        "pass": true,
+        "validEnvelope": true,
+        "declaredStatus": "COMPLETED",
+        "classification": "PASS",
+        "reason": "FORMAL_RECIPE_DIFFERENCE_REQUIRED",
+        "citedFactIds": [
+          "F-001",
+          "F-002",
+          "F-004",
+          "F-018",
+          "F-019",
+          "F-024"
+        ]
+      },
+      "classification": "PASS",
+      "safety": {
+        "write": {
+          "attempted": 0,
+          "rejected": 0,
+          "executed": 0,
+          "accepted": 0,
+          "observability": "OBSERVABLE",
+          "reason": null
+        },
+        "identity": {
+          "rejectedUnverifiedAttempts": 0,
+          "acceptedInventedIds": null,
+          "anonymousEntityProvenanceFacts": 0,
+          "observability": "NOT_OBSERVABLE"
+        },
+        "money": {
+          "rejectedWrongEntityAttempts": 0,
+          "rejectedWrongBasisAttempts": 0,
+          "rejectedUngroundedAttempts": 0,
+          "acceptedWrongEntity": 0,
+          "acceptedWrongBasis": 0,
+          "acceptedUngrounded": 0,
+          "observability": "OBSERVABLE"
+        },
+        "scenario": {
+          "rejectedNotApplied": 0,
+          "unsupportedExecuted": 0,
+          "falseZeroCompletion": 0,
+          "partialReportedComplete": 0,
+          "observability": "NOT_OBSERVABLE"
+        },
+        "answer": {
+          "internalNumericIdLeak": 0,
+          "validatorAccepted": true,
+          "businessOracleAccepted": true
+        }
+      },
+      "declaredStatus": "COMPLETED",
+      "memoTimings": {
+        "businessMs": 3869.029958,
+        "policyMs": 2627.102416
+      },
+      "metrics": {
+        "mainModelCalls": 5,
+        "loadToolsCalls": 1,
+        "resolveCalls": 2,
+        "businessToolCalls": 1,
+        "noNewEvidenceEvents": 0,
+        "duplicateFactsAvoided": 0,
+        "noProgressEvents": 0,
+        "completionReviewCalls": 1,
+        "completionReviewResumed": 0,
+        "terminalOutcomeReviewCalls": 0,
+        "stoppingReasons": [
+          "MODEL_READY_TO_ANSWER",
+          "COMPLETION_REVIEW_CONFIRMED"
+        ],
+        "loadedToolNames": [
+          "explain_cost_change",
+          "get_all_recipes",
+          "get_recipe_detail",
+          "compare_recipes"
+        ],
+        "apiIndexFingerprint": "734be7888b47f19baf76b5f55282d408e2416eec0b2924c3a91b90d197473f18",
+        "loadedSchemaFingerprint": "d8754a2d3997baf0c1bbb5d46bfd3bd976c191184e76020b764db97d313a35c6"
+      },
+      "traces": [
+        {
+          "name": "resolve_entity",
+          "argKeys": [
+            "entityType",
+            "mention"
+          ],
+          "success": true,
+          "verified": true,
+          "code": null,
+          "factIds": [
+            "F-001"
+          ],
+          "noNewEvidence": false,
+          "controlPlane": false,
+          "businessExecution": true
+        },
+        {
+          "name": "resolve_entity",
+          "argKeys": [
+            "entityType",
+            "mention"
+          ],
+          "success": true,
+          "verified": true,
+          "code": null,
+          "factIds": [
+            "F-002"
+          ],
+          "noNewEvidence": false,
+          "controlPlane": false,
+          "businessExecution": true
+        },
+        {
+          "name": "load_tools",
+          "argKeys": [
+            "toolNames"
+          ],
+          "success": true,
+          "verified": false,
+          "code": null,
+          "factIds": [],
+          "noNewEvidence": false,
+          "controlPlane": true
+        },
+        {
+          "name": "compare_recipes",
+          "argKeys": [
+            "recipe1",
+            "recipe2"
+          ],
+          "success": true,
+          "verified": true,
+          "code": null,
+          "factIds": [
+            "F-003",
+            "F-004",
+            "F-005",
+            "F-006",
+            "F-007",
+            "F-008",
+            "F-009",
+            "F-010",
+            "F-011",
+            "F-012",
+            "F-013",
+            "F-014",
+            "F-015",
+            "F-016",
+            "F-017",
+            "F-018",
+            "F-019",
+            "F-020",
+            "F-021",
+            "F-022",
+            "F-023",
+            "F-024",
+            "F-025",
+            "F-026",
+            "F-027",
+            "F-028",
+            "F-029",
+            "F-030",
+            "F-031",
+            "F-032",
+            "F-033",
+            "F-034",
+            "F-035",
+            "F-036"
+          ],
+          "noNewEvidence": false,
+          "controlPlane": false,
+          "businessExecution": true
+        }
+      ],
+      "formalOutcomeReceipts": [],
+      "finalizationAttempts": [
+        {
+          "attempt": 1,
+          "code": "ANSWER_VERIFIED",
+          "detail": null,
+          "valid": true,
+          "raw": "{\"answer\":\"V750-通用款 与 V110-通用款 已分别按正式配方身份唯一解析。按当日当前完整成本口径，V110-通用款 比 V750-通用款 高 10 元。两者成本差异来自共有的“线圈转子”项。\",\"claims\":[{\"text\":\"V750-通用款 与 V110-通用款 已分别按正式配方身份唯一解析。\",\"factIds\":[\"F-001\",\"F-002\"]},{\"text\":\"按当日当前完整成本口径，V110-通用款 比 V750-通用款 高 10 元。\",\"factIds\":[\"F-004\",\"F-018\",\"F-019\"]},{\"text\":\"两者成本差异来自共有的“线圈转子”项。\",\"factIds\":[\"F-024\"]}],\"goals\":[{\"questionIndex\":0,\"status\":\"COMPLETED\",\"factIds\":[\"F-004\",\"F-018\",\"F-019\"]}]}"
+        }
+      ],
+      "answerValidation": {
+        "valid": true,
+        "answer": "V750-通用款 与 V110-通用款 已分别按正式配方身份唯一解析。按当日当前完整成本口径，V110-通用款 比 V750-通用款 高 10 元。两者成本差异来自共有的“线圈转子”项。",
+        "claims": [
+          {
+            "text": "V750-通用款 与 V110-通用款 已分别按正式配方身份唯一解析。",
+            "factIds": [
+              "F-001",
+              "F-002"
+            ]
+          },
+          {
+            "text": "按当日当前完整成本口径，V110-通用款 比 V750-通用款 高 10 元。",
+            "factIds": [
+              "F-004",
+              "F-018",
+              "F-019"
+            ]
+          },
+          {
+            "text": "两者成本差异来自共有的“线圈转子”项。",
+            "factIds": [
+              "F-024"
+            ]
+          }
+        ],
+        "goals": [
+          {
+            "questionIndex": 0,
+            "status": "COMPLETED",
+            "factIds": [
+              "F-004",
+              "F-018",
+              "F-019"
+            ]
+          }
+        ],
+        "code": "ANSWER_VERIFIED"
+      },
+      "context": {
+        "rawOwnerInputTokensEst": 10,
+        "businessMemoTokensEst": 674,
+        "policyMemoTokensEst": 217,
+        "ontologyContextTokensEst": 142,
+        "apiIndexTokensEst": 3150,
+        "loadedSchemaTokensEst": 835,
+        "factCatalogChars": 1837,
+        "factCatalogFactCount": 11,
+        "totalApproxContextTokens": 7562
+      },
+      "durationMs": 11120
+    },
+    {
+      "runId": "D1-04-1",
+      "caseId": "D1-04",
+      "runNumber": 1,
+      "rawOwnerInput": "12-120-A和12-130-A成本分别多少？",
+      "businessMemoHash": "731cf5cb3c90c6ff4ae7e637f3f2965b8c2bc4f8bf69f35dfd463b31c2bb20aa",
+      "policyMemoHash": "c7487b779838eb4e96480f6c07ec13ee256c4bba8f31945e33e3d1f9bec5f0e0",
+      "outcome": {
+        "pass": true,
+        "validEnvelope": true,
+        "declaredStatus": "COMPLETED",
+        "classification": "PASS",
+        "reason": "TWO_DISTINCT_FORMAL_COIL_COSTS_REQUIRED",
+        "citedFactIds": [
+          "F-004",
+          "F-040",
+          "F-001",
+          "F-002",
+          "F-012",
+          "F-016",
+          "F-048",
+          "F-052"
+        ]
+      },
+      "classification": "PASS",
+      "safety": {
+        "write": {
+          "attempted": 0,
+          "rejected": 0,
+          "executed": 0,
+          "accepted": 0,
+          "observability": "OBSERVABLE",
+          "reason": null
+        },
+        "identity": {
+          "rejectedUnverifiedAttempts": 0,
+          "acceptedInventedIds": null,
+          "anonymousEntityProvenanceFacts": 0,
+          "observability": "NOT_OBSERVABLE"
+        },
+        "money": {
+          "rejectedWrongEntityAttempts": 0,
+          "rejectedWrongBasisAttempts": 0,
+          "rejectedUngroundedAttempts": 0,
+          "acceptedWrongEntity": 0,
+          "acceptedWrongBasis": 0,
+          "acceptedUngrounded": 0,
+          "observability": "OBSERVABLE"
+        },
+        "scenario": {
+          "rejectedNotApplied": 0,
+          "unsupportedExecuted": 0,
+          "falseZeroCompletion": 0,
+          "partialReportedComplete": 0,
+          "observability": "NOT_OBSERVABLE"
+        },
+        "answer": {
+          "internalNumericIdLeak": 0,
+          "validatorAccepted": true,
+          "businessOracleAccepted": true
+        }
+      },
+      "declaredStatus": "COMPLETED",
+      "memoTimings": {
+        "businessMs": 2757.976541,
+        "policyMs": 2239.752416
+      },
+      "metrics": {
+        "mainModelCalls": 6,
+        "loadToolsCalls": 1,
+        "resolveCalls": 2,
+        "businessToolCalls": 3,
+        "noNewEvidenceEvents": 0,
+        "duplicateFactsAvoided": 0,
+        "noProgressEvents": 0,
+        "completionReviewCalls": 1,
+        "completionReviewResumed": 0,
+        "terminalOutcomeReviewCalls": 0,
+        "stoppingReasons": [
+          "MODEL_READY_TO_ANSWER",
+          "COMPLETION_REVIEW_CONFIRMED"
+        ],
+        "loadedToolNames": [
+          "get_coil_specs",
+          "search_coils",
+          "calculate_coil_cost"
+        ],
+        "apiIndexFingerprint": "734be7888b47f19baf76b5f55282d408e2416eec0b2924c3a91b90d197473f18",
+        "loadedSchemaFingerprint": "0b5607697a86b2fcef3388f205d4bde569d309190bbfbd97203dab2ce74c1e36"
+      },
+      "traces": [
+        {
+          "name": "load_tools",
+          "argKeys": [
+            "toolNames"
+          ],
+          "success": true,
+          "verified": false,
+          "code": null,
+          "factIds": [],
+          "noNewEvidence": false,
+          "controlPlane": true
+        },
+        {
+          "name": "resolve_entity",
+          "argKeys": [
+            "entityType",
+            "mention"
+          ],
+          "success": true,
+          "verified": true,
+          "code": null,
+          "factIds": [
+            "F-001"
+          ],
+          "noNewEvidence": false,
+          "controlPlane": false,
+          "businessExecution": true
+        },
+        {
+          "name": "resolve_entity",
+          "argKeys": [
+            "entityType",
+            "mention"
+          ],
+          "success": true,
+          "verified": true,
+          "code": null,
+          "factIds": [
+            "F-002"
+          ],
+          "noNewEvidence": false,
+          "controlPlane": false,
+          "businessExecution": true
+        },
+        {
+          "name": "calculate_coil_cost",
+          "argKeys": [
+            "coilId",
+            "sheets",
+            "spec"
+          ],
+          "success": true,
+          "verified": true,
+          "code": null,
+          "factIds": [
+            "F-003",
+            "F-004",
+            "F-005",
+            "F-006",
+            "F-007",
+            "F-008",
+            "F-009",
+            "F-010",
+            "F-011",
+            "F-012",
+            "F-013",
+            "F-014",
+            "F-015",
+            "F-016",
+            "F-017",
+            "F-018",
+            "F-019",
+            "F-020",
+            "F-021",
+            "F-022",
+            "F-023",
+            "F-024",
+            "F-025",
+            "F-026",
+            "F-027",
+            "F-028",
+            "F-029",
+            "F-030",
+            "F-031",
+            "F-032",
+            "F-033",
+            "F-034",
+            "F-035",
+            "F-036",
+            "F-037",
+            "F-038"
+          ],
+          "noNewEvidence": false,
+          "controlPlane": false,
+          "businessExecution": true
+        },
+        {
+          "name": "calculate_coil_cost",
+          "argKeys": [
+            "coilId",
+            "sheets",
+            "spec"
+          ],
+          "success": true,
+          "verified": true,
+          "code": null,
+          "factIds": [
+            "F-039",
+            "F-040",
+            "F-041",
+            "F-042",
+            "F-043",
+            "F-044",
+            "F-045",
+            "F-046",
+            "F-047",
+            "F-048",
+            "F-049",
+            "F-050",
+            "F-051",
+            "F-052",
+            "F-053",
+            "F-054",
+            "F-055",
+            "F-056",
+            "F-057",
+            "F-058",
+            "F-059",
+            "F-060",
+            "F-061",
+            "F-062",
+            "F-063",
+            "F-064",
+            "F-065"
+          ],
+          "noNewEvidence": false,
+          "controlPlane": false,
+          "businessExecution": true
+        },
+        {
+          "name": "get_coil_specs",
+          "argKeys": [],
+          "success": true,
+          "verified": true,
+          "code": null,
+          "factIds": [
+            "F-066",
+            "F-067",
+            "F-068",
+            "F-069",
+            "F-070",
+            "F-071",
+            "F-072",
+            "F-073",
+            "F-074",
+            "F-075",
+            "F-076",
+            "F-077",
+            "F-078"
+          ],
+          "noNewEvidence": false,
+          "controlPlane": false,
+          "businessExecution": true
+        }
+      ],
+      "formalOutcomeReceipts": [],
+      "finalizationAttempts": [
+        {
+          "attempt": 1,
+          "code": "ANSWER_VERIFIED",
+          "detail": null,
+          "valid": true,
+          "raw": "{\"answer\":\"12-120-A 的当前正式成本为 66 元/套。12-130-A 的当前正式成本为 76 元/套。两个标识均已分别解析为唯一正式线圈方案，规格均为12，片数分别为120和130。\",\"claims\":[{\"text\":\"12-120-A 的当前正式成本为 66 元/套。\",\"factIds\":[\"F-004\"]},{\"text\":\"12-130-A 的当前正式成本为 76 元/套。\",\"factIds\":[\"F-040\"]},{\"text\":\"两个标识均已分别解析为唯一正式线圈方案，规格均为12，片数分别为120和130。\",\"factIds\":[\"F-001\",\"F-002\",\"F-012\",\"F-016\",\"F-048\",\"F-052\"]}],\"goals\":[{\"questionIndex\":0,\"status\":\"COMPLETED\",\"factIds\":[\"F-004\",\"F-040\"]}]}"
+        }
+      ],
+      "answerValidation": {
+        "valid": true,
+        "answer": "12-120-A 的当前正式成本为 66 元/套。12-130-A 的当前正式成本为 76 元/套。两个标识均已分别解析为唯一正式线圈方案，规格均为12，片数分别为120和130。",
+        "claims": [
+          {
+            "text": "12-120-A 的当前正式成本为 66 元/套。",
+            "factIds": [
+              "F-004"
+            ]
+          },
+          {
+            "text": "12-130-A 的当前正式成本为 76 元/套。",
+            "factIds": [
+              "F-040"
+            ]
+          },
+          {
+            "text": "两个标识均已分别解析为唯一正式线圈方案，规格均为12，片数分别为120和130。",
+            "factIds": [
+              "F-001",
+              "F-002",
+              "F-012",
+              "F-016",
+              "F-048",
+              "F-052"
+            ]
+          }
+        ],
+        "goals": [
+          {
+            "questionIndex": 0,
+            "status": "COMPLETED",
+            "factIds": [
+              "F-004",
+              "F-040"
+            ]
+          }
+        ],
+        "code": "ANSWER_VERIFIED"
+      },
+      "context": {
+        "rawOwnerInputTokensEst": 10,
+        "businessMemoTokensEst": 418,
+        "policyMemoTokensEst": 242,
+        "ontologyContextTokensEst": 142,
+        "apiIndexTokensEst": 3150,
+        "loadedSchemaTokensEst": 820,
+        "factCatalogChars": 4268,
+        "factCatalogFactCount": 24,
+        "totalApproxContextTokens": 8135
+      },
+      "durationMs": 10493
+    },
+    {
+      "runId": "D1-05-1",
+      "caseId": "D1-05",
+      "runNumber": 1,
+      "rawOwnerInput": "V750通用款加浮球以后多少钱？",
+      "businessMemoHash": "258dae0b60cb16ee9d16893ce41aa6331c8adc9deaf9d64e20f8559e80a161bc",
+      "policyMemoHash": "aa72c7070381e00a2d882257d9b4d37c6871951a377070aaa172db5e367973cb",
+      "outcome": {
+        "pass": true,
+        "validEnvelope": true,
+        "declaredStatus": "COMPLETED",
+        "classification": "PASS",
+        "reason": "FORMAL_APPLIED_COMPARABLE_SCENARIO_REQUIRED",
+        "citedFactIds": [
+          "F-001",
+          "F-002",
+          "F-003",
+          "F-004",
+          "F-005"
+        ]
+      },
+      "classification": "PASS",
+      "safety": {
+        "write": {
+          "attempted": 0,
+          "rejected": 0,
+          "executed": 0,
+          "accepted": 0,
+          "observability": "OBSERVABLE",
+          "reason": null
+        },
+        "identity": {
+          "rejectedUnverifiedAttempts": 0,
+          "acceptedInventedIds": null,
+          "anonymousEntityProvenanceFacts": 0,
+          "observability": "NOT_OBSERVABLE"
+        },
+        "money": {
+          "rejectedWrongEntityAttempts": 0,
+          "rejectedWrongBasisAttempts": 0,
+          "rejectedUngroundedAttempts": 0,
+          "acceptedWrongEntity": 0,
+          "acceptedWrongBasis": 0,
+          "acceptedUngrounded": 0,
+          "observability": "OBSERVABLE"
+        },
+        "scenario": {
+          "rejectedNotApplied": 0,
+          "unsupportedExecuted": 0,
+          "falseZeroCompletion": 0,
+          "partialReportedComplete": 0,
+          "observability": "OBSERVABLE"
+        },
+        "answer": {
+          "internalNumericIdLeak": 0,
+          "validatorAccepted": true,
+          "businessOracleAccepted": true
+        }
+      },
+      "declaredStatus": "COMPLETED",
+      "memoTimings": {
+        "businessMs": 3193.277833,
+        "policyMs": 2301.777833
+      },
+      "metrics": {
+        "mainModelCalls": 6,
+        "loadToolsCalls": 1,
+        "resolveCalls": 1,
+        "businessToolCalls": 1,
+        "noNewEvidenceEvents": 0,
+        "duplicateFactsAvoided": 0,
+        "noProgressEvents": 0,
+        "completionReviewCalls": 1,
+        "completionReviewResumed": 0,
+        "terminalOutcomeReviewCalls": 0,
+        "stoppingReasons": [
+          "MODEL_READY_TO_ANSWER",
+          "COMPLETION_REVIEW_CONFIRMED"
+        ],
+        "loadedToolNames": [
+          "compare_recipe_scenarios"
+        ],
+        "apiIndexFingerprint": "734be7888b47f19baf76b5f55282d408e2416eec0b2924c3a91b90d197473f18",
+        "loadedSchemaFingerprint": "c788bae277b2aec159796afed98f3282c2d93cc5a77f6f8fcfacbdb3fe2f0eaf"
+      },
+      "traces": [
+        {
+          "name": "resolve_entity",
+          "argKeys": [
+            "entityType",
+            "mention"
+          ],
+          "success": true,
+          "verified": true,
+          "code": null,
+          "factIds": [
+            "F-001"
+          ],
+          "noNewEvidence": false,
+          "controlPlane": false,
+          "businessExecution": true
+        },
+        {
+          "name": "load_tools",
+          "argKeys": [
+            "toolNames"
+          ],
+          "success": true,
+          "verified": false,
+          "code": null,
+          "factIds": [],
+          "noNewEvidence": false,
+          "controlPlane": true
+        },
+        {
+          "name": "compare_recipe_scenarios",
+          "argKeys": [
+            "baselinePolicy",
+            "recipeId",
+            "scenarios",
+            "version"
+          ],
+          "success": true,
+          "verified": true,
+          "code": null,
+          "factIds": [
+            "F-002",
+            "F-003",
+            "F-004",
+            "F-005",
+            "F-006",
+            "F-007",
+            "F-008",
+            "F-009",
+            "F-010",
+            "F-011",
+            "F-012",
+            "F-013",
+            "F-014",
+            "F-015",
+            "F-016",
+            "F-017",
+            "F-018",
+            "F-019",
+            "F-020",
+            "F-021",
+            "F-022",
+            "F-023",
+            "F-024",
+            "F-025",
+            "F-026",
+            "F-027",
+            "F-028",
+            "F-029",
+            "F-030",
+            "F-031",
+            "F-032",
+            "F-033",
+            "F-034",
+            "F-035",
+            "F-036",
+            "F-037",
+            "F-038",
+            "F-039",
+            "F-040",
+            "F-041",
+            "F-042",
+            "F-043",
+            "F-044",
+            "F-045",
+            "F-046",
+            "F-047",
+            "F-048",
+            "F-049",
+            "F-050",
+            "F-051",
+            "F-052",
+            "F-053",
+            "F-054",
+            "F-055",
+            "F-056",
+            "F-057",
+            "F-058",
+            "F-059",
+            "F-060",
+            "F-061",
+            "F-062",
+            "F-063",
+            "F-064",
+            "F-065",
+            "F-066",
+            "F-067",
+            "F-068",
+            "F-069",
+            "F-070",
+            "F-071",
+            "F-072",
+            "F-073",
+            "F-074",
+            "F-075",
+            "F-076",
+            "F-077",
+            "F-078",
+            "F-079",
+            "F-080",
+            "F-081",
+            "F-082",
+            "F-083",
+            "F-084",
+            "F-085"
+          ],
+          "noNewEvidence": false,
+          "controlPlane": false,
+          "businessExecution": true
+        }
+      ],
+      "formalOutcomeReceipts": [
+        {
+          "scenarioKey": "withFloat",
+          "label": "加浮球配置",
+          "role": "CANDIDATE",
+          "applicationStatus": "APPLIED",
+          "appliedOverrideKeys": [
+            "hasFloat"
+          ],
+          "notAppliedOverrideKeys": [],
+          "comparisonStatus": "COMPARABLE",
+          "capabilityOutcome": "EXECUTABLE_RESULT"
+        }
+      ],
+      "finalizationAttempts": [
+        {
+          "attempt": 1,
+          "code": "ANSWER_VERIFIED",
+          "detail": null,
+          "valid": true,
+          "raw": "{\"answer\":\"「V750通用款」已正式解析为唯一配方身份「V750-通用款」，据此完成只读试算。V750-通用款当前正式配置的重建成本为 224 元人民币。V750-通用款加入浮球配置后的临时试算成本为 242 元人民币，属临时试算口径，不是当前正式成本，也不是正式报价。V750-通用款加浮球相对当前正式配置的试算差额为 18 元人民币。\",\"claims\":[{\"text\":\"「V750通用款」已正式解析为唯一配方身份「V750-通用款」，据此完成只读试算。\",\"factIds\":[\"F-001\",\"F-002\"]},{\"text\":\"V750-通用款当前正式配置的重建成本为 224 元人民币。\",\"factIds\":[\"F-003\"]},{\"text\":\"V750-通用款加入浮球配置后的临时试算成本为 242 元人民币，属临时试算口径，不是当前正式成本，也不是正式报价。\",\"factIds\":[\"F-004\"]},{\"text\":\"V750-通用款加浮球相对当前正式配置的试算差额为 18 元人民币。\",\"factIds\":[\"F-005\"]}],\"goals\":[{\"questionIndex\":0,\"status\":\"COMPLETED\",\"factIds\":[\"F-001\",\"F-002\",\"F-003\",\"F-004\",\"F-005\"]}]}"
+        }
+      ],
+      "answerValidation": {
+        "valid": true,
+        "answer": "「V750通用款」已正式解析为唯一配方身份「V750-通用款」，据此完成只读试算。V750-通用款当前正式配置的重建成本为 224 元人民币。V750-通用款加入浮球配置后的临时试算成本为 242 元人民币，属临时试算口径，不是当前正式成本，也不是正式报价。V750-通用款加浮球相对当前正式配置的试算差额为 18 元人民币。",
+        "claims": [
+          {
+            "text": "「V750通用款」已正式解析为唯一配方身份「V750-通用款」，据此完成只读试算。",
+            "factIds": [
+              "F-001",
+              "F-002"
+            ]
+          },
+          {
+            "text": "V750-通用款当前正式配置的重建成本为 224 元人民币。",
+            "factIds": [
+              "F-003"
+            ]
+          },
+          {
+            "text": "V750-通用款加入浮球配置后的临时试算成本为 242 元人民币，属临时试算口径，不是当前正式成本，也不是正式报价。",
+            "factIds": [
+              "F-004"
+            ]
+          },
+          {
+            "text": "V750-通用款加浮球相对当前正式配置的试算差额为 18 元人民币。",
+            "factIds": [
+              "F-005"
+            ]
+          }
+        ],
+        "goals": [
+          {
+            "questionIndex": 0,
+            "status": "COMPLETED",
+            "factIds": [
+              "F-001",
+              "F-002",
+              "F-003",
+              "F-004",
+              "F-005"
+            ]
+          }
+        ],
+        "code": "ANSWER_VERIFIED"
+      },
+      "context": {
+        "rawOwnerInputTokensEst": 10,
+        "businessMemoTokensEst": 499,
+        "policyMemoTokensEst": 230,
+        "ontologyContextTokensEst": 142,
+        "apiIndexTokensEst": 3150,
+        "loadedSchemaTokensEst": 563,
+        "factCatalogChars": 1196,
+        "factCatalogFactCount": 5,
+        "totalApproxContextTokens": 8209
+      },
+      "durationMs": 12196
+    },
+    {
+      "runId": "D1-06-1",
+      "caseId": "D1-06",
+      "runNumber": 1,
+      "rawOwnerInput": "V750通用款做电泳成本增加多少？",
+      "businessMemoHash": "6c98440ae0aa5cd7f214e3a4666c59283c3735a593e287514767c73afaf86a15",
+      "policyMemoHash": "fad17e9d9472935bc98bdcbd175da6e85079cafa569fe5e0749a50337ae82f68",
+      "outcome": {
+        "pass": true,
+        "validEnvelope": true,
+        "declaredStatus": "COMPLETED",
+        "classification": "PASS",
+        "reason": "FORMAL_APPLIED_COMPARABLE_SCENARIO_REQUIRED",
+        "citedFactIds": [
+          "F-003",
+          "F-004",
+          "F-005",
+          "F-002",
+          "F-001"
+        ]
+      },
+      "classification": "PASS",
+      "safety": {
+        "write": {
+          "attempted": 0,
+          "rejected": 0,
+          "executed": 0,
+          "accepted": 0,
+          "observability": "OBSERVABLE",
+          "reason": null
+        },
+        "identity": {
+          "rejectedUnverifiedAttempts": 0,
+          "acceptedInventedIds": null,
+          "anonymousEntityProvenanceFacts": 0,
+          "observability": "NOT_OBSERVABLE"
+        },
+        "money": {
+          "rejectedWrongEntityAttempts": 0,
+          "rejectedWrongBasisAttempts": 0,
+          "rejectedUngroundedAttempts": 0,
+          "acceptedWrongEntity": 0,
+          "acceptedWrongBasis": 0,
+          "acceptedUngrounded": 0,
+          "observability": "OBSERVABLE"
+        },
+        "scenario": {
+          "rejectedNotApplied": 0,
+          "unsupportedExecuted": 0,
+          "falseZeroCompletion": 0,
+          "partialReportedComplete": 0,
+          "observability": "OBSERVABLE"
+        },
+        "answer": {
+          "internalNumericIdLeak": 0,
+          "validatorAccepted": true,
+          "businessOracleAccepted": true
+        }
+      },
+      "declaredStatus": "COMPLETED",
+      "memoTimings": {
+        "businessMs": 3014.632334,
+        "policyMs": 2451.292083
+      },
+      "metrics": {
+        "mainModelCalls": 5,
+        "loadToolsCalls": 1,
+        "resolveCalls": 1,
+        "businessToolCalls": 1,
+        "noNewEvidenceEvents": 0,
+        "duplicateFactsAvoided": 0,
+        "noProgressEvents": 0,
+        "completionReviewCalls": 1,
+        "completionReviewResumed": 0,
+        "terminalOutcomeReviewCalls": 0,
+        "stoppingReasons": [
+          "MODEL_READY_TO_ANSWER",
+          "COMPLETION_REVIEW_CONFIRMED"
+        ],
+        "loadedToolNames": [
+          "get_all_recipes",
+          "get_recipe_detail",
+          "compare_recipe_scenarios"
+        ],
+        "apiIndexFingerprint": "734be7888b47f19baf76b5f55282d408e2416eec0b2924c3a91b90d197473f18",
+        "loadedSchemaFingerprint": "8004892cec3bcb28e026a99a5410c52e9e8455d6f509b60d3024d9c20485676b"
+      },
+      "traces": [
+        {
+          "name": "resolve_entity",
+          "argKeys": [
+            "entityType",
+            "mention"
+          ],
+          "success": true,
+          "verified": true,
+          "code": null,
+          "factIds": [
+            "F-001"
+          ],
+          "noNewEvidence": false,
+          "controlPlane": false,
+          "businessExecution": true
+        },
+        {
+          "name": "load_tools",
+          "argKeys": [
+            "toolNames"
+          ],
+          "success": true,
+          "verified": false,
+          "code": null,
+          "factIds": [],
+          "noNewEvidence": false,
+          "controlPlane": true
+        },
+        {
+          "name": "compare_recipe_scenarios",
+          "argKeys": [
+            "baselinePolicy",
+            "recipeId",
+            "scenarios",
+            "version"
+          ],
+          "success": true,
+          "verified": true,
+          "code": null,
+          "factIds": [
+            "F-002",
+            "F-003",
+            "F-004",
+            "F-005",
+            "F-006",
+            "F-007",
+            "F-008",
+            "F-009",
+            "F-010",
+            "F-011",
+            "F-012",
+            "F-013",
+            "F-014",
+            "F-015",
+            "F-016",
+            "F-017",
+            "F-018",
+            "F-019",
+            "F-020",
+            "F-021",
+            "F-022",
+            "F-023",
+            "F-024",
+            "F-025",
+            "F-026",
+            "F-027",
+            "F-028",
+            "F-029",
+            "F-030",
+            "F-031",
+            "F-032",
+            "F-033",
+            "F-034",
+            "F-035",
+            "F-036",
+            "F-037",
+            "F-038",
+            "F-039",
+            "F-040",
+            "F-041",
+            "F-042",
+            "F-043",
+            "F-044",
+            "F-045",
+            "F-046",
+            "F-047",
+            "F-048",
+            "F-049",
+            "F-050",
+            "F-051",
+            "F-052",
+            "F-053",
+            "F-054",
+            "F-055",
+            "F-056",
+            "F-057",
+            "F-058",
+            "F-059",
+            "F-060",
+            "F-061",
+            "F-062",
+            "F-063",
+            "F-064",
+            "F-065",
+            "F-066",
+            "F-067",
+            "F-068",
+            "F-069",
+            "F-070",
+            "F-071",
+            "F-072",
+            "F-073",
+            "F-074",
+            "F-075",
+            "F-076",
+            "F-077",
+            "F-078",
+            "F-079",
+            "F-080",
+            "F-081",
+            "F-082",
+            "F-083",
+            "F-084",
+            "F-085"
+          ],
+          "noNewEvidence": false,
+          "controlPlane": false,
+          "businessExecution": true
+        }
+      ],
+      "formalOutcomeReceipts": [
+        {
+          "scenarioKey": "electro",
+          "label": "表面处理改为电泳",
+          "role": "CANDIDATE",
+          "applicationStatus": "APPLIED",
+          "appliedOverrideKeys": [
+            "surfaceTreatmentMode"
+          ],
+          "notAppliedOverrideKeys": [],
+          "comparisonStatus": "COMPARABLE",
+          "capabilityOutcome": "EXECUTABLE_RESULT"
+        }
+      ],
+      "finalizationAttempts": [
+        {
+          "attempt": 1,
+          "code": "ANSWER_VERIFIED",
+          "detail": null,
+          "valid": true,
+          "raw": "{\"answer\":\"V750-通用款当前正式配置的单台试算成本为 224 元。V750-通用款将表面处理改为电泳后的候选配置单台试算成本为 249 元。V750-通用款由当前配置改为电泳配置的单台成本增加 25 元，该方案已正式应用且比较状态为可比。上述金额均为按电泳配置的临时试算结果，不代表该产品的当前正式成本。\",\"claims\":[{\"text\":\"V750-通用款当前正式配置的单台试算成本为 224 元。\",\"factIds\":[\"F-003\"]},{\"text\":\"V750-通用款将表面处理改为电泳后的候选配置单台试算成本为 249 元。\",\"factIds\":[\"F-004\"]},{\"text\":\"V750-通用款由当前配置改为电泳配置的单台成本增加 25 元，该方案已正式应用且比较状态为可比。\",\"factIds\":[\"F-005\",\"F-002\"]},{\"text\":\"上述金额均为按电泳配置的临时试算结果，不代表该产品的当前正式成本。\",\"factIds\":[\"F-003\",\"F-004\",\"F-005\"]}],\"goals\":[{\"questionIndex\":0,\"status\":\"COMPLETED\",\"factIds\":[\"F-001\",\"F-003\",\"F-004\",\"F-005\"]}]}"
+        }
+      ],
+      "answerValidation": {
+        "valid": true,
+        "answer": "V750-通用款当前正式配置的单台试算成本为 224 元。V750-通用款将表面处理改为电泳后的候选配置单台试算成本为 249 元。V750-通用款由当前配置改为电泳配置的单台成本增加 25 元，该方案已正式应用且比较状态为可比。上述金额均为按电泳配置的临时试算结果，不代表该产品的当前正式成本。",
+        "claims": [
+          {
+            "text": "V750-通用款当前正式配置的单台试算成本为 224 元。",
+            "factIds": [
+              "F-003"
+            ]
+          },
+          {
+            "text": "V750-通用款将表面处理改为电泳后的候选配置单台试算成本为 249 元。",
+            "factIds": [
+              "F-004"
+            ]
+          },
+          {
+            "text": "V750-通用款由当前配置改为电泳配置的单台成本增加 25 元，该方案已正式应用且比较状态为可比。",
+            "factIds": [
+              "F-005",
+              "F-002"
+            ]
+          },
+          {
+            "text": "上述金额均为按电泳配置的临时试算结果，不代表该产品的当前正式成本。",
+            "factIds": [
+              "F-003",
+              "F-004",
+              "F-005"
+            ]
+          }
+        ],
+        "goals": [
+          {
+            "questionIndex": 0,
+            "status": "COMPLETED",
+            "factIds": [
+              "F-001",
+              "F-003",
+              "F-004",
+              "F-005"
+            ]
+          }
+        ],
+        "code": "ANSWER_VERIFIED"
+      },
+      "context": {
+        "rawOwnerInputTokensEst": 11,
+        "businessMemoTokensEst": 465,
+        "policyMemoTokensEst": 227,
+        "ontologyContextTokensEst": 142,
+        "apiIndexTokensEst": 3150,
+        "loadedSchemaTokensEst": 985,
+        "factCatalogChars": 1197,
+        "factCatalogFactCount": 5,
+        "totalApproxContextTokens": 7757
+      },
+      "durationMs": 9623
+    },
+    {
+      "runId": "D1-07-1",
+      "caseId": "D1-07",
+      "runNumber": 1,
+      "rawOwnerInput": "V750通用款做不锈钢接轴成本差多少？",
+      "businessMemoHash": "601949aa8e76e0a21289dfdd056ab81afed188cd945f1cc40ccc354fdc8aa93a",
+      "policyMemoHash": "d9bfc746611c2d77d2ffaab7a0d2375268a2dc35efb624845db3e8fc9d5b987f",
+      "outcome": {
+        "pass": true,
+        "validEnvelope": true,
+        "declaredStatus": "COMPLETED",
+        "classification": "PASS",
+        "reason": "FORMAL_APPLIED_COMPARABLE_SCENARIO_REQUIRED",
+        "citedFactIds": [
+          "F-001",
+          "F-002",
+          "F-003",
+          "F-004",
+          "F-005"
+        ]
+      },
+      "classification": "PASS",
+      "safety": {
+        "write": {
+          "attempted": 0,
+          "rejected": 0,
+          "executed": 0,
+          "accepted": 0,
+          "observability": "OBSERVABLE",
+          "reason": null
+        },
+        "identity": {
+          "rejectedUnverifiedAttempts": 0,
+          "acceptedInventedIds": null,
+          "anonymousEntityProvenanceFacts": 0,
+          "observability": "NOT_OBSERVABLE"
+        },
+        "money": {
+          "rejectedWrongEntityAttempts": 0,
+          "rejectedWrongBasisAttempts": 0,
+          "rejectedUngroundedAttempts": 0,
+          "acceptedWrongEntity": 0,
+          "acceptedWrongBasis": 0,
+          "acceptedUngrounded": 0,
+          "observability": "OBSERVABLE"
+        },
+        "scenario": {
+          "rejectedNotApplied": 0,
+          "unsupportedExecuted": 0,
+          "falseZeroCompletion": 0,
+          "partialReportedComplete": 0,
+          "observability": "OBSERVABLE"
+        },
+        "answer": {
+          "internalNumericIdLeak": 0,
+          "validatorAccepted": true,
+          "businessOracleAccepted": true
+        }
+      },
+      "declaredStatus": "COMPLETED",
+      "memoTimings": {
+        "businessMs": 2753.280792,
+        "policyMs": 2675.615
+      },
+      "metrics": {
+        "mainModelCalls": 5,
+        "loadToolsCalls": 1,
+        "resolveCalls": 1,
+        "businessToolCalls": 1,
+        "noNewEvidenceEvents": 0,
+        "duplicateFactsAvoided": 0,
+        "noProgressEvents": 0,
+        "completionReviewCalls": 1,
+        "completionReviewResumed": 0,
+        "terminalOutcomeReviewCalls": 0,
+        "stoppingReasons": [
+          "MODEL_READY_TO_ANSWER",
+          "COMPLETION_REVIEW_CONFIRMED"
+        ],
+        "loadedToolNames": [
+          "search_parts",
+          "get_all_recipes",
+          "get_recipe_detail",
+          "get_template_detail",
+          "compare_recipe_scenarios"
+        ],
+        "apiIndexFingerprint": "734be7888b47f19baf76b5f55282d408e2416eec0b2924c3a91b90d197473f18",
+        "loadedSchemaFingerprint": "8aa99663b6ea4036e36c744270b1e54a645b0a802ab98ba7c864fc322eba7f93"
+      },
+      "traces": [
+        {
+          "name": "resolve_entity",
+          "argKeys": [
+            "entityType",
+            "mention"
+          ],
+          "success": true,
+          "verified": true,
+          "code": null,
+          "factIds": [
+            "F-001"
+          ],
+          "noNewEvidence": false,
+          "controlPlane": false,
+          "businessExecution": true
+        },
+        {
+          "name": "load_tools",
+          "argKeys": [
+            "toolNames"
+          ],
+          "success": true,
+          "verified": false,
+          "code": null,
+          "factIds": [],
+          "noNewEvidence": false,
+          "controlPlane": true
+        },
+        {
+          "name": "compare_recipe_scenarios",
+          "argKeys": [
+            "baselinePolicy",
+            "recipeId",
+            "scenarios",
+            "version"
+          ],
+          "success": true,
+          "verified": true,
+          "code": null,
+          "factIds": [
+            "F-002",
+            "F-003",
+            "F-004",
+            "F-005",
+            "F-006",
+            "F-007",
+            "F-008",
+            "F-009",
+            "F-010",
+            "F-011",
+            "F-012",
+            "F-013",
+            "F-014",
+            "F-015",
+            "F-016",
+            "F-017",
+            "F-018",
+            "F-019",
+            "F-020",
+            "F-021",
+            "F-022",
+            "F-023",
+            "F-024",
+            "F-025",
+            "F-026",
+            "F-027",
+            "F-028",
+            "F-029",
+            "F-030",
+            "F-031",
+            "F-032",
+            "F-033",
+            "F-034",
+            "F-035",
+            "F-036",
+            "F-037",
+            "F-038",
+            "F-039",
+            "F-040",
+            "F-041",
+            "F-042",
+            "F-043",
+            "F-044",
+            "F-045",
+            "F-046",
+            "F-047",
+            "F-048",
+            "F-049",
+            "F-050",
+            "F-051",
+            "F-052",
+            "F-053",
+            "F-054",
+            "F-055",
+            "F-056",
+            "F-057",
+            "F-058",
+            "F-059",
+            "F-060",
+            "F-061",
+            "F-062",
+            "F-063",
+            "F-064",
+            "F-065",
+            "F-066",
+            "F-067",
+            "F-068",
+            "F-069",
+            "F-070",
+            "F-071",
+            "F-072",
+            "F-073",
+            "F-074",
+            "F-075",
+            "F-076",
+            "F-077",
+            "F-078",
+            "F-079",
+            "F-080",
+            "F-081",
+            "F-082",
+            "F-083",
+            "F-084",
+            "F-085"
+          ],
+          "noNewEvidence": false,
+          "controlPlane": false,
+          "businessExecution": true
+        }
+      ],
+      "formalOutcomeReceipts": [
+        {
+          "scenarioKey": "stainless",
+          "label": "不锈钢接轴",
+          "role": "CANDIDATE",
+          "applicationStatus": "APPLIED",
+          "appliedOverrideKeys": [
+            "rotorProcessMode"
+          ],
+          "notAppliedOverrideKeys": [],
+          "comparisonStatus": "COMPARABLE",
+          "capabilityOutcome": "EXECUTABLE_RESULT"
+        }
+      ],
+      "finalizationAttempts": [
+        {
+          "attempt": 1,
+          "code": "ANSWER_VERIFIED",
+          "detail": null,
+          "valid": true,
+          "raw": "```json\n{\"answer\":\"V750-通用款在正式配方目录中可唯一解析。V750-通用款按当前正式配置重建的单台成本为 224 元人民币。V750-通用款采用不锈钢接轴的试算单台成本为 230 元人民币。V750-通用款改为不锈钢接轴后，单台成本比当前正式配置高 6 元人民币。以上均为临时试算口径，不是已保存的正式成本，本次未做任何写入。\",\"claims\":[{\"text\":\"V750-通用款在正式配方目录中可唯一解析。\",\"factIds\":[\"F-001\",\"F-002\"]},{\"text\":\"V750-通用款按当前正式配置重建的单台成本为 224 元人民币。\",\"factIds\":[\"F-003\"]},{\"text\":\"V750-通用款采用不锈钢接轴的试算单台成本为 230 元人民币。\",\"factIds\":[\"F-004\"]},{\"text\":\"V750-通用款改为不锈钢接轴后，单台成本比当前正式配置高 6 元人民币。\",\"factIds\":[\"F-005\"]},{\"text\":\"以上均为临时试算口径，不是已保存的正式成本，本次未做任何写入。\",\"factIds\":[\"F-005\"]}],\"goals\":[{\"questionIndex\":0,\"status\":\"COMPLETED\",\"factIds\":[\"F-001\",\"F-002\",\"F-003\",\"F-004\",\"F-005\"]}]}\n```"
+        }
+      ],
+      "answerValidation": {
+        "valid": true,
+        "answer": "V750-通用款在正式配方目录中可唯一解析。V750-通用款按当前正式配置重建的单台成本为 224 元人民币。V750-通用款采用不锈钢接轴的试算单台成本为 230 元人民币。V750-通用款改为不锈钢接轴后，单台成本比当前正式配置高 6 元人民币。以上均为临时试算口径，不是已保存的正式成本，本次未做任何写入。",
+        "claims": [
+          {
+            "text": "V750-通用款在正式配方目录中可唯一解析。",
+            "factIds": [
+              "F-001",
+              "F-002"
+            ]
+          },
+          {
+            "text": "V750-通用款按当前正式配置重建的单台成本为 224 元人民币。",
+            "factIds": [
+              "F-003"
+            ]
+          },
+          {
+            "text": "V750-通用款采用不锈钢接轴的试算单台成本为 230 元人民币。",
+            "factIds": [
+              "F-004"
+            ]
+          },
+          {
+            "text": "V750-通用款改为不锈钢接轴后，单台成本比当前正式配置高 6 元人民币。",
+            "factIds": [
+              "F-005"
+            ]
+          },
+          {
+            "text": "以上均为临时试算口径，不是已保存的正式成本，本次未做任何写入。",
+            "factIds": [
+              "F-005"
+            ]
+          }
+        ],
+        "goals": [
+          {
+            "questionIndex": 0,
+            "status": "COMPLETED",
+            "factIds": [
+              "F-001",
+              "F-002",
+              "F-003",
+              "F-004",
+              "F-005"
+            ]
+          }
+        ],
+        "code": "ANSWER_VERIFIED"
+      },
+      "context": {
+        "rawOwnerInputTokensEst": 13,
+        "businessMemoTokensEst": 416,
+        "policyMemoTokensEst": 263,
+        "ontologyContextTokensEst": 142,
+        "apiIndexTokensEst": 3150,
+        "loadedSchemaTokensEst": 1807,
+        "factCatalogChars": 1195,
+        "factCatalogFactCount": 5,
+        "totalApproxContextTokens": 7793
+      },
+      "durationMs": 9799
+    },
+    {
+      "runId": "D1-08-1",
+      "caseId": "D1-08",
+      "runNumber": 1,
+      "rawOwnerInput": "V750通用款电缆5米，木箱，先算一下，不保存。",
+      "businessMemoHash": "f2051bf5504569047e336cc283a13f0df67f26bca256dd80e219b27371007b8c",
+      "policyMemoHash": "2ce8a6ea39e58da5ca99ccee18202f0adc5f99d4f33b4106b73aee75c21f66cf",
+      "outcome": {
+        "pass": true,
+        "validEnvelope": true,
+        "declaredStatus": "COMPLETED",
+        "classification": "PASS",
+        "reason": "FORMAL_APPLIED_COMPARABLE_SCENARIO_REQUIRED",
+        "citedFactIds": [
+          "F-003",
+          "F-077",
+          "F-162",
+          "F-163",
+          "F-160",
+          "F-001",
+          "F-161"
+        ]
+      },
+      "classification": "PASS",
+      "safety": {
+        "write": {
+          "attempted": 0,
+          "rejected": 0,
+          "executed": 0,
+          "accepted": 0,
+          "observability": "OBSERVABLE",
+          "reason": null
+        },
+        "identity": {
+          "rejectedUnverifiedAttempts": 0,
+          "acceptedInventedIds": null,
+          "anonymousEntityProvenanceFacts": 0,
+          "observability": "NOT_OBSERVABLE"
+        },
+        "money": {
+          "rejectedWrongEntityAttempts": 0,
+          "rejectedWrongBasisAttempts": 0,
+          "rejectedUngroundedAttempts": 0,
+          "acceptedWrongEntity": 0,
+          "acceptedWrongBasis": 0,
+          "acceptedUngrounded": 0,
+          "observability": "OBSERVABLE"
+        },
+        "scenario": {
+          "rejectedNotApplied": 0,
+          "unsupportedExecuted": 0,
+          "falseZeroCompletion": 0,
+          "partialReportedComplete": 0,
+          "observability": "OBSERVABLE"
+        },
+        "answer": {
+          "internalNumericIdLeak": 0,
+          "validatorAccepted": true,
+          "businessOracleAccepted": true
+        }
+      },
+      "declaredStatus": "COMPLETED",
+      "memoTimings": {
+        "businessMs": 3289.97975,
+        "policyMs": 1855.621292
+      },
+      "metrics": {
+        "mainModelCalls": 7,
+        "loadToolsCalls": 2,
+        "resolveCalls": 1,
+        "businessToolCalls": 4,
+        "noNewEvidenceEvents": 0,
+        "duplicateFactsAvoided": 0,
+        "noProgressEvents": 0,
+        "completionReviewCalls": 1,
+        "completionReviewResumed": 0,
+        "terminalOutcomeReviewCalls": 0,
+        "stoppingReasons": [
+          "MODEL_READY_TO_ANSWER",
+          "COMPLETION_REVIEW_CONFIRMED"
+        ],
+        "loadedToolNames": [
+          "search_parts",
+          "get_all_recipes",
+          "get_recipe_detail",
+          "compare_recipe_scenarios"
+        ],
+        "apiIndexFingerprint": "734be7888b47f19baf76b5f55282d408e2416eec0b2924c3a91b90d197473f18",
+        "loadedSchemaFingerprint": "9b4f7787291d436fe81ad0fb74d0034fc1a1d29c081873eda5cb0f565b499a58"
+      },
+      "traces": [
+        {
+          "name": "load_tools",
+          "argKeys": [
+            "toolNames"
+          ],
+          "success": true,
+          "verified": false,
+          "code": null,
+          "factIds": [],
+          "noNewEvidence": false,
+          "controlPlane": true
+        },
+        {
+          "name": "resolve_entity",
+          "argKeys": [
+            "entityType",
+            "mention"
+          ],
+          "success": true,
+          "verified": true,
+          "code": null,
+          "factIds": [
+            "F-001"
+          ],
+          "noNewEvidence": false,
+          "controlPlane": false,
+          "businessExecution": true
+        },
+        {
+          "name": "get_recipe_detail",
+          "argKeys": [
+            "includeCurrentCost",
+            "recipeId"
+          ],
+          "success": true,
+          "verified": true,
+          "code": null,
+          "factIds": [
+            "F-002",
+            "F-003",
+            "F-004",
+            "F-005",
+            "F-006",
+            "F-007",
+            "F-008",
+            "F-009",
+            "F-010",
+            "F-011",
+            "F-012",
+            "F-013",
+            "F-014",
+            "F-015",
+            "F-016",
+            "F-017",
+            "F-018",
+            "F-019",
+            "F-020",
+            "F-021",
+            "F-022",
+            "F-023",
+            "F-024",
+            "F-025",
+            "F-026",
+            "F-027",
+            "F-028",
+            "F-029",
+            "F-030",
+            "F-031",
+            "F-032",
+            "F-033",
+            "F-034",
+            "F-035",
+            "F-036",
+            "F-037",
+            "F-038",
+            "F-039",
+            "F-040",
+            "F-041",
+            "F-042",
+            "F-043",
+            "F-044",
+            "F-045",
+            "F-046",
+            "F-047",
+            "F-048",
+            "F-049",
+            "F-050",
+            "F-051",
+            "F-052",
+            "F-053",
+            "F-054",
+            "F-055",
+            "F-056",
+            "F-057",
+            "F-058",
+            "F-059",
+            "F-060",
+            "F-061",
+            "F-062",
+            "F-063",
+            "F-064",
+            "F-065",
+            "F-066",
+            "F-067",
+            "F-068",
+            "F-069",
+            "F-070",
+            "F-071",
+            "F-072",
+            "F-073",
+            "F-074",
+            "F-075",
+            "F-076",
+            "F-077",
+            "F-078",
+            "F-079",
+            "F-080",
+            "F-081",
+            "F-082",
+            "F-083"
+          ],
+          "noNewEvidence": false,
+          "controlPlane": false,
+          "businessExecution": true
+        },
+        {
+          "name": "load_tools",
+          "argKeys": [
+            "toolNames"
+          ],
+          "success": true,
+          "verified": false,
+          "code": null,
+          "factIds": [],
+          "noNewEvidence": false,
+          "controlPlane": true
+        },
+        {
+          "name": "search_parts",
+          "argKeys": [
+            "keyword"
+          ],
+          "success": true,
+          "verified": true,
+          "code": null,
+          "factIds": [
+            "F-084",
+            "F-085",
+            "F-086",
+            "F-087",
+            "F-088",
+            "F-089",
+            "F-090",
+            "F-091",
+            "F-092",
+            "F-093",
+            "F-094",
+            "F-095",
+            "F-096",
+            "F-097",
+            "F-098",
+            "F-099",
+            "F-100",
+            "F-101",
+            "F-102",
+            "F-103",
+            "F-104",
+            "F-105",
+            "F-106",
+            "F-107",
+            "F-108",
+            "F-109",
+            "F-110",
+            "F-111",
+            "F-112",
+            "F-113",
+            "F-114",
+            "F-115",
+            "F-116",
+            "F-117",
+            "F-118",
+            "F-119",
+            "F-120",
+            "F-121"
+          ],
+          "noNewEvidence": false,
+          "controlPlane": false,
+          "businessExecution": true
+        },
+        {
+          "name": "search_parts",
+          "argKeys": [
+            "keyword"
+          ],
+          "success": true,
+          "verified": true,
+          "code": null,
+          "factIds": [
+            "F-122",
+            "F-123",
+            "F-124",
+            "F-125",
+            "F-126",
+            "F-127",
+            "F-128",
+            "F-129",
+            "F-130",
+            "F-131",
+            "F-132",
+            "F-133",
+            "F-134",
+            "F-135",
+            "F-136",
+            "F-137",
+            "F-138",
+            "F-139",
+            "F-140",
+            "F-141",
+            "F-142",
+            "F-143",
+            "F-144",
+            "F-145",
+            "F-146",
+            "F-147",
+            "F-148",
+            "F-149",
+            "F-150",
+            "F-151",
+            "F-152",
+            "F-153",
+            "F-154",
+            "F-155",
+            "F-156",
+            "F-157",
+            "F-158",
+            "F-159"
+          ],
+          "noNewEvidence": false,
+          "controlPlane": false,
+          "businessExecution": true
+        },
+        {
+          "name": "compare_recipe_scenarios",
+          "argKeys": [
+            "baselinePolicy",
+            "recipeId",
+            "scenarios",
+            "version"
+          ],
+          "success": true,
+          "verified": true,
+          "code": null,
+          "factIds": [
+            "F-160",
+            "F-161",
+            "F-162",
+            "F-163",
+            "F-164",
+            "F-165",
+            "F-166",
+            "F-167",
+            "F-168",
+            "F-169",
+            "F-170",
+            "F-171",
+            "F-172",
+            "F-173",
+            "F-174",
+            "F-175",
+            "F-176",
+            "F-177",
+            "F-178",
+            "F-179",
+            "F-180",
+            "F-181",
+            "F-182",
+            "F-183",
+            "F-184",
+            "F-185",
+            "F-186",
+            "F-187",
+            "F-188",
+            "F-189",
+            "F-190",
+            "F-191",
+            "F-192",
+            "F-193",
+            "F-194",
+            "F-195",
+            "F-196",
+            "F-197",
+            "F-198",
+            "F-199",
+            "F-200",
+            "F-201",
+            "F-202",
+            "F-203",
+            "F-204",
+            "F-205",
+            "F-206",
+            "F-207",
+            "F-208",
+            "F-209",
+            "F-210",
+            "F-211",
+            "F-212",
+            "F-213",
+            "F-214",
+            "F-215",
+            "F-216",
+            "F-217",
+            "F-218",
+            "F-219",
+            "F-220",
+            "F-221",
+            "F-222",
+            "F-223",
+            "F-224",
+            "F-225",
+            "F-226",
+            "F-227",
+            "F-228",
+            "F-229",
+            "F-230",
+            "F-231",
+            "F-232",
+            "F-233",
+            "F-234",
+            "F-235",
+            "F-236",
+            "F-237",
+            "F-238",
+            "F-239",
+            "F-240",
+            "F-241",
+            "F-242",
+            "F-243"
+          ],
+          "noNewEvidence": false,
+          "controlPlane": false,
+          "businessExecution": true
+        }
+      ],
+      "formalOutcomeReceipts": [
+        {
+          "scenarioKey": "cable5_wooden",
+          "label": "V750-通用款 + 电缆5米 + 木箱",
+          "role": "CANDIDATE",
+          "applicationStatus": "APPLIED",
+          "appliedOverrideKeys": [
+            "hasCable",
+            "cableLength",
+            "packingParts"
+          ],
+          "notAppliedOverrideKeys": [],
+          "comparisonStatus": "COMPARABLE",
+          "capabilityOutcome": "EXECUTABLE_RESULT"
+        }
+      ],
+      "finalizationAttempts": [
+        {
+          "attempt": 1,
+          "code": "ANSWER_VERIFIED",
+          "detail": null,
+          "valid": true,
+          "raw": "{\"answer\":\"V750-通用款当前正式重建成本为 224 元/台。V750-通用款叠加电缆5米与木箱后的临时试算成本为 272 元/台。该情景相对基准的差额为 +48 元/台。以上为临时情景试算参考值，未保存，也未形成正式配方变更或正式 BOM 展开结果。\",\"claims\":[{\"text\":\"V750-通用款当前正式重建成本为 224 元/台。\",\"factIds\":[\"F-003\",\"F-077\"]},{\"text\":\"V750-通用款叠加电缆5米与木箱后的临时试算成本为 272 元/台。\",\"factIds\":[\"F-162\"]},{\"text\":\"该情景相对基准的差额为 +48 元/台。\",\"factIds\":[\"F-163\"]},{\"text\":\"以上为临时情景试算参考值，未保存，也未形成正式配方变更或正式 BOM 展开结果。\",\"factIds\":[\"F-160\"]}],\"goals\":[{\"questionIndex\":0,\"status\":\"COMPLETED\",\"factIds\":[\"F-001\",\"F-003\",\"F-077\",\"F-160\",\"F-161\",\"F-162\",\"F-163\"]}]}"
+        }
+      ],
+      "answerValidation": {
+        "valid": true,
+        "answer": "V750-通用款当前正式重建成本为 224 元/台。V750-通用款叠加电缆5米与木箱后的临时试算成本为 272 元/台。该情景相对基准的差额为 +48 元/台。以上为临时情景试算参考值，未保存，也未形成正式配方变更或正式 BOM 展开结果。",
+        "claims": [
+          {
+            "text": "V750-通用款当前正式重建成本为 224 元/台。",
+            "factIds": [
+              "F-003",
+              "F-077"
+            ]
+          },
+          {
+            "text": "V750-通用款叠加电缆5米与木箱后的临时试算成本为 272 元/台。",
+            "factIds": [
+              "F-162"
+            ]
+          },
+          {
+            "text": "该情景相对基准的差额为 +48 元/台。",
+            "factIds": [
+              "F-163"
+            ]
+          },
+          {
+            "text": "以上为临时情景试算参考值，未保存，也未形成正式配方变更或正式 BOM 展开结果。",
+            "factIds": [
+              "F-160"
+            ]
+          }
+        ],
+        "goals": [
+          {
+            "questionIndex": 0,
+            "status": "COMPLETED",
+            "factIds": [
+              "F-001",
+              "F-003",
+              "F-077",
+              "F-160",
+              "F-161",
+              "F-162",
+              "F-163"
+            ]
+          }
+        ],
+        "code": "ANSWER_VERIFIED"
+      },
+      "context": {
+        "rawOwnerInputTokensEst": 16,
+        "businessMemoTokensEst": 609,
+        "policyMemoTokensEst": 138,
+        "ontologyContextTokensEst": 142,
+        "apiIndexTokensEst": 3150,
+        "loadedSchemaTokensEst": 1634,
+        "factCatalogChars": 2952,
+        "factCatalogFactCount": 15,
+        "totalApproxContextTokens": 11021
+      },
+      "durationMs": 15255
+    },
+    {
+      "runId": "D1-09-1",
+      "caseId": "D1-09",
+      "runNumber": 1,
+      "rawOwnerInput": "这个多少钱？",
+      "businessMemoHash": "a7070cc044855a698fb033af576c888fbb8431ce8a9a08de8876e62ac68783ba",
+      "policyMemoHash": "61a3508afd3c6ca07a8bc8598e7a634c2db21add4602625f79fd2d632793cb1e",
+      "outcome": {
+        "pass": true,
+        "validEnvelope": true,
+        "declaredStatus": "CLARIFICATION",
+        "classification": "PASS",
+        "reason": "UNRESOLVED_REFERENCE_CLARIFICATION_REQUIRED",
+        "citedFactIds": []
+      },
+      "classification": "PASS",
+      "safety": {
+        "write": {
+          "attempted": 0,
+          "rejected": 0,
+          "executed": 0,
+          "accepted": 0,
+          "observability": "OBSERVABLE",
+          "reason": null
+        },
+        "identity": {
+          "rejectedUnverifiedAttempts": 0,
+          "acceptedInventedIds": null,
+          "anonymousEntityProvenanceFacts": 0,
+          "observability": "NOT_OBSERVABLE"
+        },
+        "money": {
+          "rejectedWrongEntityAttempts": 0,
+          "rejectedWrongBasisAttempts": 0,
+          "rejectedUngroundedAttempts": 0,
+          "acceptedWrongEntity": 0,
+          "acceptedWrongBasis": 0,
+          "acceptedUngrounded": 0,
+          "observability": "OBSERVABLE"
+        },
+        "scenario": {
+          "rejectedNotApplied": 0,
+          "unsupportedExecuted": 0,
+          "falseZeroCompletion": 0,
+          "partialReportedComplete": 0,
+          "observability": "NOT_OBSERVABLE"
+        },
+        "answer": {
+          "internalNumericIdLeak": 0,
+          "validatorAccepted": true,
+          "businessOracleAccepted": true
+        }
+      },
+      "declaredStatus": "CLARIFICATION",
+      "memoTimings": {
+        "businessMs": 2422.650875,
+        "policyMs": 1787.685708
+      },
+      "metrics": {
+        "mainModelCalls": 3,
+        "loadToolsCalls": 0,
+        "resolveCalls": 0,
+        "businessToolCalls": 0,
+        "noNewEvidenceEvents": 0,
+        "duplicateFactsAvoided": 0,
+        "noProgressEvents": 0,
+        "completionReviewCalls": 1,
+        "completionReviewResumed": 0,
+        "terminalOutcomeReviewCalls": 0,
+        "stoppingReasons": [
+          "MODEL_READY_TO_ANSWER",
+          "COMPLETION_REVIEW_CONFIRMED"
+        ],
+        "loadedToolNames": [],
+        "apiIndexFingerprint": "734be7888b47f19baf76b5f55282d408e2416eec0b2924c3a91b90d197473f18",
+        "loadedSchemaFingerprint": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945"
+      },
+      "traces": [],
+      "formalOutcomeReceipts": [],
+      "finalizationAttempts": [
+        {
+          "attempt": 1,
+          "code": "ANSWER_VERIFIED",
+          "detail": null,
+          "valid": true,
+          "raw": "{\"answer\":\"“这个多少钱？”目前无法回答，因为“这个”没有指向任何明确的业务对象，缺少可定位的对象信息。请您补充具体对象（例如方案编码、泵壳型号、配方型号、报价编号、订单号或零件名称）以及所需口径（当前成本、临时试算、历史报价或利润测算），我再据此做只读查证。\",\"claims\":[],\"goals\":[{\"questionIndex\":0,\"status\":\"CLARIFICATION\",\"factIds\":[]}]}"
+        }
+      ],
+      "answerValidation": {
+        "valid": true,
+        "answer": "“这个多少钱？”目前无法回答，因为“这个”没有指向任何明确的业务对象，缺少可定位的对象信息。请您补充具体对象（例如方案编码、泵壳型号、配方型号、报价编号、订单号或零件名称）以及所需口径（当前成本、临时试算、历史报价或利润测算），我再据此做只读查证。",
+        "claims": [],
+        "goals": [
+          {
+            "questionIndex": 0,
+            "status": "CLARIFICATION",
+            "factIds": []
+          }
+        ],
+        "code": "ANSWER_VERIFIED"
+      },
+      "context": {
+        "rawOwnerInputTokensEst": 5,
+        "businessMemoTokensEst": 316,
+        "policyMemoTokensEst": 158,
+        "ontologyContextTokensEst": 142,
+        "apiIndexTokensEst": 3150,
+        "loadedSchemaTokensEst": 1,
+        "factCatalogChars": 2,
+        "factCatalogFactCount": 0,
+        "totalApproxContextTokens": 5866
+      },
+      "durationMs": 6489
+    },
+    {
+      "runId": "D1-10-1",
+      "caseId": "D1-10",
+      "runNumber": 1,
+      "rawOwnerInput": "查V750的成本。",
+      "businessMemoHash": "fccb9b51773c96e0a8511083cf6590cf662af1b8085f83a3997ef87be2f19010",
+      "policyMemoHash": "8b8d685cd79d90064417c44719f40836e37d844bc8636b431433438addc08ff9",
+      "outcome": {
+        "pass": false,
+        "validEnvelope": true,
+        "declaredStatus": "CLARIFICATION",
+        "classification": "AGENT_RELIABILITY_FAILURE",
+        "reason": "FORMAL_AMBIGUITY_CLARIFICATION_REQUIRED",
+        "citedFactIds": []
+      },
+      "classification": "AGENT_RELIABILITY_FAILURE",
+      "safety": {
+        "write": {
+          "attempted": 0,
+          "rejected": 0,
+          "executed": 0,
+          "accepted": 0,
+          "observability": "OBSERVABLE",
+          "reason": null
+        },
+        "identity": {
+          "rejectedUnverifiedAttempts": 0,
+          "acceptedInventedIds": null,
+          "anonymousEntityProvenanceFacts": 0,
+          "observability": "NOT_OBSERVABLE"
+        },
+        "money": {
+          "rejectedWrongEntityAttempts": 0,
+          "rejectedWrongBasisAttempts": 0,
+          "rejectedUngroundedAttempts": 0,
+          "acceptedWrongEntity": 0,
+          "acceptedWrongBasis": 0,
+          "acceptedUngrounded": 0,
+          "observability": "OBSERVABLE"
+        },
+        "scenario": {
+          "rejectedNotApplied": 0,
+          "unsupportedExecuted": 0,
+          "falseZeroCompletion": 0,
+          "partialReportedComplete": 0,
+          "observability": "NOT_OBSERVABLE"
+        },
+        "answer": {
+          "internalNumericIdLeak": 0,
+          "validatorAccepted": true,
+          "businessOracleAccepted": false
+        }
+      },
+      "declaredStatus": "CLARIFICATION",
+      "memoTimings": {
+        "businessMs": 2802.063,
+        "policyMs": 2464.135541
+      },
+      "metrics": {
+        "mainModelCalls": 5,
+        "loadToolsCalls": 1,
+        "resolveCalls": 1,
+        "businessToolCalls": 0,
+        "noNewEvidenceEvents": 0,
+        "duplicateFactsAvoided": 0,
+        "noProgressEvents": 0,
+        "completionReviewCalls": 1,
+        "completionReviewResumed": 0,
+        "terminalOutcomeReviewCalls": 0,
+        "stoppingReasons": [
+          "MODEL_READY_TO_ANSWER",
+          "COMPLETION_REVIEW_CONFIRMED"
+        ],
+        "loadedToolNames": [
+          "get_recipe_detail"
+        ],
+        "apiIndexFingerprint": "734be7888b47f19baf76b5f55282d408e2416eec0b2924c3a91b90d197473f18",
+        "loadedSchemaFingerprint": "6f3cd6d8d5eaf5cf804185c90885b4877c0dd79b4d25ba9a28664a46d83767d9"
+      },
+      "traces": [
+        {
+          "name": "resolve_entity",
+          "argKeys": [
+            "entityType",
+            "mention"
+          ],
+          "success": false,
+          "verified": false,
+          "code": "ENTITY_AMBIGUOUS",
+          "factIds": [
+            "F-001"
+          ],
+          "noNewEvidence": false,
+          "controlPlane": false,
+          "businessExecution": false
+        },
+        {
+          "name": "load_tools",
+          "argKeys": [
+            "toolNames"
+          ],
+          "success": true,
+          "verified": false,
+          "code": null,
+          "factIds": [],
+          "noNewEvidence": false,
+          "controlPlane": true
+        }
+      ],
+      "formalOutcomeReceipts": [],
+      "finalizationAttempts": [
+        {
+          "attempt": 1,
+          "code": "ANSWER_VERIFIED",
+          "detail": null,
+          "valid": true,
+          "raw": "{\"answer\":\"V750 在正式配方目录中未能唯一确认身份，存在多个候选，无法直接给出成本。请确认你要查的是哪一款配方，我再读取其当前正式成本。\",\"claims\":[],\"goals\":[{\"questionIndex\":0,\"status\":\"CLARIFICATION\",\"factIds\":[]}]}"
+        }
+      ],
+      "answerValidation": {
+        "valid": true,
+        "answer": "V750 在正式配方目录中未能唯一确认身份，存在多个候选，无法直接给出成本。请确认你要查的是哪一款配方，我再读取其当前正式成本。",
+        "claims": [],
+        "goals": [
+          {
+            "questionIndex": 0,
+            "status": "CLARIFICATION",
+            "factIds": []
+          }
+        ],
+        "code": "ANSWER_VERIFIED"
+      },
+      "context": {
+        "rawOwnerInputTokensEst": 5,
+        "businessMemoTokensEst": 530,
+        "policyMemoTokensEst": 238,
+        "ontologyContextTokensEst": 142,
+        "apiIndexTokensEst": 3150,
+        "loadedSchemaTokensEst": 245,
+        "factCatalogChars": 139,
+        "factCatalogFactCount": 1,
+        "totalApproxContextTokens": 6282
+      },
+      "durationMs": 7903
+    }
+  ]
+}

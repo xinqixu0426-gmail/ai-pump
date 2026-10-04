@@ -1,0 +1,18 @@
+{
+  "phase": "M5-D1-FINAL-V3",
+  "runCount": 36,
+  "averageMainModelCalls": 5.972222222222222,
+  "medianMainModelCalls": 6,
+  "averageBusinessToolCalls": 1.8888888888888888,
+  "maxBusinessToolCalls": 5,
+  "averageLoadedTools": 3.111111111111111,
+  "maxLoadedTools": 7,
+  "medianDurationMs": 11231,
+  "p95DurationMs": 15255,
+  "finalization": {
+    "firstPassValid": 33,
+    "validAfterRepair": 3,
+    "fallbackCount": 0,
+    "formalResultObtainedButDeliveryFailed": 0
+  }
+}

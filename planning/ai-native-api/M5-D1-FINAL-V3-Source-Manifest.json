@@ -1,0 +1,88 @@
+{
+  "phase": "M5-D1-FINAL-V3",
+  "productBaselineCommit": "f68dbaf024f3f424d7052da88d0009f6b7dd8043",
+  "harnessCommit": "d4db6006158b3b4396934c0ddd0b3b8b4681e018",
+  "preRunManifest": {
+    "productBaselineCommit": "f68dbaf024f3f424d7052da88d0009f6b7dd8043",
+    "harnessCommit": "d4db6006158b3b4396934c0ddd0b3b8b4681e018",
+    "productDrift": {
+      "productBaselineCommit": "f68dbaf024f3f424d7052da88d0009f6b7dd8043",
+      "changedFiles": [
+        "scripts/ai-experiments/api-native-agent/d1FinalProductDriftGuard.cjs",
+        "tests/d1FinalAcceptanceEvaluator.test.cjs"
+      ],
+      "unexpectedChangedFiles": [],
+      "pass": true
+    },
+    "candidateSourceHash": "3339f3e95e99fe51a0aa81f06af92907bfe0bf92df60e5fb046403998244e083",
+    "candidatePromptHash": "cbee7e0d582b7bf3b899a9768170f5703d030b79f47dfa7e2e75ffacd337df44",
+    "businessAgentPromptHash": "d8a1cec5f921b975156d4226c7f068453480d44480a16c895a1dae590cf525ba",
+    "policyAgentPromptHash": "36255ce44de279cd1be34f6ad18f423ba447c4c009cf9b8a1bc34c64b1545038",
+    "companyBusinessModelHash": "6a83f299cf00d11941d8dc38cab0495c9c504e69ad591e3cd077d9c586e141d4",
+    "domainPolicyHash": "88c6a4d95bc4c161b83419e5d3620920f7a02770cb7fac4d3b29caf81b0a3677",
+    "ontologyHash": "ee860ba477a00abb95aa8221ab2326ae8690f10935d82521adff15f327e59fb9",
+    "apiIndexFingerprint": "734be7888b47f19baf76b5f55282d408e2416eec0b2924c3a91b90d197473f18",
+    "apiIndexCount": 31,
+    "canonicalToolDefinitionsFingerprint": "dd68fcda029ce319021cd34fc051b41e925f4cfba62e9d39fdd38bfc11a57a34",
+    "scenarioToolSchemaFingerprint": "c788bae277b2aec159796afed98f3282c2d93cc5a77f6f8fcfacbdb3fe2f0eaf",
+    "controlledFixtureHash": "a1e6df3db8e5f70b79d715df1986e88e7a02e4ebf4b9ef1ed9f3a078df8855d7",
+    "controlledEvaluatorHash": "ea496f6542f85720793fcba1a34401a4381c42f45edde701a7edb6144776a64f",
+    "realCatalogEvaluatorHash": "ea496f6542f85720793fcba1a34401a4381c42f45edde701a7edb6144776a64f",
+    "controlledRunnerHash": "413c742f66a9971704117fff9b9b58d10c7b9849d79f617db5a2e637b6ea83d7",
+    "repetitionRunnerHash": "9345d3db76c94ab471ac6c26b0b298ab80963cb14994edbac8ed7c1db508554f",
+    "realRunnerHash": "21cd1035cfbd27f13cf0fe37623b7d5094c6bb40c23ae028384a5e7b53a246cb",
+    "provider": "DeepSeek",
+    "model": "deepseek-chat",
+    "contextWindow": 65536,
+    "budgets": {
+      "maxMainModelCalls": 10,
+      "maxBusinessToolCalls": 8,
+      "maxLoadToolsCalls": 4,
+      "maxResolveCalls": 6,
+      "maxFinalizationCalls": 2
+    }
+  },
+  "preRunManifestHash": "f88ca678467022acd1aac1e7bf387b04e7b825d6845be94d1cd6fa9843a9b4e4",
+  "postRunManifest": {
+    "productBaselineCommit": "f68dbaf024f3f424d7052da88d0009f6b7dd8043",
+    "harnessCommit": "d4db6006158b3b4396934c0ddd0b3b8b4681e018",
+    "productDrift": {
+      "productBaselineCommit": "f68dbaf024f3f424d7052da88d0009f6b7dd8043",
+      "changedFiles": [
+        "scripts/ai-experiments/api-native-agent/d1FinalProductDriftGuard.cjs",
+        "tests/d1FinalAcceptanceEvaluator.test.cjs"
+      ],
+      "unexpectedChangedFiles": [],
+      "pass": true
+    },
+    "candidateSourceHash": "3339f3e95e99fe51a0aa81f06af92907bfe0bf92df60e5fb046403998244e083",
+    "candidatePromptHash": "cbee7e0d582b7bf3b899a9768170f5703d030b79f47dfa7e2e75ffacd337df44",
+    "businessAgentPromptHash": "d8a1cec5f921b975156d4226c7f068453480d44480a16c895a1dae590cf525ba",
+    "policyAgentPromptHash": "36255ce44de279cd1be34f6ad18f423ba447c4c009cf9b8a1bc34c64b1545038",
+    "companyBusinessModelHash": "6a83f299cf00d11941d8dc38cab0495c9c504e69ad591e3cd077d9c586e141d4",
+    "domainPolicyHash": "88c6a4d95bc4c161b83419e5d3620920f7a02770cb7fac4d3b29caf81b0a3677",
+    "ontologyHash": "ee860ba477a00abb95aa8221ab2326ae8690f10935d82521adff15f327e59fb9",
+    "apiIndexFingerprint": "734be7888b47f19baf76b5f55282d408e2416eec0b2924c3a91b90d197473f18",
+    "apiIndexCount": 31,
+    "canonicalToolDefinitionsFingerprint": "dd68fcda029ce319021cd34fc051b41e925f4cfba62e9d39fdd38bfc11a57a34",
+    "scenarioToolSchemaFingerprint": "c788bae277b2aec159796afed98f3282c2d93cc5a77f6f8fcfacbdb3fe2f0eaf",
+    "controlledFixtureHash": "a1e6df3db8e5f70b79d715df1986e88e7a02e4ebf4b9ef1ed9f3a078df8855d7",
+    "controlledEvaluatorHash": "ea496f6542f85720793fcba1a34401a4381c42f45edde701a7edb6144776a64f",
+    "realCatalogEvaluatorHash": "ea496f6542f85720793fcba1a34401a4381c42f45edde701a7edb6144776a64f",
+    "controlledRunnerHash": "413c742f66a9971704117fff9b9b58d10c7b9849d79f617db5a2e637b6ea83d7",
+    "repetitionRunnerHash": "9345d3db76c94ab471ac6c26b0b298ab80963cb14994edbac8ed7c1db508554f",
+    "realRunnerHash": "21cd1035cfbd27f13cf0fe37623b7d5094c6bb40c23ae028384a5e7b53a246cb",
+    "provider": "DeepSeek",
+    "model": "deepseek-chat",
+    "contextWindow": 65536,
+    "budgets": {
+      "maxMainModelCalls": 10,
+      "maxBusinessToolCalls": 8,
+      "maxLoadToolsCalls": 4,
+      "maxResolveCalls": 6,
+      "maxFinalizationCalls": 2
+    }
+  },
+  "postRunManifestHash": "f88ca678467022acd1aac1e7bf387b04e7b825d6845be94d1cd6fa9843a9b4e4",
+  "match": true
+}

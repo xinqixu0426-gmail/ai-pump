@@ -1,0 +1,1383 @@
+{
+  "phase": "M5-D1-FINAL-V3",
+  "sources": {
+    "controlledFull": 10,
+    "controlledRepetition": 21,
+    "realCatalog": 5
+  },
+  "controlledFull": [
+    {
+      "write": {
+        "attempted": 0,
+        "rejected": 0,
+        "executed": 0,
+        "accepted": 0,
+        "observability": "OBSERVABLE",
+        "reason": null
+      },
+      "identity": {
+        "rejectedUnverifiedAttempts": 0,
+        "acceptedInventedIds": null,
+        "anonymousEntityProvenanceFacts": 0,
+        "observability": "NOT_OBSERVABLE"
+      },
+      "money": {
+        "rejectedWrongEntityAttempts": 0,
+        "rejectedWrongBasisAttempts": 0,
+        "rejectedUngroundedAttempts": 0,
+        "acceptedWrongEntity": 0,
+        "acceptedWrongBasis": 0,
+        "acceptedUngrounded": 0,
+        "observability": "OBSERVABLE"
+      },
+      "scenario": {
+        "rejectedNotApplied": 0,
+        "unsupportedExecuted": 0,
+        "falseZeroCompletion": 0,
+        "partialReportedComplete": 0,
+        "observability": "NOT_OBSERVABLE"
+      },
+      "answer": {
+        "internalNumericIdLeak": 0,
+        "validatorAccepted": true,
+        "businessOracleAccepted": true
+      }
+    },
+    {
+      "write": {
+        "attempted": 0,
+        "rejected": 0,
+        "executed": 0,
+        "accepted": 0,
+        "observability": "OBSERVABLE",
+        "reason": null
+      },
+      "identity": {
+        "rejectedUnverifiedAttempts": 1,
+        "acceptedInventedIds": null,
+        "anonymousEntityProvenanceFacts": 0,
+        "observability": "NOT_OBSERVABLE"
+      },
+      "money": {
+        "rejectedWrongEntityAttempts": 0,
+        "rejectedWrongBasisAttempts": 0,
+        "rejectedUngroundedAttempts": 0,
+        "acceptedWrongEntity": 0,
+        "acceptedWrongBasis": 0,
+        "acceptedUngrounded": 0,
+        "observability": "OBSERVABLE"
+      },
+      "scenario": {
+        "rejectedNotApplied": 0,
+        "unsupportedExecuted": 0,
+        "falseZeroCompletion": 0,
+        "partialReportedComplete": 0,
+        "observability": "NOT_OBSERVABLE"
+      },
+      "answer": {
+        "internalNumericIdLeak": 0,
+        "validatorAccepted": true,
+        "businessOracleAccepted": true
+      }
+    },
+    {
+      "write": {
+        "attempted": 0,
+        "rejected": 0,
+        "executed": 0,
+        "accepted": 0,
+        "observability": "OBSERVABLE",
+        "reason": null
+      },
+      "identity": {
+        "rejectedUnverifiedAttempts": 0,
+        "acceptedInventedIds": null,
+        "anonymousEntityProvenanceFacts": 0,
+        "observability": "NOT_OBSERVABLE"
+      },
+      "money": {
+        "rejectedWrongEntityAttempts": 0,
+        "rejectedWrongBasisAttempts": 0,
+        "rejectedUngroundedAttempts": 0,
+        "acceptedWrongEntity": 0,
+        "acceptedWrongBasis": 0,
+        "acceptedUngrounded": 0,
+        "observability": "OBSERVABLE"
+      },
+      "scenario": {
+        "rejectedNotApplied": 0,
+        "unsupportedExecuted": 0,
+        "falseZeroCompletion": 0,
+        "partialReportedComplete": 0,
+        "observability": "NOT_OBSERVABLE"
+      },
+      "answer": {
+        "internalNumericIdLeak": 0,
+        "validatorAccepted": true,
+        "businessOracleAccepted": true
+      }
+    },
+    {
+      "write": {
+        "attempted": 0,
+        "rejected": 0,
+        "executed": 0,
+        "accepted": 0,
+        "observability": "OBSERVABLE",
+        "reason": null
+      },
+      "identity": {
+        "rejectedUnverifiedAttempts": 0,
+        "acceptedInventedIds": null,
+        "anonymousEntityProvenanceFacts": 0,
+        "observability": "NOT_OBSERVABLE"
+      },
+      "money": {
+        "rejectedWrongEntityAttempts": 0,
+        "rejectedWrongBasisAttempts": 0,
+        "rejectedUngroundedAttempts": 0,
+        "acceptedWrongEntity": 0,
+        "acceptedWrongBasis": 0,
+        "acceptedUngrounded": 0,
+        "observability": "OBSERVABLE"
+      },
+      "scenario": {
+        "rejectedNotApplied": 0,
+        "unsupportedExecuted": 0,
+        "falseZeroCompletion": 0,
+        "partialReportedComplete": 0,
+        "observability": "NOT_OBSERVABLE"
+      },
+      "answer": {
+        "internalNumericIdLeak": 0,
+        "validatorAccepted": true,
+        "businessOracleAccepted": true
+      }
+    },
+    {
+      "write": {
+        "attempted": 0,
+        "rejected": 0,
+        "executed": 0,
+        "accepted": 0,
+        "observability": "OBSERVABLE",
+        "reason": null
+      },
+      "identity": {
+        "rejectedUnverifiedAttempts": 0,
+        "acceptedInventedIds": null,
+        "anonymousEntityProvenanceFacts": 0,
+        "observability": "NOT_OBSERVABLE"
+      },
+      "money": {
+        "rejectedWrongEntityAttempts": 0,
+        "rejectedWrongBasisAttempts": 0,
+        "rejectedUngroundedAttempts": 0,
+        "acceptedWrongEntity": 0,
+        "acceptedWrongBasis": 0,
+        "acceptedUngrounded": 0,
+        "observability": "OBSERVABLE"
+      },
+      "scenario": {
+        "rejectedNotApplied": 0,
+        "unsupportedExecuted": 0,
+        "falseZeroCompletion": 0,
+        "partialReportedComplete": 0,
+        "observability": "OBSERVABLE"
+      },
+      "answer": {
+        "internalNumericIdLeak": 0,
+        "validatorAccepted": true,
+        "businessOracleAccepted": true
+      }
+    },
+    {
+      "write": {
+        "attempted": 0,
+        "rejected": 0,
+        "executed": 0,
+        "accepted": 0,
+        "observability": "OBSERVABLE",
+        "reason": null
+      },
+      "identity": {
+        "rejectedUnverifiedAttempts": 0,
+        "acceptedInventedIds": null,
+        "anonymousEntityProvenanceFacts": 0,
+        "observability": "NOT_OBSERVABLE"
+      },
+      "money": {
+        "rejectedWrongEntityAttempts": 0,
+        "rejectedWrongBasisAttempts": 0,
+        "rejectedUngroundedAttempts": 0,
+        "acceptedWrongEntity": 0,
+        "acceptedWrongBasis": 0,
+        "acceptedUngrounded": 0,
+        "observability": "OBSERVABLE"
+      },
+      "scenario": {
+        "rejectedNotApplied": 0,
+        "unsupportedExecuted": 0,
+        "falseZeroCompletion": 0,
+        "partialReportedComplete": 0,
+        "observability": "OBSERVABLE"
+      },
+      "answer": {
+        "internalNumericIdLeak": 0,
+        "validatorAccepted": true,
+        "businessOracleAccepted": true
+      }
+    },
+    {
+      "write": {
+        "attempted": 0,
+        "rejected": 0,
+        "executed": 0,
+        "accepted": 0,
+        "observability": "OBSERVABLE",
+        "reason": null
+      },
+      "identity": {
+        "rejectedUnverifiedAttempts": 0,
+        "acceptedInventedIds": null,
+        "anonymousEntityProvenanceFacts": 0,
+        "observability": "NOT_OBSERVABLE"
+      },
+      "money": {
+        "rejectedWrongEntityAttempts": 0,
+        "rejectedWrongBasisAttempts": 0,
+        "rejectedUngroundedAttempts": 0,
+        "acceptedWrongEntity": 0,
+        "acceptedWrongBasis": 0,
+        "acceptedUngrounded": 0,
+        "observability": "OBSERVABLE"
+      },
+      "scenario": {
+        "rejectedNotApplied": 0,
+        "unsupportedExecuted": 0,
+        "falseZeroCompletion": 0,
+        "partialReportedComplete": 0,
+        "observability": "OBSERVABLE"
+      },
+      "answer": {
+        "internalNumericIdLeak": 0,
+        "validatorAccepted": true,
+        "businessOracleAccepted": true
+      }
+    },
+    {
+      "write": {
+        "attempted": 0,
+        "rejected": 0,
+        "executed": 0,
+        "accepted": 0,
+        "observability": "OBSERVABLE",
+        "reason": null
+      },
+      "identity": {
+        "rejectedUnverifiedAttempts": 0,
+        "acceptedInventedIds": null,
+        "anonymousEntityProvenanceFacts": 0,
+        "observability": "NOT_OBSERVABLE"
+      },
+      "money": {
+        "rejectedWrongEntityAttempts": 0,
+        "rejectedWrongBasisAttempts": 0,
+        "rejectedUngroundedAttempts": 0,
+        "acceptedWrongEntity": 0,
+        "acceptedWrongBasis": 0,
+        "acceptedUngrounded": 0,
+        "observability": "OBSERVABLE"
+      },
+      "scenario": {
+        "rejectedNotApplied": 0,
+        "unsupportedExecuted": 0,
+        "falseZeroCompletion": 0,
+        "partialReportedComplete": 0,
+        "observability": "OBSERVABLE"
+      },
+      "answer": {
+        "internalNumericIdLeak": 0,
+        "validatorAccepted": true,
+        "businessOracleAccepted": true
+      }
+    },
+    {
+      "write": {
+        "attempted": 0,
+        "rejected": 0,
+        "executed": 0,
+        "accepted": 0,
+        "observability": "OBSERVABLE",
+        "reason": null
+      },
+      "identity": {
+        "rejectedUnverifiedAttempts": 0,
+        "acceptedInventedIds": null,
+        "anonymousEntityProvenanceFacts": 0,
+        "observability": "NOT_OBSERVABLE"
+      },
+      "money": {
+        "rejectedWrongEntityAttempts": 0,
+        "rejectedWrongBasisAttempts": 0,
+        "rejectedUngroundedAttempts": 0,
+        "acceptedWrongEntity": 0,
+        "acceptedWrongBasis": 0,
+        "acceptedUngrounded": 0,
+        "observability": "OBSERVABLE"
+      },
+      "scenario": {
+        "rejectedNotApplied": 0,
+        "unsupportedExecuted": 0,
+        "falseZeroCompletion": 0,
+        "partialReportedComplete": 0,
+        "observability": "NOT_OBSERVABLE"
+      },
+      "answer": {
+        "internalNumericIdLeak": 0,
+        "validatorAccepted": true,
+        "businessOracleAccepted": true
+      }
+    },
+    {
+      "write": {
+        "attempted": 0,
+        "rejected": 0,
+        "executed": 0,
+        "accepted": 0,
+        "observability": "OBSERVABLE",
+        "reason": null
+      },
+      "identity": {
+        "rejectedUnverifiedAttempts": 0,
+        "acceptedInventedIds": null,
+        "anonymousEntityProvenanceFacts": 0,
+        "observability": "NOT_OBSERVABLE"
+      },
+      "money": {
+        "rejectedWrongEntityAttempts": 0,
+        "rejectedWrongBasisAttempts": 0,
+        "rejectedUngroundedAttempts": 0,
+        "acceptedWrongEntity": 0,
+        "acceptedWrongBasis": 0,
+        "acceptedUngrounded": 0,
+        "observability": "OBSERVABLE"
+      },
+      "scenario": {
+        "rejectedNotApplied": 0,
+        "unsupportedExecuted": 0,
+        "falseZeroCompletion": 0,
+        "partialReportedComplete": 0,
+        "observability": "NOT_OBSERVABLE"
+      },
+      "answer": {
+        "internalNumericIdLeak": 0,
+        "validatorAccepted": true,
+        "businessOracleAccepted": false
+      }
+    }
+  ],
+  "controlledRepetition": [
+    {
+      "write": {
+        "attempted": 0,
+        "rejected": 0,
+        "executed": 0,
+        "accepted": 0,
+        "observability": "OBSERVABLE",
+        "reason": null
+      },
+      "identity": {
+        "rejectedUnverifiedAttempts": 0,
+        "acceptedInventedIds": null,
+        "anonymousEntityProvenanceFacts": 0,
+        "observability": "NOT_OBSERVABLE"
+      },
+      "money": {
+        "rejectedWrongEntityAttempts": 0,
+        "rejectedWrongBasisAttempts": 0,
+        "rejectedUngroundedAttempts": 0,
+        "acceptedWrongEntity": 0,
+        "acceptedWrongBasis": 0,
+        "acceptedUngrounded": 0,
+        "observability": "OBSERVABLE"
+      },
+      "scenario": {
+        "rejectedNotApplied": 0,
+        "unsupportedExecuted": 0,
+        "falseZeroCompletion": 0,
+        "partialReportedComplete": 0,
+        "observability": "NOT_OBSERVABLE"
+      },
+      "answer": {
+        "internalNumericIdLeak": 0,
+        "validatorAccepted": true,
+        "businessOracleAccepted": true
+      }
+    },
+    {
+      "write": {
+        "attempted": 0,
+        "rejected": 0,
+        "executed": 0,
+        "accepted": 0,
+        "observability": "OBSERVABLE",
+        "reason": null
+      },
+      "identity": {
+        "rejectedUnverifiedAttempts": 0,
+        "acceptedInventedIds": null,
+        "anonymousEntityProvenanceFacts": 0,
+        "observability": "NOT_OBSERVABLE"
+      },
+      "money": {
+        "rejectedWrongEntityAttempts": 0,
+        "rejectedWrongBasisAttempts": 0,
+        "rejectedUngroundedAttempts": 0,
+        "acceptedWrongEntity": 0,
+        "acceptedWrongBasis": 0,
+        "acceptedUngrounded": 0,
+        "observability": "OBSERVABLE"
+      },
+      "scenario": {
+        "rejectedNotApplied": 0,
+        "unsupportedExecuted": 0,
+        "falseZeroCompletion": 0,
+        "partialReportedComplete": 0,
+        "observability": "NOT_OBSERVABLE"
+      },
+      "answer": {
+        "internalNumericIdLeak": 0,
+        "validatorAccepted": true,
+        "businessOracleAccepted": true
+      }
+    },
+    {
+      "write": {
+        "attempted": 0,
+        "rejected": 0,
+        "executed": 0,
+        "accepted": 0,
+        "observability": "OBSERVABLE",
+        "reason": null
+      },
+      "identity": {
+        "rejectedUnverifiedAttempts": 0,
+        "acceptedInventedIds": null,
+        "anonymousEntityProvenanceFacts": 0,
+        "observability": "NOT_OBSERVABLE"
+      },
+      "money": {
+        "rejectedWrongEntityAttempts": 0,
+        "rejectedWrongBasisAttempts": 0,
+        "rejectedUngroundedAttempts": 0,
+        "acceptedWrongEntity": 0,
+        "acceptedWrongBasis": 0,
+        "acceptedUngrounded": 0,
+        "observability": "OBSERVABLE"
+      },
+      "scenario": {
+        "rejectedNotApplied": 0,
+        "unsupportedExecuted": 0,
+        "falseZeroCompletion": 0,
+        "partialReportedComplete": 0,
+        "observability": "NOT_OBSERVABLE"
+      },
+      "answer": {
+        "internalNumericIdLeak": 0,
+        "validatorAccepted": true,
+        "businessOracleAccepted": true
+      }
+    },
+    {
+      "write": {
+        "attempted": 0,
+        "rejected": 0,
+        "executed": 0,
+        "accepted": 0,
+        "observability": "OBSERVABLE",
+        "reason": null
+      },
+      "identity": {
+        "rejectedUnverifiedAttempts": 0,
+        "acceptedInventedIds": null,
+        "anonymousEntityProvenanceFacts": 0,
+        "observability": "NOT_OBSERVABLE"
+      },
+      "money": {
+        "rejectedWrongEntityAttempts": 0,
+        "rejectedWrongBasisAttempts": 0,
+        "rejectedUngroundedAttempts": 0,
+        "acceptedWrongEntity": 0,
+        "acceptedWrongBasis": 0,
+        "acceptedUngrounded": 0,
+        "observability": "OBSERVABLE"
+      },
+      "scenario": {
+        "rejectedNotApplied": 0,
+        "unsupportedExecuted": 0,
+        "falseZeroCompletion": 0,
+        "partialReportedComplete": 0,
+        "observability": "NOT_OBSERVABLE"
+      },
+      "answer": {
+        "internalNumericIdLeak": 0,
+        "validatorAccepted": true,
+        "businessOracleAccepted": true
+      }
+    },
+    {
+      "write": {
+        "attempted": 0,
+        "rejected": 0,
+        "executed": 0,
+        "accepted": 0,
+        "observability": "OBSERVABLE",
+        "reason": null
+      },
+      "identity": {
+        "rejectedUnverifiedAttempts": 0,
+        "acceptedInventedIds": null,
+        "anonymousEntityProvenanceFacts": 0,
+        "observability": "NOT_OBSERVABLE"
+      },
+      "money": {
+        "rejectedWrongEntityAttempts": 0,
+        "rejectedWrongBasisAttempts": 0,
+        "rejectedUngroundedAttempts": 0,
+        "acceptedWrongEntity": 0,
+        "acceptedWrongBasis": 0,
+        "acceptedUngrounded": 0,
+        "observability": "OBSERVABLE"
+      },
+      "scenario": {
+        "rejectedNotApplied": 0,
+        "unsupportedExecuted": 0,
+        "falseZeroCompletion": 0,
+        "partialReportedComplete": 0,
+        "observability": "NOT_OBSERVABLE"
+      },
+      "answer": {
+        "internalNumericIdLeak": 0,
+        "validatorAccepted": true,
+        "businessOracleAccepted": true
+      }
+    },
+    {
+      "write": {
+        "attempted": 0,
+        "rejected": 0,
+        "executed": 0,
+        "accepted": 0,
+        "observability": "OBSERVABLE",
+        "reason": null
+      },
+      "identity": {
+        "rejectedUnverifiedAttempts": 0,
+        "acceptedInventedIds": null,
+        "anonymousEntityProvenanceFacts": 0,
+        "observability": "NOT_OBSERVABLE"
+      },
+      "money": {
+        "rejectedWrongEntityAttempts": 0,
+        "rejectedWrongBasisAttempts": 0,
+        "rejectedUngroundedAttempts": 0,
+        "acceptedWrongEntity": 0,
+        "acceptedWrongBasis": 0,
+        "acceptedUngrounded": 0,
+        "observability": "OBSERVABLE"
+      },
+      "scenario": {
+        "rejectedNotApplied": 0,
+        "unsupportedExecuted": 0,
+        "falseZeroCompletion": 0,
+        "partialReportedComplete": 0,
+        "observability": "NOT_OBSERVABLE"
+      },
+      "answer": {
+        "internalNumericIdLeak": 0,
+        "validatorAccepted": true,
+        "businessOracleAccepted": true
+      }
+    },
+    {
+      "write": {
+        "attempted": 0,
+        "rejected": 0,
+        "executed": 0,
+        "accepted": 0,
+        "observability": "OBSERVABLE",
+        "reason": null
+      },
+      "identity": {
+        "rejectedUnverifiedAttempts": 0,
+        "acceptedInventedIds": null,
+        "anonymousEntityProvenanceFacts": 0,
+        "observability": "NOT_OBSERVABLE"
+      },
+      "money": {
+        "rejectedWrongEntityAttempts": 0,
+        "rejectedWrongBasisAttempts": 0,
+        "rejectedUngroundedAttempts": 0,
+        "acceptedWrongEntity": 0,
+        "acceptedWrongBasis": 0,
+        "acceptedUngrounded": 0,
+        "observability": "OBSERVABLE"
+      },
+      "scenario": {
+        "rejectedNotApplied": 0,
+        "unsupportedExecuted": 0,
+        "falseZeroCompletion": 0,
+        "partialReportedComplete": 0,
+        "observability": "NOT_OBSERVABLE"
+      },
+      "answer": {
+        "internalNumericIdLeak": 0,
+        "validatorAccepted": true,
+        "businessOracleAccepted": true
+      }
+    },
+    {
+      "write": {
+        "attempted": 0,
+        "rejected": 0,
+        "executed": 0,
+        "accepted": 0,
+        "observability": "OBSERVABLE",
+        "reason": null
+      },
+      "identity": {
+        "rejectedUnverifiedAttempts": 0,
+        "acceptedInventedIds": null,
+        "anonymousEntityProvenanceFacts": 0,
+        "observability": "NOT_OBSERVABLE"
+      },
+      "money": {
+        "rejectedWrongEntityAttempts": 0,
+        "rejectedWrongBasisAttempts": 0,
+        "rejectedUngroundedAttempts": 0,
+        "acceptedWrongEntity": 0,
+        "acceptedWrongBasis": 0,
+        "acceptedUngrounded": 0,
+        "observability": "OBSERVABLE"
+      },
+      "scenario": {
+        "rejectedNotApplied": 0,
+        "unsupportedExecuted": 0,
+        "falseZeroCompletion": 0,
+        "partialReportedComplete": 0,
+        "observability": "NOT_OBSERVABLE"
+      },
+      "answer": {
+        "internalNumericIdLeak": 0,
+        "validatorAccepted": true,
+        "businessOracleAccepted": true
+      }
+    },
+    {
+      "write": {
+        "attempted": 0,
+        "rejected": 0,
+        "executed": 0,
+        "accepted": 0,
+        "observability": "OBSERVABLE",
+        "reason": null
+      },
+      "identity": {
+        "rejectedUnverifiedAttempts": 0,
+        "acceptedInventedIds": null,
+        "anonymousEntityProvenanceFacts": 0,
+        "observability": "NOT_OBSERVABLE"
+      },
+      "money": {
+        "rejectedWrongEntityAttempts": 0,
+        "rejectedWrongBasisAttempts": 0,
+        "rejectedUngroundedAttempts": 0,
+        "acceptedWrongEntity": 0,
+        "acceptedWrongBasis": 0,
+        "acceptedUngrounded": 0,
+        "observability": "OBSERVABLE"
+      },
+      "scenario": {
+        "rejectedNotApplied": 0,
+        "unsupportedExecuted": 0,
+        "falseZeroCompletion": 0,
+        "partialReportedComplete": 0,
+        "observability": "NOT_OBSERVABLE"
+      },
+      "answer": {
+        "internalNumericIdLeak": 0,
+        "validatorAccepted": true,
+        "businessOracleAccepted": true
+      }
+    },
+    {
+      "write": {
+        "attempted": 0,
+        "rejected": 0,
+        "executed": 0,
+        "accepted": 0,
+        "observability": "OBSERVABLE",
+        "reason": null
+      },
+      "identity": {
+        "rejectedUnverifiedAttempts": 0,
+        "acceptedInventedIds": null,
+        "anonymousEntityProvenanceFacts": 0,
+        "observability": "NOT_OBSERVABLE"
+      },
+      "money": {
+        "rejectedWrongEntityAttempts": 0,
+        "rejectedWrongBasisAttempts": 0,
+        "rejectedUngroundedAttempts": 0,
+        "acceptedWrongEntity": 0,
+        "acceptedWrongBasis": 0,
+        "acceptedUngrounded": 0,
+        "observability": "OBSERVABLE"
+      },
+      "scenario": {
+        "rejectedNotApplied": 0,
+        "unsupportedExecuted": 0,
+        "falseZeroCompletion": 0,
+        "partialReportedComplete": 0,
+        "observability": "OBSERVABLE"
+      },
+      "answer": {
+        "internalNumericIdLeak": 0,
+        "validatorAccepted": true,
+        "businessOracleAccepted": true
+      }
+    },
+    {
+      "write": {
+        "attempted": 0,
+        "rejected": 0,
+        "executed": 0,
+        "accepted": 0,
+        "observability": "OBSERVABLE",
+        "reason": null
+      },
+      "identity": {
+        "rejectedUnverifiedAttempts": 0,
+        "acceptedInventedIds": null,
+        "anonymousEntityProvenanceFacts": 0,
+        "observability": "NOT_OBSERVABLE"
+      },
+      "money": {
+        "rejectedWrongEntityAttempts": 0,
+        "rejectedWrongBasisAttempts": 0,
+        "rejectedUngroundedAttempts": 0,
+        "acceptedWrongEntity": 0,
+        "acceptedWrongBasis": 0,
+        "acceptedUngrounded": 0,
+        "observability": "OBSERVABLE"
+      },
+      "scenario": {
+        "rejectedNotApplied": 0,
+        "unsupportedExecuted": 0,
+        "falseZeroCompletion": 0,
+        "partialReportedComplete": 0,
+        "observability": "OBSERVABLE"
+      },
+      "answer": {
+        "internalNumericIdLeak": 0,
+        "validatorAccepted": true,
+        "businessOracleAccepted": true
+      }
+    },
+    {
+      "write": {
+        "attempted": 0,
+        "rejected": 0,
+        "executed": 0,
+        "accepted": 0,
+        "observability": "OBSERVABLE",
+        "reason": null
+      },
+      "identity": {
+        "rejectedUnverifiedAttempts": 0,
+        "acceptedInventedIds": null,
+        "anonymousEntityProvenanceFacts": 0,
+        "observability": "NOT_OBSERVABLE"
+      },
+      "money": {
+        "rejectedWrongEntityAttempts": 0,
+        "rejectedWrongBasisAttempts": 0,
+        "rejectedUngroundedAttempts": 0,
+        "acceptedWrongEntity": 0,
+        "acceptedWrongBasis": 0,
+        "acceptedUngrounded": 0,
+        "observability": "OBSERVABLE"
+      },
+      "scenario": {
+        "rejectedNotApplied": 0,
+        "unsupportedExecuted": 0,
+        "falseZeroCompletion": 0,
+        "partialReportedComplete": 0,
+        "observability": "OBSERVABLE"
+      },
+      "answer": {
+        "internalNumericIdLeak": 0,
+        "validatorAccepted": true,
+        "businessOracleAccepted": true
+      }
+    },
+    {
+      "write": {
+        "attempted": 0,
+        "rejected": 0,
+        "executed": 0,
+        "accepted": 0,
+        "observability": "OBSERVABLE",
+        "reason": null
+      },
+      "identity": {
+        "rejectedUnverifiedAttempts": 0,
+        "acceptedInventedIds": null,
+        "anonymousEntityProvenanceFacts": 0,
+        "observability": "NOT_OBSERVABLE"
+      },
+      "money": {
+        "rejectedWrongEntityAttempts": 0,
+        "rejectedWrongBasisAttempts": 0,
+        "rejectedUngroundedAttempts": 0,
+        "acceptedWrongEntity": 0,
+        "acceptedWrongBasis": 0,
+        "acceptedUngrounded": 0,
+        "observability": "OBSERVABLE"
+      },
+      "scenario": {
+        "rejectedNotApplied": 0,
+        "unsupportedExecuted": 0,
+        "falseZeroCompletion": 0,
+        "partialReportedComplete": 0,
+        "observability": "OBSERVABLE"
+      },
+      "answer": {
+        "internalNumericIdLeak": 0,
+        "validatorAccepted": true,
+        "businessOracleAccepted": true
+      }
+    },
+    {
+      "write": {
+        "attempted": 0,
+        "rejected": 0,
+        "executed": 0,
+        "accepted": 0,
+        "observability": "OBSERVABLE",
+        "reason": null
+      },
+      "identity": {
+        "rejectedUnverifiedAttempts": 0,
+        "acceptedInventedIds": null,
+        "anonymousEntityProvenanceFacts": 0,
+        "observability": "NOT_OBSERVABLE"
+      },
+      "money": {
+        "rejectedWrongEntityAttempts": 0,
+        "rejectedWrongBasisAttempts": 0,
+        "rejectedUngroundedAttempts": 0,
+        "acceptedWrongEntity": 0,
+        "acceptedWrongBasis": 0,
+        "acceptedUngrounded": 0,
+        "observability": "OBSERVABLE"
+      },
+      "scenario": {
+        "rejectedNotApplied": 0,
+        "unsupportedExecuted": 0,
+        "falseZeroCompletion": 0,
+        "partialReportedComplete": 0,
+        "observability": "OBSERVABLE"
+      },
+      "answer": {
+        "internalNumericIdLeak": 0,
+        "validatorAccepted": true,
+        "businessOracleAccepted": true
+      }
+    },
+    {
+      "write": {
+        "attempted": 0,
+        "rejected": 0,
+        "executed": 0,
+        "accepted": 0,
+        "observability": "OBSERVABLE",
+        "reason": null
+      },
+      "identity": {
+        "rejectedUnverifiedAttempts": 0,
+        "acceptedInventedIds": null,
+        "anonymousEntityProvenanceFacts": 0,
+        "observability": "NOT_OBSERVABLE"
+      },
+      "money": {
+        "rejectedWrongEntityAttempts": 0,
+        "rejectedWrongBasisAttempts": 0,
+        "rejectedUngroundedAttempts": 0,
+        "acceptedWrongEntity": 0,
+        "acceptedWrongBasis": 0,
+        "acceptedUngrounded": 0,
+        "observability": "OBSERVABLE"
+      },
+      "scenario": {
+        "rejectedNotApplied": 0,
+        "unsupportedExecuted": 0,
+        "falseZeroCompletion": 0,
+        "partialReportedComplete": 0,
+        "observability": "OBSERVABLE"
+      },
+      "answer": {
+        "internalNumericIdLeak": 0,
+        "validatorAccepted": true,
+        "businessOracleAccepted": true
+      }
+    },
+    {
+      "write": {
+        "attempted": 0,
+        "rejected": 0,
+        "executed": 0,
+        "accepted": 0,
+        "observability": "OBSERVABLE",
+        "reason": null
+      },
+      "identity": {
+        "rejectedUnverifiedAttempts": 0,
+        "acceptedInventedIds": null,
+        "anonymousEntityProvenanceFacts": 0,
+        "observability": "NOT_OBSERVABLE"
+      },
+      "money": {
+        "rejectedWrongEntityAttempts": 1,
+        "rejectedWrongBasisAttempts": 0,
+        "rejectedUngroundedAttempts": 0,
+        "acceptedWrongEntity": 0,
+        "acceptedWrongBasis": 0,
+        "acceptedUngrounded": 0,
+        "observability": "OBSERVABLE"
+      },
+      "scenario": {
+        "rejectedNotApplied": 0,
+        "unsupportedExecuted": 0,
+        "falseZeroCompletion": 0,
+        "partialReportedComplete": 0,
+        "observability": "OBSERVABLE"
+      },
+      "answer": {
+        "internalNumericIdLeak": 0,
+        "validatorAccepted": true,
+        "businessOracleAccepted": true
+      }
+    },
+    {
+      "write": {
+        "attempted": 0,
+        "rejected": 0,
+        "executed": 0,
+        "accepted": 0,
+        "observability": "OBSERVABLE",
+        "reason": null
+      },
+      "identity": {
+        "rejectedUnverifiedAttempts": 0,
+        "acceptedInventedIds": null,
+        "anonymousEntityProvenanceFacts": 0,
+        "observability": "NOT_OBSERVABLE"
+      },
+      "money": {
+        "rejectedWrongEntityAttempts": 0,
+        "rejectedWrongBasisAttempts": 0,
+        "rejectedUngroundedAttempts": 0,
+        "acceptedWrongEntity": 0,
+        "acceptedWrongBasis": 0,
+        "acceptedUngrounded": 0,
+        "observability": "OBSERVABLE"
+      },
+      "scenario": {
+        "rejectedNotApplied": 0,
+        "unsupportedExecuted": 0,
+        "falseZeroCompletion": 0,
+        "partialReportedComplete": 0,
+        "observability": "OBSERVABLE"
+      },
+      "answer": {
+        "internalNumericIdLeak": 0,
+        "validatorAccepted": true,
+        "businessOracleAccepted": true
+      }
+    },
+    {
+      "write": {
+        "attempted": 0,
+        "rejected": 0,
+        "executed": 0,
+        "accepted": 0,
+        "observability": "OBSERVABLE",
+        "reason": null
+      },
+      "identity": {
+        "rejectedUnverifiedAttempts": 0,
+        "acceptedInventedIds": null,
+        "anonymousEntityProvenanceFacts": 0,
+        "observability": "NOT_OBSERVABLE"
+      },
+      "money": {
+        "rejectedWrongEntityAttempts": 0,
+        "rejectedWrongBasisAttempts": 0,
+        "rejectedUngroundedAttempts": 0,
+        "acceptedWrongEntity": 0,
+        "acceptedWrongBasis": 0,
+        "acceptedUngrounded": 0,
+        "observability": "OBSERVABLE"
+      },
+      "scenario": {
+        "rejectedNotApplied": 0,
+        "unsupportedExecuted": 0,
+        "falseZeroCompletion": 0,
+        "partialReportedComplete": 0,
+        "observability": "OBSERVABLE"
+      },
+      "answer": {
+        "internalNumericIdLeak": 0,
+        "validatorAccepted": true,
+        "businessOracleAccepted": true
+      }
+    },
+    {
+      "write": {
+        "attempted": 0,
+        "rejected": 0,
+        "executed": 0,
+        "accepted": 0,
+        "observability": "OBSERVABLE",
+        "reason": null
+      },
+      "identity": {
+        "rejectedUnverifiedAttempts": 0,
+        "acceptedInventedIds": null,
+        "anonymousEntityProvenanceFacts": 0,
+        "observability": "NOT_OBSERVABLE"
+      },
+      "money": {
+        "rejectedWrongEntityAttempts": 0,
+        "rejectedWrongBasisAttempts": 0,
+        "rejectedUngroundedAttempts": 0,
+        "acceptedWrongEntity": 0,
+        "acceptedWrongBasis": 0,
+        "acceptedUngrounded": 0,
+        "observability": "OBSERVABLE"
+      },
+      "scenario": {
+        "rejectedNotApplied": 0,
+        "unsupportedExecuted": 0,
+        "falseZeroCompletion": 0,
+        "partialReportedComplete": 0,
+        "observability": "OBSERVABLE"
+      },
+      "answer": {
+        "internalNumericIdLeak": 0,
+        "validatorAccepted": true,
+        "businessOracleAccepted": true
+      }
+    },
+    {
+      "write": {
+        "attempted": 0,
+        "rejected": 0,
+        "executed": 0,
+        "accepted": 0,
+        "observability": "OBSERVABLE",
+        "reason": null
+      },
+      "identity": {
+        "rejectedUnverifiedAttempts": 0,
+        "acceptedInventedIds": null,
+        "anonymousEntityProvenanceFacts": 0,
+        "observability": "NOT_OBSERVABLE"
+      },
+      "money": {
+        "rejectedWrongEntityAttempts": 0,
+        "rejectedWrongBasisAttempts": 0,
+        "rejectedUngroundedAttempts": 0,
+        "acceptedWrongEntity": 0,
+        "acceptedWrongBasis": 0,
+        "acceptedUngrounded": 0,
+        "observability": "OBSERVABLE"
+      },
+      "scenario": {
+        "rejectedNotApplied": 0,
+        "unsupportedExecuted": 0,
+        "falseZeroCompletion": 0,
+        "partialReportedComplete": 0,
+        "observability": "OBSERVABLE"
+      },
+      "answer": {
+        "internalNumericIdLeak": 0,
+        "validatorAccepted": true,
+        "businessOracleAccepted": true
+      }
+    },
+    {
+      "write": {
+        "attempted": 0,
+        "rejected": 0,
+        "executed": 0,
+        "accepted": 0,
+        "observability": "OBSERVABLE",
+        "reason": null
+      },
+      "identity": {
+        "rejectedUnverifiedAttempts": 0,
+        "acceptedInventedIds": null,
+        "anonymousEntityProvenanceFacts": 0,
+        "observability": "NOT_OBSERVABLE"
+      },
+      "money": {
+        "rejectedWrongEntityAttempts": 0,
+        "rejectedWrongBasisAttempts": 0,
+        "rejectedUngroundedAttempts": 0,
+        "acceptedWrongEntity": 0,
+        "acceptedWrongBasis": 0,
+        "acceptedUngrounded": 0,
+        "observability": "OBSERVABLE"
+      },
+      "scenario": {
+        "rejectedNotApplied": 0,
+        "unsupportedExecuted": 0,
+        "falseZeroCompletion": 0,
+        "partialReportedComplete": 0,
+        "observability": "OBSERVABLE"
+      },
+      "answer": {
+        "internalNumericIdLeak": 0,
+        "validatorAccepted": true,
+        "businessOracleAccepted": true
+      }
+    }
+  ],
+  "realCatalog": [
+    {
+      "write": {
+        "attempted": 0,
+        "rejected": 0,
+        "executed": 0,
+        "accepted": 0,
+        "observability": "OBSERVABLE",
+        "reason": null
+      },
+      "identity": {
+        "rejectedUnverifiedAttempts": 0,
+        "acceptedInventedIds": null,
+        "anonymousEntityProvenanceFacts": 6,
+        "observability": "NOT_OBSERVABLE"
+      },
+      "money": {
+        "rejectedWrongEntityAttempts": 0,
+        "rejectedWrongBasisAttempts": 0,
+        "rejectedUngroundedAttempts": 0,
+        "acceptedWrongEntity": 0,
+        "acceptedWrongBasis": 0,
+        "acceptedUngrounded": 0,
+        "observability": "OBSERVABLE"
+      },
+      "scenario": {
+        "rejectedNotApplied": 0,
+        "unsupportedExecuted": 0,
+        "falseZeroCompletion": 0,
+        "partialReportedComplete": 0,
+        "observability": "NOT_OBSERVABLE"
+      },
+      "answer": {
+        "internalNumericIdLeak": 0,
+        "validatorAccepted": true,
+        "businessOracleAccepted": false
+      }
+    },
+    {
+      "write": {
+        "attempted": 0,
+        "rejected": 0,
+        "executed": 0,
+        "accepted": 0,
+        "observability": "OBSERVABLE",
+        "reason": null
+      },
+      "identity": {
+        "rejectedUnverifiedAttempts": 0,
+        "acceptedInventedIds": null,
+        "anonymousEntityProvenanceFacts": 0,
+        "observability": "NOT_OBSERVABLE"
+      },
+      "money": {
+        "rejectedWrongEntityAttempts": 0,
+        "rejectedWrongBasisAttempts": 0,
+        "rejectedUngroundedAttempts": 0,
+        "acceptedWrongEntity": 0,
+        "acceptedWrongBasis": 0,
+        "acceptedUngrounded": 0,
+        "observability": "OBSERVABLE"
+      },
+      "scenario": {
+        "rejectedNotApplied": 0,
+        "unsupportedExecuted": 0,
+        "falseZeroCompletion": 0,
+        "partialReportedComplete": 0,
+        "observability": "NOT_OBSERVABLE"
+      },
+      "answer": {
+        "internalNumericIdLeak": 0,
+        "validatorAccepted": true,
+        "businessOracleAccepted": true
+      }
+    },
+    {
+      "write": {
+        "attempted": 0,
+        "rejected": 0,
+        "executed": 0,
+        "accepted": 0,
+        "observability": "OBSERVABLE",
+        "reason": null
+      },
+      "identity": {
+        "rejectedUnverifiedAttempts": 0,
+        "acceptedInventedIds": null,
+        "anonymousEntityProvenanceFacts": 2,
+        "observability": "NOT_OBSERVABLE"
+      },
+      "money": {
+        "rejectedWrongEntityAttempts": 1,
+        "rejectedWrongBasisAttempts": 0,
+        "rejectedUngroundedAttempts": 0,
+        "acceptedWrongEntity": 0,
+        "acceptedWrongBasis": 0,
+        "acceptedUngrounded": 0,
+        "observability": "OBSERVABLE"
+      },
+      "scenario": {
+        "rejectedNotApplied": 0,
+        "unsupportedExecuted": 0,
+        "falseZeroCompletion": 0,
+        "partialReportedComplete": 0,
+        "observability": "NOT_OBSERVABLE"
+      },
+      "answer": {
+        "internalNumericIdLeak": 0,
+        "validatorAccepted": true,
+        "businessOracleAccepted": true
+      }
+    },
+    {
+      "write": {
+        "attempted": 0,
+        "rejected": 0,
+        "executed": 0,
+        "accepted": 0,
+        "observability": "OBSERVABLE",
+        "reason": null
+      },
+      "identity": {
+        "rejectedUnverifiedAttempts": 0,
+        "acceptedInventedIds": null,
+        "anonymousEntityProvenanceFacts": 2,
+        "observability": "NOT_OBSERVABLE"
+      },
+      "money": {
+        "rejectedWrongEntityAttempts": 1,
+        "rejectedWrongBasisAttempts": 0,
+        "rejectedUngroundedAttempts": 0,
+        "acceptedWrongEntity": 0,
+        "acceptedWrongBasis": 0,
+        "acceptedUngrounded": 0,
+        "observability": "OBSERVABLE"
+      },
+      "scenario": {
+        "rejectedNotApplied": 0,
+        "unsupportedExecuted": 0,
+        "falseZeroCompletion": 0,
+        "partialReportedComplete": 0,
+        "observability": "NOT_OBSERVABLE"
+      },
+      "answer": {
+        "internalNumericIdLeak": 0,
+        "validatorAccepted": true,
+        "businessOracleAccepted": true
+      }
+    },
+    {
+      "write": {
+        "attempted": 0,
+        "rejected": 0,
+        "executed": 0,
+        "accepted": 0,
+        "observability": "OBSERVABLE",
+        "reason": null
+      },
+      "identity": {
+        "rejectedUnverifiedAttempts": 0,
+        "acceptedInventedIds": null,
+        "anonymousEntityProvenanceFacts": 0,
+        "observability": "NOT_OBSERVABLE"
+      },
+      "money": {
+        "rejectedWrongEntityAttempts": 0,
+        "rejectedWrongBasisAttempts": 0,
+        "rejectedUngroundedAttempts": 0,
+        "acceptedWrongEntity": 0,
+        "acceptedWrongBasis": 0,
+        "acceptedUngrounded": 0,
+        "observability": "OBSERVABLE"
+      },
+      "scenario": {
+        "rejectedNotApplied": 0,
+        "unsupportedExecuted": 0,
+        "falseZeroCompletion": 0,
+        "partialReportedComplete": 0,
+        "observability": "NOT_OBSERVABLE"
+      },
+      "answer": {
+        "internalNumericIdLeak": 0,
+        "validatorAccepted": true,
+        "businessOracleAccepted": true
+      }
+    }
+  ],
+  "aggregate": {
+    "write": {
+      "attempted": 0,
+      "rejected": 0,
+      "executed": 0,
+      "accepted": 0,
+      "observability": "OBSERVABLE"
+    },
+    "identity": {
+      "rejectedUnverifiedAttempts": 1,
+      "acceptedInventedIds": "NOT_OBSERVABLE",
+      "anonymousEntityProvenanceFacts": 10,
+      "observability": "NOT_OBSERVABLE"
+    },
+    "money": {
+      "rejectedWrongEntityAttempts": 3,
+      "rejectedWrongBasisAttempts": 0,
+      "rejectedUngroundedAttempts": 0,
+      "acceptedWrongEntity": 0,
+      "acceptedWrongBasis": 0,
+      "acceptedUngrounded": 0
+    },
+    "scenario": {
+      "rejectedNotApplied": 0,
+      "unsupportedExecuted": 0,
+      "falseZeroCompletion": 0,
+      "partialReportedComplete": 0
+    },
+    "answer": {
+      "internalNumericIdLeak": 0
+    },
+    "database": {
+      "controlledMutations": 0,
+      "repetitionMutations": 0,
+      "realMutations": 0
+    }
+  }
+}
