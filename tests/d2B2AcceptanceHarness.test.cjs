@@ -16,6 +16,8 @@ const { freezeManifestData, verifyR6AcceptanceFreeze } = require('../scripts/ai-
 const { createFrozenRagFixtureExecutor } = require('../scripts/ai-experiments/api-native-agent/d2B2R6RagFixtureAdapter.cjs');
 const { buildApiIndex } = require('../api/services/ai-assistant/apiIndex.cjs');
 const durable = require('../scripts/ai-experiments/api-native-agent/d2B2R6DurableFreshRunner.cjs');
+const durableExecutor = require('../scripts/ai-experiments/api-native-agent/d2B2R6DurableCaseExecutor.cjs');
+const durableCli = require('../scripts/ai-experiments/api-native-agent/run-d2-b2-r6-durable.cjs');
 function testFreezeManifest(directory, harnessFreezeCommit = 'test-freeze') {
   const target = path.join(directory, 'freeze-manifest.json'); fs.writeFileSync(target, JSON.stringify(freezeManifestData(harnessFreezeCommit)));
   return target;
@@ -189,6 +191,51 @@ test('R6H4C13 DR-01..25: durable per-case checkpoints are immutable, resumable, 
   const mismatch = JSON.parse(fs.readFileSync(path.join(root, 'M5-D2-B2-runs', 'rag', 'durable-rag', 'batch.json'), 'utf8')); mismatch.caseInputHashes['RAG-01'] = 'wrong'; fs.writeFileSync(path.join(root, 'M5-D2-B2-runs', 'rag', 'durable-rag', 'batch.json'), JSON.stringify(mismatch));
   assert.throws(() => durable.inspectFreshBatch(root, { suite: 'rag', batchRunId: 'durable-rag', manifestPath }), /R6_DURABLE_BATCH_IDENTITY_MISMATCH/);
   assert.equal(fs.readFileSync(path.join(__dirname, '../scripts/ai-experiments/api-native-agent/apiNativeAgentCandidate.cjs'), 'utf8').includes('d2B2R6DurableFreshRunner'), false);
+});
+test('R6H4C13R EX-01..25: frozen durable CLI maps one slot to the real-case adapter without caller execution injection', async () => {
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), 'd2-b2-r6-durable-cli-')); const manifestPath = testFreezeManifest(root, 'durable-cli-freeze');
+  const candidate = { traces: [], relevantApiCoverage: { selectedBusinessDomains: ['order'], domainApiSet: [], ragAuxiliarySearched: true }, factLedger: { facts: [] }, answerValidation: { valid: true, claims: [], answer: '受控答案。' } };
+  const seen = { prompts: [], adapter: 0, d2: [], d1: [] };
+  const databaseSnapshot = () => ({ hash: 'fixture-hash', rowsByTable: {}, trackedTables: [] });
+  const dependencies = {
+    startD2B2ControlledFixture: async () => ({ db: {}, ids: { orderA: 'ORDER-A' }, fixtureKind: 'fake-d2', close: async () => {} }),
+    startD1R1ControlledFixture: async () => ({ db: {}, ids: {}, fixtureKind: 'fake-d1', close: async () => {} }),
+    databaseSnapshot,
+    compareDatabaseSnapshots: (before, after) => ({ beforeHash: before.hash, afterHash: after.hash, changedTables: [], mutations: 0 }),
+    finalAcceptanceEnvironment: () => ({ TEST: '1' }),
+    freshMemos: async input => ({ businessMemo: `business:${input}`, policyMemo: `policy:${input}` }),
+    runApiNativeAgentCandidate: async (input, options) => { seen.prompts.push(input); assert.equal(typeof options.executeToolCall, 'function'); return candidate; },
+    executeToolCall: async () => ({ success: true, verified: true }),
+    scoreDomainCorpusResult: (testCase, value) => ({ caseId: testCase.id, semanticPass: value === candidate, safety: { wrongEntity: 0, wrongQuantity: 0, unknownAsZero: 0, partialAsComplete: 0, formalConflictSilentSelection: 0, write: 0 } }),
+    buildD2Oracles: async () => ({ 'W1-01': {}, 'W1-04': {}, 'W1-06': {}, 'W1-10': {} }),
+    buildD1Oracles: async () => ({ 'D1-03': {}, 'D1-07': {}, 'D1-08': {}, 'D1-10': {} }),
+    runD2CandidateCase: async testCase => { seen.d2.push(testCase); return { candidate, outcome: { pass: true }, safety: {} }; },
+    runD1CandidateCase: async testCase => { seen.d1.push(testCase); return { candidate, outcome: { pass: true }, safety: {} }; },
+    scoredResult: payload => ({ caseId: payload.caseId, runNumber: payload.runNumber || 1, semanticPass: payload.outcome.pass === true, safety: { wrongEntity: 0, wrongQuantity: 0, unknownAsZero: 0, partialAsComplete: 0, formalConflictSilentSelection: 0, write: 0 } }),
+    createFrozenRagFixtureExecutor: (delegate, fixtureId) => { seen.adapter += 1; assert.equal(fixtureId, 'RAG-01'); return delegate; },
+  };
+  const base = { R6_DURABLE_SUITE: 'domain-corpus', R6_DURABLE_BATCH_RUN_ID: 'cli-domain', R6_DURABLE_MANIFEST: manifestPath, R6_DURABLE_OUTPUT_DIR: root };
+  const create = await durableCli.run({ ...base, R6_DURABLE_ACTION: 'CREATE' }); assert.equal(create.expectedCaseCount, 12);
+  const inspect = await durableCli.run({ ...base, R6_DURABLE_ACTION: 'INSPECT' }); assert.equal(inspect.pendingCases[0], 'D01');
+  await assert.rejects(() => durableCli.run({ ...base, R6_DURABLE_ACTION: 'CASE', R6_DURABLE_CASE_KEY: 'D01' }, { caseExecutorDependencies: dependencies }), /D2_B2_MODEL_RUN_REQUIRES_EXPLICIT_OPT_IN/);
+  const prior = process.env.D2_B2_ALLOW_MODEL_RUN; process.env.D2_B2_ALLOW_MODEL_RUN = '1';
+  try {
+    const receipt = await durableCli.run({ ...base, R6_DURABLE_ACTION: 'CASE', R6_DURABLE_CASE_KEY: 'D01' }, { caseExecutorDependencies: dependencies });
+    assert.equal(receipt.checkpointWritten, true); assert.equal(receipt.semanticPass, true); assert.equal(seen.prompts.length, 1);
+    assert.equal(Object.hasOwn(seen.prompts[0], 'expectedDomains'), false);
+    await assert.rejects(() => durableCli.run({ ...base, R6_DURABLE_ACTION: 'CASE', R6_DURABLE_CASE_KEY: 'D01' }, { caseExecutorDependencies: dependencies }), /R6_DURABLE_CASE_ALREADY_COMPLETED/);
+    for (const [caseId, oracle] of Object.entries(durableExecutor.TARGETED_ORACLE_BY_CASE)) {
+      const slot = durable.slotsFor('targeted').find(item => item.caseId === caseId);
+      await durableExecutor.executeDurableCase({ suite: 'targeted', caseKey: slot.caseKey, slot, freeze: { productFreezeCommit: 'p', harnessFreezeCommit: 'h' } }, dependencies);
+      assert.equal(seen.d2.at(-1).id, oracle);
+    }
+    const ragSlot = durable.slotsFor('rag')[0]; await durableExecutor.executeDurableCase({ suite: 'rag', caseKey: ragSlot.caseKey, slot: ragSlot, freeze: { productFreezeCommit: 'p', harnessFreezeCommit: 'h' } }, dependencies); assert.equal(seen.adapter, 1);
+    const d1Slot = durable.slotsFor('d1-protection')[0]; await durableExecutor.executeDurableCase({ suite: 'd1-protection', caseKey: d1Slot.caseKey, slot: d1Slot, freeze: { productFreezeCommit: 'p', harnessFreezeCommit: 'h' } }, dependencies); assert.equal(seen.d1.at(-1).id, d1Slot.caseId);
+    await assert.rejects(() => durableExecutor.executeDurableCase({ suite: 'd1-protection', caseKey: 'D1-99', slot: { caseKey: 'D1-99', caseId: 'D1-99' }, freeze: { productFreezeCommit: 'p', harnessFreezeCommit: 'h' } }, dependencies), /R6_DURABLE_CASE_SLOT_INVALID/);
+  } finally { if (prior === undefined) delete process.env.D2_B2_ALLOW_MODEL_RUN; else process.env.D2_B2_ALLOW_MODEL_RUN = prior; }
+  assert.equal(durableExecutor.D1_CASE_IDS.length, 4);
+  assert.equal(fs.existsSync(path.join(root, 'M5-D2-B2-runs', 'domain-corpus', 'cli-domain', 'cases', 'D01.json')), true);
+  assert.equal(fs.readFileSync(path.join(__dirname, '../scripts/ai-experiments/api-native-agent/apiNativeAgentCandidate.cjs'), 'utf8').includes('d2B2R6DurableCaseExecutor'), false);
 });
 test('D2-B2 source manifest pins the B1 product baseline and the reviewed 31-capability API Index contract', () => {
   const manifest = buildManifest({ harnessCommit: 'test-harness' }); assert.equal(manifest.productBaselineCommit, PRODUCT_BASELINE_COMMIT); assert.equal(manifest.apiIndexCount, 31); assert.equal(manifest.apiIndexFingerprint, '10bee9d8a065ea2322fcaf14bdf21cee949d0f57da8c3d5133448c1ee7d09c61'); assert.equal(typeof manifest.realRunnerHash, 'string'); assert.equal(typeof manifest.exclusiveEvidenceContractHash, 'string');
