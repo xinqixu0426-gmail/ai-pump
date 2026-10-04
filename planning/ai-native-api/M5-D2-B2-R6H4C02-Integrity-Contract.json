@@ -1,0 +1,20 @@
+{
+  "phase": "D2-B2-R6H4-C0.2",
+  "modelCalls": 0,
+  "productChanged": false,
+  "suiteArtifactContract": {
+    "domainCorpus": { "artifacts": 1, "results": 12 },
+    "rag": { "artifacts": 1, "results": 4 },
+    "targeted": { "artifacts": 1, "results": 14 },
+    "d1Protection": { "artifacts": 1, "results": 4 },
+    "repositoryGates": { "artifacts": 2, "requiredGates": 7 }
+  },
+  "freezeIntegrity": {
+    "sourceHashes": "verified against current bytes",
+    "apiIndexFingerprint": "verified",
+    "callerSuppliedFreezeReceipt": "rejected",
+    "dirtyFrozenSource": "rejected",
+    "planningOnlyChanges": "allowed"
+  },
+  "endToEndSyntheticAssembly": "PASS"
+}

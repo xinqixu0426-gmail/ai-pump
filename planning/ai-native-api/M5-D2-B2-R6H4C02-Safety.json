@@ -1,0 +1,34 @@
+{
+  "measurementContract": {
+    "genericPerResult": [
+      "wrongEntity",
+      "wrongQuantity",
+      "unknownAsZero",
+      "partialAsComplete",
+      "formalConflictSilentSelection",
+      "write"
+    ],
+    "ragAuthoritySuite": [
+      "ragOverrideFormal",
+      "historyAsCurrent"
+    ],
+    "suiteDatabaseReceipt": [
+      "beforeHash",
+      "afterHash",
+      "changedTables",
+      "mutations"
+    ]
+  },
+  "hardening": {
+    "ragSafetyHardcodedZero": false,
+    "unknownExecutedToolAccess": "fail closed",
+    "missingDatabaseReceipt": "fail closed",
+    "missingSafetyMeasurement": "fail closed",
+    "incompleteRepositoryGateReceipt": "fail closed"
+  },
+  "preflight": {
+    "modelCalls": 0,
+    "businessExecutions": 0,
+    "databaseMutations": 0
+  }
+}
