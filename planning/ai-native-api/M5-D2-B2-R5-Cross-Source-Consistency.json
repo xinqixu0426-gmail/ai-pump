@@ -1,0 +1,9 @@
+{
+  "phase": "M5-D2-B2-R5",
+  "status": "PASS",
+  "sameScopeSameSemanticValue": "CORROBORATED",
+  "sameScopeDifferentSemanticValue": "FORMAL_EVIDENCE_CONFLICT; conflicting facts are removed from the claimable catalog and validator rejects their use",
+  "differentScope": "retained without a false conflict",
+  "ledgerSilentlySelectsConflict": false,
+  "tests": ["CS-01", "CS-02", "CS-03", "CS-04"]
+}

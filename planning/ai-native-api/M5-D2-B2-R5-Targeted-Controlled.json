@@ -1,0 +1,26 @@
+{
+  "phase": "M5-D2-B2-R5",
+  "status": "SUPERVISOR_DECISION_REQUIRED",
+  "fixture": "isolated temporary SQLite + real Express routes + real Executor + formal services",
+  "modelAuthorizationScope": "Only D2-B2 fixture prompts, generated memos, required tool/API schema, and read-only formal results were sent to DeepSeek.",
+  "runs": [
+    {"runId":"d2b2r5-w106-01","caseId":"W1-06","semanticPass":true,"declaredStatus":"COMPLETED","stagingArtifact":"M5-D2-B2-runs/controlled/d2b2r5-w106-01/artifact.json"},
+    {"runId":"d2b2r5-w106-02","caseId":"W1-06","semanticPass":true,"declaredStatus":"COMPLETED","stagingArtifact":"M5-D2-B2-runs/controlled/d2b2r5-w106-02/artifact.json"},
+    {"runId":"d2b2r5-w106-03","caseId":"W1-06","semanticPass":true,"declaredStatus":"COMPLETED","unrelatedToolObserved":"get_recent_orders","stagingArtifact":"M5-D2-B2-runs/controlled/d2b2r5-w106-03/artifact.json"},
+    {"runId":"d2b2r5-w106-04","caseId":"W1-06","semanticPass":true,"declaredStatus":"COMPLETED","stagingArtifact":"M5-D2-B2-runs/controlled/d2b2r5-w106-04/artifact.json"},
+    {"runId":"d2b2r5-w106-05","caseId":"W1-06","semanticPass":false,"declaredStatus":"UNAVAILABLE","unrelatedToolObserved":"preview_virtual_readiness","failure":"Finalizer overanswered with an unrelated virtual-readiness result, then emitted two goals for one owner question after validator repair.","stagingArtifact":"M5-D2-B2-runs/controlled/d2b2r5-w106-05/artifact.json"},
+    {"runId":"d2b2r5-shortage-01","caseId":"W1-01","semanticPass":false,"declaredStatus":"PARTIAL","failure":"A shortage-only question expanded to order detail, purchase overview, knowledge package, and virtual readiness; answer juxtaposed two formal scopes instead of answering the requested order-readiness result.","stagingArtifact":"M5-D2-B2-runs/controlled/d2b2r5-shortage-01/artifact.json"},
+    {"runId":"d2b2r5-order-detail-01","caseId":"W1-04","semanticPass":true,"declaredStatus":"COMPLETED","stagingArtifact":"M5-D2-B2-runs/controlled/d2b2r5-order-detail-01/artifact.json"},
+    {"runId":"d2b2r5-pending-01","caseId":"W1-10","semanticPass":false,"declaredStatus":"COMPLETED","failure":"Agent called unfiltered get_purchase_overview and presented it as the complete pending-only set; no pendingOnly=true formal receipt exists.","stagingArtifact":"M5-D2-B2-runs/controlled/d2b2r5-pending-01/artifact.json"}
+  ],
+  "aggregate": {
+    "w1_06": "4/5",
+    "shortageOnly": "FAIL",
+    "orderProductsOnly": "PASS",
+    "pendingPurchaseOnly": "FAIL",
+    "declaredRelevantNotExecuted": 0,
+    "finalDeclaredCoverage": "100% for every executed sample",
+    "fullTargetedMatrixCompleted": false,
+    "reasonStopped": "R5 stop condition: fresh evidence shows unresolved business relevance/ownership semantics and further prompt patching would become a fixed router."
+  }
+}

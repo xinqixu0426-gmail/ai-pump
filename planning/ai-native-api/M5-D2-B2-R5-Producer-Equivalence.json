@@ -1,0 +1,21 @@
+{
+  "phase": "M5-D2-B2-R5",
+  "status": "PASS",
+  "equivalence": [
+    {
+      "semanticResult": "order readiness",
+      "directProducer": "check_order_readiness",
+      "embeddedProducer": "get_order_knowledge_package.data.readiness",
+      "canonicalVocabulary": "shared readiness projector",
+      "provenancePreserved": true
+    },
+    {
+      "semanticResult": "order detail",
+      "directProducer": "get_order_detail.data.order",
+      "embeddedProducer": "get_order_knowledge_package.data.order",
+      "canonicalVocabulary": "shared order-detail projector",
+      "provenancePreserved": true
+    }
+  ],
+  "tests": ["EV-01", "EV-02", "EV-03", "EV-04", "EV-05", "EV-06", "EV-07", "EV-08", "EV-09", "EV-10"]
+}

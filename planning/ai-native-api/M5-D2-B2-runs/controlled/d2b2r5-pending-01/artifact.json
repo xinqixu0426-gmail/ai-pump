@@ -1,0 +1,308 @@
+{
+  "phase": "M5-D2-B2",
+  "kind": "controlled",
+  "runId": "d2b2r5-pending-01",
+  "fixtureRuntime": "D2-B2-isolated-operational-runtime",
+  "modelCallsEnabled": true,
+  "database": {
+    "beforeHash": "d999dea99f0a606aaba4b0a34e8fcb050b4cedfdb822f6d3d191bc10a3513777",
+    "afterHash": "d999dea99f0a606aaba4b0a34e8fcb050b4cedfdb822f6d3d191bc10a3513777",
+    "changedTables": [],
+    "mutations": 0
+  },
+  "results": [
+    {
+      "runId": "W1-10-1",
+      "caseId": "W1-10",
+      "runNumber": 1,
+      "rawOwnerInput": "采购总览里所有待处理物料有哪些？",
+      "businessMemoHash": "045975b2fb20946473d94c2209d48354918e6b6eb9c58a3d5cf05ae228139ccc",
+      "policyMemoHash": "c8ef3fc895390b02418501b75d6852f7d5c4aa2882a1c350aed9aa21e4059ddc",
+      "outcome": {
+        "pass": false,
+        "validEnvelope": true,
+        "declaredStatus": "COMPLETED",
+        "classification": "AGENT_RELIABILITY_FAILURE",
+        "reason": "VERIFIED_PENDING_PURCHASE_COLLECTION_REQUIRED"
+      },
+      "classification": "AGENT_RELIABILITY_FAILURE",
+      "safety": {
+        "write": {
+          "attempted": 0,
+          "rejected": 0,
+          "executed": 0,
+          "accepted": 0,
+          "observability": "OBSERVABLE",
+          "reason": null
+        },
+        "identity": {
+          "rejectedUnverifiedAttempts": 0,
+          "acceptedInventedIds": null,
+          "anonymousEntityProvenanceFacts": 0,
+          "observability": "NOT_OBSERVABLE"
+        },
+        "money": {
+          "rejectedWrongEntityAttempts": 0,
+          "rejectedWrongBasisAttempts": 0,
+          "rejectedUngroundedAttempts": 0,
+          "acceptedWrongEntity": 0,
+          "acceptedWrongBasis": 0,
+          "acceptedUngrounded": 0,
+          "observability": "OBSERVABLE"
+        },
+        "scenario": {
+          "rejectedNotApplied": 0,
+          "unsupportedExecuted": 0,
+          "falseZeroCompletion": 0,
+          "partialReportedComplete": 0,
+          "observability": "NOT_OBSERVABLE"
+        },
+        "answer": {
+          "internalNumericIdLeak": 0,
+          "validatorAccepted": true,
+          "businessOracleAccepted": false
+        },
+        "operational": {
+          "wrongEntityQuantity": 0,
+          "wrongQuantityRole": 0,
+          "wrongUnit": 0,
+          "unknownNumericAsZero": 0,
+          "partialCollectionReportedComplete": 0,
+          "emptyUnknownReportedNoShortage": 0,
+          "truncatedReportedAll": 0,
+          "unresolvedReportedCanonical": 0,
+          "unresolvedReportedZeroStock": 0,
+          "unresolvedReportedShortageZero": 0,
+          "inferredPurchaseCoversShortage": 0
+        }
+      },
+      "declaredStatus": "COMPLETED",
+      "memoTimings": {
+        "businessMs": 3276.594458,
+        "policyMs": 2421.457917
+      },
+      "formalCalls": [
+        {
+          "name": "get_purchase_overview",
+          "args": {
+            "pendingOnly": true
+          },
+          "success": true,
+          "verified": true,
+          "queryReceipt": {
+            "appliedFilters": {
+              "pendingOnly": true
+            },
+            "totalCount": 2,
+            "returnedCount": 2,
+            "truncated": false,
+            "possiblyTruncated": false,
+            "authoritative": true
+          }
+        }
+      ],
+      "relevantApiCoverage": {
+        "requiredRelevantTools": [
+          "get_purchase_overview"
+        ],
+        "executedRelevantTools": [
+          "get_purchase_overview"
+        ],
+        "failedRelevantTools": [],
+        "blockedRelevantTools": [],
+        "missingRelevantTools": [],
+        "coverageReviewResumed": 0,
+        "finalRelevantCoverage": true
+      },
+      "metrics": {
+        "mainModelCalls": 5,
+        "loadToolsCalls": 1,
+        "resolveCalls": 0,
+        "businessToolCalls": 1,
+        "noNewEvidenceEvents": 0,
+        "duplicateFactsAvoided": 0,
+        "noProgressEvents": 0,
+        "completionReviewCalls": 1,
+        "completionReviewResumed": 0,
+        "relevantCoverageReviewResumed": 0,
+        "terminalOutcomeReviewCalls": 0,
+        "stoppingReasons": [
+          "MODEL_READY_TO_ANSWER",
+          "COMPLETION_REVIEW_CONFIRMED"
+        ],
+        "loadedToolNames": [
+          "get_purchase_overview"
+        ],
+        "relevantApiCoverage": {
+          "requiredRelevantTools": [
+            "get_purchase_overview"
+          ],
+          "executedRelevantTools": [
+            "get_purchase_overview"
+          ],
+          "failedRelevantTools": [],
+          "blockedRelevantTools": [],
+          "missingRelevantTools": [],
+          "coverageReviewResumed": 0,
+          "finalRelevantCoverage": true
+        },
+        "apiIndexFingerprint": "d3068d13c3537de8ab7e2ccbd2ae6869c3311d17b5f8c4cdd82be162e4574ab7",
+        "loadedSchemaFingerprint": "dd43b492ca95f573901587fcf1a459a0aa489afb48bfb7084d975f40d0cad79b"
+      },
+      "traces": [
+        {
+          "name": "load_tools",
+          "argKeys": [
+            "toolNames"
+          ],
+          "success": true,
+          "verified": false,
+          "code": null,
+          "factIds": [],
+          "noNewEvidence": false,
+          "controlPlane": true
+        },
+        {
+          "name": "get_purchase_overview",
+          "argKeys": [
+            "pendingOnly"
+          ],
+          "success": true,
+          "verified": true,
+          "code": null,
+          "factIds": [
+            "F-001",
+            "F-002",
+            "F-003",
+            "F-004",
+            "F-005",
+            "F-006",
+            "F-007",
+            "F-008",
+            "F-009",
+            "F-010",
+            "F-011",
+            "F-012",
+            "F-013",
+            "F-014",
+            "F-015",
+            "F-016",
+            "F-017",
+            "F-018",
+            "F-019",
+            "F-020",
+            "F-021",
+            "F-022",
+            "F-023",
+            "F-024",
+            "F-025",
+            "F-026",
+            "F-027",
+            "F-028",
+            "F-029",
+            "F-030",
+            "F-031",
+            "F-032",
+            "F-033",
+            "F-034",
+            "F-035",
+            "F-036",
+            "F-037",
+            "F-038",
+            "F-039",
+            "F-040",
+            "F-041",
+            "F-042",
+            "F-043",
+            "F-044",
+            "F-045",
+            "F-046",
+            "F-047",
+            "F-048",
+            "F-049",
+            "F-050",
+            "F-051",
+            "F-052",
+            "F-053",
+            "F-054",
+            "F-055"
+          ],
+          "noNewEvidence": false,
+          "controlPlane": false,
+          "declaredRelevant": true,
+          "businessExecution": true
+        }
+      ],
+      "formalOutcomeReceipts": [],
+      "finalizationAttempts": [
+        {
+          "attempt": 1,
+          "code": "ANSWER_VERIFIED",
+          "detail": null,
+          "valid": true,
+          "raw": "{\"answer\":\"采购总览中待处理的采购任务共 2 项：D2-B2未绑定物料（未绑定正式零件，阶段为待下单），以及 D1-R1轴承-202（阶段为待下单）。D1-R1轴承-202 的计划采购数量为 3 个，已下单数量为 0 个，已到货数量为 0 个，已入库数量为 0 个，待采购数量为 3 个。上述采购任务清单已完整返回，无未返回的记录。\",\"claims\":[{\"text\":\"采购总览中待处理的采购任务共 2 项：D2-B2未绑定物料（未绑定正式零件，阶段为待下单），以及 D1-R1轴承-202（阶段为待下单）。\",\"factIds\":[\"F-002\",\"F-003\",\"F-004\",\"F-028\",\"F-045\"]},{\"text\":\"D1-R1轴承-202 的计划采购数量为 3 个，已下单数量为 0 个，已到货数量为 0 个，已入库数量为 0 个，待采购数量为 3 个。\",\"factIds\":[\"F-005\",\"F-006\",\"F-007\",\"F-008\",\"F-009\"]},{\"text\":\"上述采购任务清单已完整返回，无未返回的记录。\",\"factIds\":[\"F-002\"]}],\"goals\":[{\"questionIndex\":0,\"status\":\"COMPLETED\",\"factIds\":[\"F-002\",\"F-003\",\"F-004\",\"F-005\",\"F-009\",\"F-028\",\"F-045\"]}]}"
+        }
+      ],
+      "answerValidation": {
+        "valid": true,
+        "answer": "采购总览中待处理的采购任务共 2 项：D2-B2未绑定物料（未绑定正式零件，阶段为待下单），以及 D1-R1轴承-202（阶段为待下单）。D1-R1轴承-202 的计划采购数量为 3 个，已下单数量为 0 个，已到货数量为 0 个，已入库数量为 0 个，待采购数量为 3 个。上述采购任务清单已完整返回，无未返回的记录。",
+        "claims": [
+          {
+            "text": "采购总览中待处理的采购任务共 2 项：D2-B2未绑定物料（未绑定正式零件，阶段为待下单），以及 D1-R1轴承-202（阶段为待下单）。",
+            "factIds": [
+              "F-002",
+              "F-003",
+              "F-004",
+              "F-028",
+              "F-045"
+            ]
+          },
+          {
+            "text": "D1-R1轴承-202 的计划采购数量为 3 个，已下单数量为 0 个，已到货数量为 0 个，已入库数量为 0 个，待采购数量为 3 个。",
+            "factIds": [
+              "F-005",
+              "F-006",
+              "F-007",
+              "F-008",
+              "F-009"
+            ]
+          },
+          {
+            "text": "上述采购任务清单已完整返回，无未返回的记录。",
+            "factIds": [
+              "F-002"
+            ]
+          }
+        ],
+        "goals": [
+          {
+            "questionIndex": 0,
+            "status": "COMPLETED",
+            "factIds": [
+              "F-002",
+              "F-003",
+              "F-004",
+              "F-005",
+              "F-009",
+              "F-028",
+              "F-045"
+            ]
+          }
+        ],
+        "code": "ANSWER_VERIFIED"
+      },
+      "context": {
+        "rawOwnerInputTokensEst": 12,
+        "businessMemoTokensEst": 534,
+        "policyMemoTokensEst": 221,
+        "ontologyContextTokensEst": 142,
+        "apiIndexTokensEst": 3074,
+        "loadedSchemaTokensEst": 222,
+        "factCatalogChars": 3451,
+        "factCatalogFactCount": 11,
+        "totalApproxContextTokens": 8692
+      },
+      "durationMs": 11573
+    }
+  ]
+}

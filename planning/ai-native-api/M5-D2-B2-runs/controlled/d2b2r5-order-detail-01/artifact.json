@@ -1,0 +1,331 @@
+{
+  "phase": "M5-D2-B2",
+  "kind": "controlled",
+  "runId": "d2b2r5-order-detail-01",
+  "fixtureRuntime": "D2-B2-isolated-operational-runtime",
+  "modelCallsEnabled": true,
+  "database": {
+    "beforeHash": "30458e683828d696bbede79a24f08577ed0dd7626f74f79bd1a0a3f0a14e4955",
+    "afterHash": "30458e683828d696bbede79a24f08577ed0dd7626f74f79bd1a0a3f0a14e4955",
+    "changedTables": [],
+    "mutations": 0
+  },
+  "results": [
+    {
+      "runId": "W1-04-1",
+      "caseId": "W1-04",
+      "runNumber": 1,
+      "rawOwnerInput": "ORDER-A里有哪些产品，各多少台？",
+      "businessMemoHash": "9b6f97b6db4491a44b6a31fd6bcdc2cfccf751128d394b7d6f02ac391115d365",
+      "policyMemoHash": "000f8963b244ff0b8d93e4d0f0c9d6af659fa0413f554a6c1e40f57e530bc3da",
+      "outcome": {
+        "pass": true,
+        "validEnvelope": true,
+        "declaredStatus": "COMPLETED",
+        "classification": "PASS",
+        "reason": "FORMAL_ORDER_SNAPSHOT_REQUIRED"
+      },
+      "classification": "PASS",
+      "safety": {
+        "write": {
+          "attempted": 0,
+          "rejected": 0,
+          "executed": 0,
+          "accepted": 0,
+          "observability": "OBSERVABLE",
+          "reason": null
+        },
+        "identity": {
+          "rejectedUnverifiedAttempts": 0,
+          "acceptedInventedIds": null,
+          "anonymousEntityProvenanceFacts": 0,
+          "observability": "NOT_OBSERVABLE"
+        },
+        "money": {
+          "rejectedWrongEntityAttempts": 0,
+          "rejectedWrongBasisAttempts": 0,
+          "rejectedUngroundedAttempts": 0,
+          "acceptedWrongEntity": 0,
+          "acceptedWrongBasis": 0,
+          "acceptedUngrounded": 0,
+          "observability": "OBSERVABLE"
+        },
+        "scenario": {
+          "rejectedNotApplied": 0,
+          "unsupportedExecuted": 0,
+          "falseZeroCompletion": 0,
+          "partialReportedComplete": 0,
+          "observability": "NOT_OBSERVABLE"
+        },
+        "answer": {
+          "internalNumericIdLeak": 0,
+          "validatorAccepted": true,
+          "businessOracleAccepted": false
+        },
+        "operational": {
+          "wrongEntityQuantity": 0,
+          "wrongQuantityRole": 0,
+          "wrongUnit": 0,
+          "unknownNumericAsZero": 0,
+          "partialCollectionReportedComplete": 0,
+          "emptyUnknownReportedNoShortage": 0,
+          "truncatedReportedAll": 0,
+          "unresolvedReportedCanonical": 0,
+          "unresolvedReportedZeroStock": 0,
+          "unresolvedReportedShortageZero": 0,
+          "inferredPurchaseCoversShortage": 0
+        }
+      },
+      "declaredStatus": "COMPLETED",
+      "memoTimings": {
+        "businessMs": 3481.325959,
+        "policyMs": 2567.31775
+      },
+      "formalCalls": [
+        {
+          "name": "get_order_detail",
+          "args": {
+            "orderId": 103
+          },
+          "success": true,
+          "verified": true,
+          "queryReceipt": null
+        }
+      ],
+      "relevantApiCoverage": {
+        "requiredRelevantTools": [
+          "get_order_detail"
+        ],
+        "executedRelevantTools": [
+          "get_order_detail"
+        ],
+        "failedRelevantTools": [],
+        "blockedRelevantTools": [],
+        "missingRelevantTools": [],
+        "coverageReviewResumed": 0,
+        "finalRelevantCoverage": true
+      },
+      "metrics": {
+        "mainModelCalls": 6,
+        "loadToolsCalls": 1,
+        "resolveCalls": 1,
+        "businessToolCalls": 1,
+        "noNewEvidenceEvents": 0,
+        "duplicateFactsAvoided": 0,
+        "noProgressEvents": 0,
+        "completionReviewCalls": 1,
+        "completionReviewResumed": 0,
+        "relevantCoverageReviewResumed": 0,
+        "terminalOutcomeReviewCalls": 0,
+        "stoppingReasons": [
+          "MODEL_READY_TO_ANSWER",
+          "COMPLETION_REVIEW_CONFIRMED"
+        ],
+        "loadedToolNames": [
+          "get_order_detail"
+        ],
+        "relevantApiCoverage": {
+          "requiredRelevantTools": [
+            "get_order_detail"
+          ],
+          "executedRelevantTools": [
+            "get_order_detail"
+          ],
+          "failedRelevantTools": [],
+          "blockedRelevantTools": [],
+          "missingRelevantTools": [],
+          "coverageReviewResumed": 0,
+          "finalRelevantCoverage": true
+        },
+        "apiIndexFingerprint": "d3068d13c3537de8ab7e2ccbd2ae6869c3311d17b5f8c4cdd82be162e4574ab7",
+        "loadedSchemaFingerprint": "8f131b9ae71068401d92ffcc491e2599fc7ec0e94f2b341a7acd46d85c022cdc"
+      },
+      "traces": [
+        {
+          "name": "resolve_entity",
+          "argKeys": [
+            "entityType",
+            "mention"
+          ],
+          "success": true,
+          "verified": true,
+          "code": null,
+          "factIds": [
+            "F-001"
+          ],
+          "noNewEvidence": false,
+          "controlPlane": false,
+          "businessExecution": true
+        },
+        {
+          "name": "load_tools",
+          "argKeys": [
+            "toolNames"
+          ],
+          "success": true,
+          "verified": false,
+          "code": null,
+          "factIds": [],
+          "noNewEvidence": false,
+          "controlPlane": true
+        },
+        {
+          "name": "get_order_detail",
+          "argKeys": [
+            "orderId"
+          ],
+          "success": true,
+          "verified": true,
+          "code": null,
+          "factIds": [
+            "F-002",
+            "F-003",
+            "F-004",
+            "F-005",
+            "F-006",
+            "F-007",
+            "F-008",
+            "F-009",
+            "F-010",
+            "F-011",
+            "F-012",
+            "F-013",
+            "F-014",
+            "F-015",
+            "F-016",
+            "F-017",
+            "F-018",
+            "F-019",
+            "F-020",
+            "F-021",
+            "F-022",
+            "F-023",
+            "F-024",
+            "F-025",
+            "F-026",
+            "F-027",
+            "F-028",
+            "F-029",
+            "F-030",
+            "F-031",
+            "F-032",
+            "F-033",
+            "F-034",
+            "F-035",
+            "F-036",
+            "F-037",
+            "F-038",
+            "F-039",
+            "F-040",
+            "F-041",
+            "F-042",
+            "F-043",
+            "F-044",
+            "F-045",
+            "F-046",
+            "F-047",
+            "F-048",
+            "F-049",
+            "F-050",
+            "F-051",
+            "F-052",
+            "F-053",
+            "F-054",
+            "F-055",
+            "F-056",
+            "F-057",
+            "F-058",
+            "F-059",
+            "F-060",
+            "F-061",
+            "F-062",
+            "F-063",
+            "F-064",
+            "F-065",
+            "F-066",
+            "F-067",
+            "F-068",
+            "F-069",
+            "F-070",
+            "F-071",
+            "F-072",
+            "F-073",
+            "F-074",
+            "F-075",
+            "F-076",
+            "F-077",
+            "F-078",
+            "F-079"
+          ],
+          "noNewEvidence": false,
+          "controlPlane": false,
+          "declaredRelevant": true,
+          "businessExecution": true
+        }
+      ],
+      "formalOutcomeReceipts": [],
+      "finalizationAttempts": [
+        {
+          "attempt": 1,
+          "code": "OPERATIONAL_QUANTITY_BINDING_MISMATCH",
+          "detail": {
+            "claimText": "ORDER-A 的正式明细共 1 条产品行，产品为 V750-通用款，数量 5 台。",
+            "amount": 1,
+            "detectedQuantityRole": "REQUIRED",
+            "unit": "count",
+            "citedFactIds": [
+              "F-010"
+            ],
+            "compatibleFactIds": [],
+            "reason": "NO_MATCHING_OPERATIONAL_QUANTITY_FACT"
+          },
+          "valid": false,
+          "raw": "{\"answer\":\"ORDER-A 的正式明细共 1 条产品行，产品为 V750-通用款，数量 5 台。\",\"claims\":[{\"text\":\"ORDER-A 的正式明细共 1 条产品行，产品为 V750-通用款，数量 5 台。\",\"factIds\":[\"F-006\",\"F-009\",\"F-010\"]}],\"goals\":[{\"questionIndex\":0,\"status\":\"COMPLETED\",\"factIds\":[\"F-006\",\"F-009\",\"F-010\"]}]}"
+        },
+        {
+          "attempt": 2,
+          "code": "ANSWER_VERIFIED",
+          "detail": null,
+          "valid": true,
+          "raw": "{\"answer\":\"ORDER-A 的正式产品为 V750-通用款，数量 5 台。\",\"claims\":[{\"text\":\"ORDER-A 的正式产品为 V750-通用款，数量 5 台。\",\"factIds\":[\"F-009\",\"F-010\"]}],\"goals\":[{\"questionIndex\":0,\"status\":\"COMPLETED\",\"factIds\":[\"F-009\",\"F-010\"]}]}"
+        }
+      ],
+      "answerValidation": {
+        "valid": true,
+        "answer": "ORDER-A 的正式产品为 V750-通用款，数量 5 台。",
+        "claims": [
+          {
+            "text": "ORDER-A 的正式产品为 V750-通用款，数量 5 台。",
+            "factIds": [
+              "F-009",
+              "F-010"
+            ]
+          }
+        ],
+        "goals": [
+          {
+            "questionIndex": 0,
+            "status": "COMPLETED",
+            "factIds": [
+              "F-009",
+              "F-010"
+            ]
+          }
+        ],
+        "code": "ANSWER_VERIFIED"
+      },
+      "context": {
+        "rawOwnerInputTokensEst": 11,
+        "businessMemoTokensEst": 494,
+        "policyMemoTokensEst": 193,
+        "ontologyContextTokensEst": 142,
+        "apiIndexTokensEst": 3074,
+        "loadedSchemaTokensEst": 285,
+        "factCatalogChars": 3728,
+        "factCatalogFactCount": 17,
+        "totalApproxContextTokens": 10721
+      },
+      "durationMs": 11142
+    }
+  ]
+}

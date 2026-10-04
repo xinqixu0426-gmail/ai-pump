@@ -1,0 +1,21 @@
+{
+  "phase": "M5-D2-B2-R5",
+  "status": "IMPLEMENTED_NOT_ACCEPTED",
+  "selectionOwner": "MAIN_LLM",
+  "fixedRouterAdded": false,
+  "contract": {
+    "declaration": "Each read/preview business tool loaded by Main Agent is declared relevant for this request.",
+    "requiredRelevantTools": "Runtime tracks every declared read/preview business tool.",
+    "completionGate": "A no-tool response is resumed with RELEVANT_API_COVERAGE_INCOMPLETE until every declared relevant tool has executed or formally failed.",
+    "lateDiscovery": "A later load_tools call can declare additional relevant tools.",
+    "duplicateProtection": "Existing successful-call duplicate protection remains active.",
+    "writeBoundary": "Write tools never enter the read/preview coverage set."
+  },
+  "deterministicTests": ["RC-01", "RC-02", "RC-03", "RC-04", "RC-05", "RC-06", "RC-07", "RC-08"],
+  "deterministicResult": "PASS",
+  "semanticFinding": "The mechanical gate achieved declared coverage but did not prevent Main Agent from declaring unrelated tools relevant in all natural-language cases.",
+  "frozenCommits": {
+    "product": "f60f521ded4e114a52a3e0479c41d709da8cb70c",
+    "harness": "45a88c8ad62215c0a68c8a35c3f78c1a8a56c708"
+  }
+}

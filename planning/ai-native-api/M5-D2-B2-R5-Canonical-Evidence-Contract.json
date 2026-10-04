@@ -1,0 +1,45 @@
+{
+  "phase": "M5-D2-B2-R5",
+  "status": "PASS",
+  "sharedProjectors": {
+    "readiness": "projectOrderReadinessEvidence",
+    "orderDetail": "projectOrderDetailEvidence"
+  },
+  "canonicalPredicates": [
+    "readiness_status",
+    "collection_completeness",
+    "shortage_line_count",
+    "required_quantity",
+    "available_quantity",
+    "shortage_quantity",
+    "purchase_status",
+    "purchase_quantity",
+    "purchase_quantity_ordered",
+    "purchase_quantity_received",
+    "purchase_quantity_stocked",
+    "unresolved_requirement",
+    "order_status",
+    "order_customer_attribute",
+    "order_contract_number",
+    "order_snapshot_recipe",
+    "order_line_quantity"
+  ],
+  "producerMapping": {
+    "check_order_readiness": "shared readiness projector",
+    "get_order_knowledge_package.data.readiness": "shared readiness projector",
+    "get_order_detail.data.order": "shared order-detail projector",
+    "get_order_knowledge_package.data.order": "shared order-detail projector"
+  },
+  "procurementStage": {
+    "projectsTo": "purchase_status",
+    "basis": "FORMAL_ORDER_READINESS",
+    "derivedByLedger": false
+  },
+  "identityAndScope": {
+    "canonicalPartCoilBinding": "preserved when formal source provides it",
+    "unresolvedRequirement": "does not create a resolved canonical-material fact",
+    "provenance": "all source-specific evidence remains append-only",
+    "rendering": "numeric internal scope keys are hidden from model projection"
+  },
+  "deterministicResult": "PASS"
+}

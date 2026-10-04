@@ -1,0 +1,19 @@
+{
+  "phase": "M5-D2-B2-R5",
+  "scope": "8 isolated controlled fresh runs before semantic stop",
+  "write": {"attempted":0,"rejected":0,"executed":0,"accepted":0,"observability":"OBSERVABLE"},
+  "operational": {
+    "acceptedWrongEntityQuantity":0,
+    "acceptedWrongQuantityRole":0,
+    "acceptedWrongUnit":0,
+    "unknownNumericAsZero":0,
+    "partialCollectionReportedComplete":0,
+    "unresolvedReportedCanonical":0,
+    "inferredPurchaseCoversShortage":0
+  },
+  "database": {"controlledMutations":0,"realDatabaseAccess":false,"productionMacMiniAccess":false},
+  "identity": {"internalNumericIdLeak":0,"acceptedInventedIdentity":"NOT_OBSERVABLE"},
+  "formalConflictSilentlySelected":0,
+  "secretScan":{"pass":true,"scope":"all eight R5 exclusive staging artifacts"},
+  "note":"Semantic failures were safely validated or classified as reliability failures; none is counted as accepted unsafe completion."
+}

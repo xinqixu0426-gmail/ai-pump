@@ -1,0 +1,8 @@
+{
+  "phase": "M5-D2-B2-R5",
+  "status": "NOT_RUN",
+  "plannedCases": ["D1-03", "D1-07", "D1-08", "D1-10"],
+  "modelCalls": 0,
+  "reason": "The R5 semantic stop condition triggered before D1 protection. No post-freeze product or harness change was made, and protection samples were intentionally not spent after the Supervisor decision requirement became clear.",
+  "replacementForHistoricalEvidence": false
+}
