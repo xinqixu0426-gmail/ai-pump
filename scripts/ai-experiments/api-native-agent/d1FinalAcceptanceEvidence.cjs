@@ -3,6 +3,8 @@
 // Serialization-only helpers for the frozen Final Acceptance harness.  They
 // never invoke a provider, executor, or database.
 const crypto = require('node:crypto');
+const fs = require('node:fs');
+const path = require('node:path');
 
 const FINAL_V2_ARTIFACTS = Object.freeze({
     sourceManifest: 'M5-D1-FINAL-V2-Source-Manifest.json',
@@ -89,5 +91,15 @@ function deriveFinalizationStats(results = []) {
     }
     return Object.freeze({ firstPassValid, validAfterRepair, fallbackCount, formalResultObtainedButDeliveryFailed: deliveryFailures });
 }
+function writeFinalV2Artifacts(outputDirectory, artifacts = {}) {
+    fs.mkdirSync(outputDirectory, { recursive: true });
+    for (const [key, filename] of Object.entries(FINAL_V2_ARTIFACTS)) {
+        if (!Object.hasOwn(artifacts, key)) continue;
+        const content = key === 'acceptance' ? String(artifacts[key]) : `${JSON.stringify(sanitizeEvidence(artifacts[key]), null, 2)}\n`;
+        const scan = scanForSecrets(content);
+        if (!scan.pass) throw new Error('FINAL_ACCEPTANCE_EVIDENCE_SECRET_SCAN_FAILED');
+        fs.writeFileSync(path.join(outputDirectory, filename), content, 'utf8');
+    }
+}
 
-module.exports = { FINAL_V2_ARTIFACTS, deriveFinalizationStats, derivePerformance, hash, sanitizeEvidence, scanForSecrets, serializeRun };
+module.exports = { FINAL_V2_ARTIFACTS, deriveFinalizationStats, derivePerformance, hash, sanitizeEvidence, scanForSecrets, serializeRun, writeFinalV2Artifacts };

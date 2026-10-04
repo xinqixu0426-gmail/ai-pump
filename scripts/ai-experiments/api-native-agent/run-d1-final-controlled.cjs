@@ -2,14 +2,13 @@
 
 // Explicit opt-in CLI for a later frozen Final Acceptance. This module never
 // runs at import time; FH1 only unit-tests its deterministic dependencies.
-const fs = require('node:fs');
 const path = require('node:path');
 const { startD1R1ControlledFixture } = require('./d1r1ControlledFixture.cjs');
 const { freshMemos, environment } = require('./run-d1-r1-controlled.cjs');
 const { runApiNativeAgentCandidate } = require('./apiNativeAgentCandidate.cjs');
 const { buildControlledOracles } = require('./d1FinalAcceptanceOracles.cjs');
 const { classifyRun, compareDatabaseSnapshots, databaseSnapshot } = require('./d1FinalAcceptanceEvaluator.cjs');
-const { FINAL_V2_ARTIFACTS, serializeRun } = require('./d1FinalAcceptanceEvidence.cjs');
+const { serializeRun, writeFinalV2Artifacts } = require('./d1FinalAcceptanceEvidence.cjs');
 const { productDriftFromGit } = require('./d1FinalProductDriftGuard.cjs');
 
 const CASES = Object.freeze([
@@ -36,8 +35,7 @@ async function main(outputDirectory = path.join(process.cwd(), 'planning/ai-nati
         const database = compareDatabaseSnapshots(before, databaseSnapshot(fixture.db));
         const output = Object.freeze({ phase: 'M5-D1-FINAL-V2', fixtureRuntime: fixture.fixtureKind, modelCallsEnabled: true, database, productDrift: productDriftFromGit(),
             results: results.map(item => serializeRun(item)) });
-        fs.mkdirSync(outputDirectory, { recursive: true });
-        fs.writeFileSync(path.join(outputDirectory, FINAL_V2_ARTIFACTS.controlledSmoke), `${JSON.stringify(output, null, 2)}\n`, 'utf8');
+        writeFinalV2Artifacts(outputDirectory, { controlledSmoke: output });
         return output;
     } finally { await fixture.close(); }
 }

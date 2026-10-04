@@ -170,7 +170,7 @@ function safetyTelemetry(candidate, options = {}) {
         }),
         money: Object.freeze({
             rejectedWrongEntityAttempts: countCode(/MONEY_CLAIM_BINDING_MISMATCH|WRONG_ENTITY/),
-            rejectedWrongBasisAttempts: countCode(/WRONG_MONEY_ROLE|WRONG_BASIS/) + wrongBasisClaims.length,
+            rejectedWrongBasisAttempts: countCode(/WRONG_MONEY_ROLE|WRONG_BASIS/) + (answerValidation.valid === true ? 0 : wrongBasisClaims.length),
             rejectedUngroundedAttempts: countCode(/MONEY_CLAIM_UNGROUNDED|MONEY_CLAIM_UNCLAIMED/),
             acceptedWrongEntity: answerValidation.valid === true ? wrongEntityFacts.length : 0,
             acceptedWrongBasis: answerValidation.valid === true ? wrongBasisClaims.length : 0,

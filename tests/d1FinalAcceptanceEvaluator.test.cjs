@@ -1,6 +1,9 @@
 'use strict';
 
 const assert = require('node:assert/strict');
+const fs = require('node:fs');
+const os = require('node:os');
+const path = require('node:path');
 const test = require('node:test');
 const Database = require('better-sqlite3');
 const {
@@ -13,7 +16,7 @@ const { buildRepetitionPlan, REPETITION_CASE_IDS, RUNS_PER_CASE } = require('../
 const { main: controlledMain } = require('../scripts/ai-experiments/api-native-agent/run-d1-final-controlled.cjs');
 const { main: repetitionMain } = require('../scripts/ai-experiments/api-native-agent/run-d1-final-controlled-repetition.cjs');
 const { assertRealDatabaseSource, initializeRealHarness, main: realMain } = require('../scripts/ai-experiments/api-native-agent/run-d1-final-real-catalog.cjs');
-const { FINAL_V2_ARTIFACTS, deriveFinalizationStats, derivePerformance, scanForSecrets, serializeRun } = require('../scripts/ai-experiments/api-native-agent/d1FinalAcceptanceEvidence.cjs');
+const { FINAL_V2_ARTIFACTS, deriveFinalizationStats, derivePerformance, scanForSecrets, serializeRun, writeFinalV2Artifacts } = require('../scripts/ai-experiments/api-native-agent/d1FinalAcceptanceEvidence.cjs');
 const { buildFinalAcceptanceManifest } = require('../scripts/ai-experiments/api-native-agent/d1FinalAcceptanceManifest.cjs');
 
 function candidate({ answer = 'A成本为66元。', status = 'COMPLETED', valid = true, facts = [], receipts = [], traces = [], finalizationAttempts = [], claims, metrics, context, durationMs } = {}) {
@@ -127,6 +130,7 @@ test('FH1R1-10/11/12/13: claim-scoped money roles allow valid supporting facts a
     assert.equal(safetyTelemetry(good, { oracle: { kind: 'SCENARIO', recipeName: 'R' } }).money.acceptedWrongBasis, 0);
     const currentWithScenario = candidate({ answer: '242元是当前正式成本。', facts: [facts[1]], claims: [{ text: '242元是当前正式成本', factIds: ['F-2'] }] });
     assert.equal(safetyTelemetry(currentWithScenario, { oracle: { kind: 'SCENARIO', recipeName: 'R' } }).money.acceptedWrongBasis, 1);
+    assert.equal(safetyTelemetry(currentWithScenario, { oracle: { kind: 'SCENARIO', recipeName: 'R' } }).money.rejectedWrongBasisAttempts, 0);
     const scenarioWithCurrent = candidate({ answer: '试算后224元。', facts: [facts[0]], claims: [{ text: '试算后224元', factIds: ['F-1'] }] });
     assert.equal(safetyTelemetry(scenarioWithCurrent, { oracle: { kind: 'SCENARIO', recipeName: 'R' } }).money.acceptedWrongBasis, 1);
     const recipeFacts = [money('F-A', 'A', 224), money('F-B', 'B', 234), differenceFact()];
@@ -143,6 +147,17 @@ test('FH1R1-10..15: serialized evidence preserves trace/finalization/context and
     assert.deepEqual(deriveFinalizationStats([serialized]), { firstPassValid: 1, validAfterRepair: 0, fallbackCount: 0, formalResultObtainedButDeliveryFailed: 0 });
     assert.equal(scanForSecrets({ authorization: 'Bearer secret', nested: { confirmationToken: 'x' } }).pass, false);
     assert.equal(Object.keys(FINAL_V2_ARTIFACTS).length, 8);
+});
+
+test('FH1R1 artifact writer creates the frozen V2 contract without repository evidence or secrets', () => {
+    const output = fs.mkdtempSync(path.join(os.tmpdir(), 'd1-final-writer-'));
+    try {
+        writeFinalV2Artifacts(output, { sourceManifest: { test: true }, acceptance: '# Test-only contract\n' });
+        assert.equal(JSON.parse(fs.readFileSync(path.join(output, FINAL_V2_ARTIFACTS.sourceManifest), 'utf8')).test, true);
+        assert.equal(fs.readFileSync(path.join(output, FINAL_V2_ARTIFACTS.acceptance), 'utf8'), '# Test-only contract\n');
+        writeFinalV2Artifacts(output, { safety: { authorization: 'Bearer secret' } });
+        assert.doesNotMatch(fs.readFileSync(path.join(output, FINAL_V2_ARTIFACTS.safety), 'utf8'), /authorization|Bearer secret/iu);
+    } finally { fs.rmSync(output, { recursive: true, force: true }); }
 });
 
 test('FH1R1 repetition and real initialization contracts remain explicit and model-free', () => {
