@@ -9,6 +9,7 @@ const { assemble } = require('../scripts/ai-experiments/api-native-agent/d2B2Acc
 const { domainRuntimeState } = require('../scripts/ai-experiments/api-native-agent/d2B2AcceptanceEvidence.cjs');
 const { DOMAIN_CORPUS, scoreDomainSelection } = require('../scripts/ai-experiments/api-native-agent/d2B2DomainCorpus.cjs');
 const { RAG_FIXTURES, ragObservation, scoreRagAuthority } = require('../scripts/ai-experiments/api-native-agent/d2B2RagAcceptanceHarness.cjs');
+const { performance, scoreAnswerRelevance } = require('../scripts/ai-experiments/api-native-agent/d2B2R6AcceptanceScoring.cjs');
 const { classifyRun, domainCoverage } = require('../scripts/ai-experiments/api-native-agent/d2B2AcceptanceEvaluator.cjs');
 test('D2-B2 acceptance harness has ten controlled cases and a fresh 15-run repetition plan without starting a provider', () => {
   assert.equal(controlled.CASES.length, 10); assert.equal(repetition.REPETITION_CASE_IDS.length, 5); assert.equal(repetition.plan().length, 15);
@@ -40,6 +41,14 @@ test('R6H4A RAG-01..10: isolated auxiliary fixtures serialize provenance and cur
   const empty = ragObservation({ relevantApiCoverage: { domainApiSet: ['get_purchase_overview'], ragAuxiliarySearched: true }, traces: [{ name: 'search_factory_knowledge', success: true }], factLedger: { facts: [{ factId: 'R-0', predicate: 'auxiliary_knowledge_retrieval', value: 0, qualifiers: { sourceKind: 'knowledge_snapshot' } }] } });
   assert.equal(scoreRagAuthority(RAG_FIXTURES[2], empty, '正式系统仍为待下单。').semanticPass, true);
   assert.equal(scoreRagAuthority(RAG_FIXTURES[3], observed, '正式系统仍为待下单；知识记录称已备货准备发出，尚未进入正式状态。').semanticPass, true);
+});
+test('R6H4B AR-01..07 and PF-01..03: cited fact semantics catch dumps while deterministic performance aggregates serialized runs', () => {
+  const candidate = { answerValidation: { claims: [{ factIds: ['S'] }] }, factLedger: { facts: [{ factId: 'S', predicate: 'shortage_quantity' }] } };
+  assert.equal(scoreAnswerRelevance({ caseKind: 'ORDER_SHORTAGE', candidate }).answerDumpedUnrequestedContext, false);
+  candidate.answerValidation.claims[0].factIds.push('P'); candidate.factLedger.facts.push({ factId: 'P', predicate: 'purchase_status' });
+  assert.equal(scoreAnswerRelevance({ caseKind: 'ORDER_SHORTAGE', candidate }).answerDumpedUnrequestedContext, true);
+  const metrics = performance([{ domainRuntime: { selectedBusinessDomains: ['order'], domainApiSet: ['a'], executedDomainApis: ['a'], notApplicableDomainApis: [], blockedDomainApis: [], rag: { ragSearchExecuted: true } }, metrics: { mainModelCalls: 2, businessToolCalls: 1 }, durationMs: 10, context: { totalApproxContextTokens: 100 } }, { domainRuntime: { selectedBusinessDomains: ['order','procurement'], domainApiSet: ['a','b'], executedDomainApis: ['a'], notApplicableDomainApis: [], blockedDomainApis: ['b'], rag: { ragSearchExecuted: true } }, metrics: { mainModelCalls: 4, businessToolCalls: 2 }, durationMs: 30, context: { totalApproxContextTokens: 300 } }]);
+  assert.equal(metrics.averageModelCalls, 3); assert.equal(metrics.medianDurationMs, 10); assert.equal(metrics.p95DurationMs, 30);
 });
 test('D2-B2 source manifest pins the B1 product baseline and the reviewed 31-capability API Index contract', () => {
   const manifest = buildManifest({ harnessCommit: 'test-harness' }); assert.equal(manifest.productBaselineCommit, PRODUCT_BASELINE_COMMIT); assert.equal(manifest.apiIndexCount, 31); assert.equal(manifest.apiIndexFingerprint, '10bee9d8a065ea2322fcaf14bdf21cee949d0f57da8c3d5133448c1ee7d09c61'); assert.equal(typeof manifest.realRunnerHash, 'string'); assert.equal(typeof manifest.exclusiveEvidenceContractHash, 'string');
