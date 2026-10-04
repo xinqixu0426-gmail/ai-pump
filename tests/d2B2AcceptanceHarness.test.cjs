@@ -8,6 +8,7 @@ const staging = require('../scripts/ai-experiments/api-native-agent/d2B2Acceptan
 const { assemble } = require('../scripts/ai-experiments/api-native-agent/d2B2AcceptanceAssembler.cjs');
 const { domainRuntimeState } = require('../scripts/ai-experiments/api-native-agent/d2B2AcceptanceEvidence.cjs');
 const { DOMAIN_CORPUS, scoreDomainSelection } = require('../scripts/ai-experiments/api-native-agent/d2B2DomainCorpus.cjs');
+const { RAG_FIXTURES, ragObservation, scoreRagAuthority } = require('../scripts/ai-experiments/api-native-agent/d2B2RagAcceptanceHarness.cjs');
 const { classifyRun, domainCoverage } = require('../scripts/ai-experiments/api-native-agent/d2B2AcceptanceEvaluator.cjs');
 test('D2-B2 acceptance harness has ten controlled cases and a fresh 15-run repetition plan without starting a provider', () => {
   assert.equal(controlled.CASES.length, 10); assert.equal(repetition.REPETITION_CASE_IDS.length, 5); assert.equal(repetition.plan().length, 15);
@@ -29,6 +30,16 @@ test('R6H3 coverage scorer requires every frozen domain API terminal state and r
   assert.deepEqual(complete.missingDomainApis, []); assert.equal(complete.applicableExecutionCoverage, 1);
   const bad = domainCoverage({ domainRuntime: { selectedBusinessDomains: ['procurement'], apiTerminalStates: [{ toolName: 'get_purchase_overview', terminalState: 'NOT_APPLICABLE' }] } });
   assert.equal(bad.invalidNotApplicable.length, 1);
+});
+test('R6H4A RAG-01..10: isolated auxiliary fixtures serialize provenance and current formal authority wins', () => {
+  const candidate = { relevantApiCoverage: { domainApiSet: ['get_purchase_overview'], ragAuxiliarySearched: true }, traces: [{ name: 'search_factory_knowledge', success: true }], factLedger: { facts: [{ factId: 'R-1', predicate: 'auxiliary_knowledge_retrieval', value: 1, qualifiers: { sourceKind: 'knowledge_snapshot' } }] } };
+  const observed = ragObservation(candidate); assert.equal(observed.ragSearchExecuted, true); assert.deepEqual(observed.ragEvidenceFactIds, ['R-1']); assert.equal(observed.ragProvenance, 'knowledge_snapshot');
+  assert.equal(scoreRagAuthority(RAG_FIXTURES[0], observed, '正式系统仍为待下单。').semanticPass, true);
+  assert.equal(scoreRagAuthority(RAG_FIXTURES[1], observed, '正式系统仍为待下单；此前知识记录预计发货。').semanticPass, true);
+  assert.equal(scoreRagAuthority(RAG_FIXTURES[1], observed, '已发货。').ragCurrentOverride, true);
+  const empty = ragObservation({ relevantApiCoverage: { domainApiSet: ['get_purchase_overview'], ragAuxiliarySearched: true }, traces: [{ name: 'search_factory_knowledge', success: true }], factLedger: { facts: [{ factId: 'R-0', predicate: 'auxiliary_knowledge_retrieval', value: 0, qualifiers: { sourceKind: 'knowledge_snapshot' } }] } });
+  assert.equal(scoreRagAuthority(RAG_FIXTURES[2], empty, '正式系统仍为待下单。').semanticPass, true);
+  assert.equal(scoreRagAuthority(RAG_FIXTURES[3], observed, '正式系统仍为待下单；知识记录称已备货准备发出，尚未进入正式状态。').semanticPass, true);
 });
 test('D2-B2 source manifest pins the B1 product baseline and the reviewed 31-capability API Index contract', () => {
   const manifest = buildManifest({ harnessCommit: 'test-harness' }); assert.equal(manifest.productBaselineCommit, PRODUCT_BASELINE_COMMIT); assert.equal(manifest.apiIndexCount, 31); assert.equal(manifest.apiIndexFingerprint, '10bee9d8a065ea2322fcaf14bdf21cee949d0f57da8c3d5133448c1ee7d09c61'); assert.equal(typeof manifest.realRunnerHash, 'string'); assert.equal(typeof manifest.exclusiveEvidenceContractHash, 'string');
