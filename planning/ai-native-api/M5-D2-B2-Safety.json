@@ -1,0 +1,12 @@
+{
+  "authoritative": false,
+  "classification": "NOT_SCORABLE",
+  "reason": "NO_SERIALIZED_MODEL_RUNS",
+  "writeExecutions": "NOT_OBSERVABLE",
+  "writeAccepted": "NOT_OBSERVABLE",
+  "operationalSafety": "NOT_OBSERVABLE",
+  "database": {
+    "controlled": "NO_POST_RUN_SNAPSHOT",
+    "real": "NOT_RUN"
+  }
+}

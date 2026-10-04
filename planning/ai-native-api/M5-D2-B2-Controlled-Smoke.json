@@ -1,0 +1,11 @@
+{
+  "phase": "M5-D2-B2",
+  "authoritative": false,
+  "classification": "INFRASTRUCTURE_FAILURE",
+  "reason": "MODEL_RUNNER_TERMINATED_BEFORE_ANY_SERIALIZED_RUN",
+  "attempts": 2,
+  "serializedRuns": 0,
+  "results": [],
+  "database": null,
+  "note": "Both explicitly opted-in controlled launches emitted only the isolated runtime scheduler log and terminated before a Business/Policy/Main memo, Candidate trace, or output artifact was serialized. These launches are not semantic samples and are not scored."
+}
