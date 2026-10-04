@@ -1,0 +1,22 @@
+{
+  "phase": "D2-B2-R6H4-C1.1",
+  "productFreezeCommit": "cdebfb5ef6f83a4c8b39e93f3f0dcc39077e2251",
+  "harnessFreezeCommit": "0eea1e5aebcf34598a2225934f55810b3d49c174",
+  "manifest": "planning/ai-native-api/M5-D2-B2-R6H4C11-Freeze-Manifest.json",
+  "preModelGateRunId": "r6c11-pre-20261005-01",
+  "attemptedSuite": {
+    "suite": "domain-corpus",
+    "runId": "r6c11-domain-20261005-01",
+    "modelOptIn": true,
+    "result": "TERMINATED_WITHOUT_RUNNER_RECEIPT"
+  },
+  "observed": {
+    "providerOrRuntimeLog": "copper scheduler initialization only",
+    "suiteArtifactWritten": false,
+    "runnerSummaryWritten": false,
+    "errorObjectReturned": false,
+    "otherSuitesStarted": false
+  },
+  "classification": "PROVIDER_OR_ENVIRONMENT",
+  "actionTaken": "No retry, source change, post-model gate, or canonical assembly was performed."
+}

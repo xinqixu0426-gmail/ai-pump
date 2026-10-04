@@ -1,0 +1,24 @@
+{
+  "candidateControlTools": [
+    "load_tools",
+    "select_business_domains",
+    "mark_domain_api_not_applicable",
+    "resolve_entity",
+    "resolve_page_context_entity"
+  ],
+  "candidateTraceBehavior": {
+    "resolve_entity": "appendToolMessage(call, result, true)",
+    "resolve_page_context_entity": "appendToolMessage(call, result, true)",
+    "effect": "successful verified identity/control traces can retain businessExecution=true"
+  },
+  "apiIndexMembership": {
+    "controlTools": "not in fullInventory",
+    "search_factory_knowledge": "indexed read",
+    "get_order_detail": "indexed read"
+  },
+  "harnessClassification": {
+    "closedControlPlaneSet": true,
+    "indexedExecutedTool": "access measured from frozen API Index",
+    "unknownExecutedTool": "R6_UNKNOWN_EXECUTED_TOOL_ACCESS"
+  }
+}
