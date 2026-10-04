@@ -12,6 +12,6 @@ The W1-10 oracle also accepts either a verified complete `pendingOnly=true` resu
 
 All deterministic and repository gates passed before model execution. The no-model real-catalog preflight used `LOCAL_BUSINESS_DB`, found no applicable dynamic cases, and produced no mutation.
 
-After explicit approval for isolated-fixture payloads, R4 ran two fresh W1-06 samples. The first passed. The second had a valid answer envelope and no safety violation, but investigated readiness and an order knowledge package without invoking `get_purchase_overview`. It therefore did not establish the required canonical shortage-to-purchase relation and was classified as `AGENT_RELIABILITY_FAILURE`.
+After explicit approval for isolated-fixture payloads, R4 ran the already-dispatched five fresh W1-06 samples. Three passed. Two had valid answer envelopes and no safety violation, but did not establish the required canonical shortage-to-purchase relation: one investigated readiness and an order knowledge package without `get_purchase_overview`; the other used an order knowledge package, order detail, and purchase overview without `check_order_readiness`. Both were classified as `AGENT_RELIABILITY_FAILURE`.
 
-No code was changed after this frozen model sample. The remaining eleven targeted samples and four D1 protection samples were not run. Raw run-unique evidence is retained under `M5-D2-B2-R4-runs/`.
+No code was changed after these frozen model samples. The remaining eight targeted samples and four D1 protection samples were not run. Raw run-unique evidence is retained under `M5-D2-B2-R4-runs/`.

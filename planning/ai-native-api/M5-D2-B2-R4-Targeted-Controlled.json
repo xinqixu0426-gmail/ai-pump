@@ -2,10 +2,10 @@
   "phase": "AI-NATIVE D2-B2-R4",
   "authoritative": false,
   "status": "REWORK",
-  "reason": "The frozen no-fix-in-place rule stopped the matrix after the second fresh W1-06 sample failed its canonical shortage-to-purchase business oracle.",
+  "reason": "The frozen no-fix-in-place rule stopped the remaining matrix after the already-dispatched W1-06 five-run batch completed with two canonical shortage-to-purchase business-oracle failures.",
   "planned": { "total": 13, "W1-06": 5, "W1-09": 3, "W1-10": 3, "W1-01": 1, "W1-03": 1 },
   "executed": {
-    "total": 2,
+    "total": 5,
     "runs": [
       {
         "runId": "d2b2r4-w106-1",
@@ -28,10 +28,42 @@
         "finalization": "ANSWER_VERIFIED on first attempt, but the final answer did not satisfy the required canonical shortage-to-purchase formal relation",
         "database": { "mutations": 0, "changedTables": [] },
         "rawStagingArtifact": "planning/ai-native-api/M5-D2-B2-R4-runs/M5-D2-B2-runs/controlled/d2b2r4-w106-2/artifact.json"
+      },
+      {
+        "runId": "d2b2r4-w106-3",
+        "caseId": "W1-06",
+        "semanticPass": true,
+        "classification": "PASS",
+        "formalTools": ["get_order_knowledge_package", "get_purchase_overview", "check_order_readiness"],
+        "finalization": "ANSWER_VERIFIED on first attempt",
+        "database": { "mutations": 0, "changedTables": [] },
+        "rawStagingArtifact": "planning/ai-native-api/M5-D2-B2-R4-runs/M5-D2-B2-runs/controlled/d2b2r4-w106-3/artifact.json"
+      },
+      {
+        "runId": "d2b2r4-w106-4",
+        "caseId": "W1-06",
+        "semanticPass": true,
+        "classification": "PASS",
+        "formalTools": ["check_order_readiness", "get_purchase_overview"],
+        "finalization": "ANSWER_VERIFIED on first attempt",
+        "database": { "mutations": 0, "changedTables": [] },
+        "rawStagingArtifact": "planning/ai-native-api/M5-D2-B2-R4-runs/M5-D2-B2-runs/controlled/d2b2r4-w106-4/artifact.json"
+      },
+      {
+        "runId": "d2b2r4-w106-5",
+        "caseId": "W1-06",
+        "semanticPass": false,
+        "classification": "AGENT_RELIABILITY_FAILURE",
+        "reason": "CANONICAL_SHORTAGE_PURCHASE_RELATION_REQUIRED",
+        "formalTools": ["get_order_knowledge_package", "get_order_detail", "get_purchase_overview"],
+        "missingRequiredFormalInvestigation": "check_order_readiness was not called",
+        "finalization": "ANSWER_VERIFIED on first attempt, but the final answer did not satisfy the required canonical shortage-to-purchase formal relation",
+        "database": { "mutations": 0, "changedTables": [] },
+        "rawStagingArtifact": "planning/ai-native-api/M5-D2-B2-R4-runs/M5-D2-B2-runs/controlled/d2b2r4-w106-5/artifact.json"
       }
     ]
   },
-  "notRun": ["W1-06 runs 3-5", "W1-09 runs 1-3", "W1-10 runs 1-3", "W1-01", "W1-03"],
+  "notRun": ["W1-09 runs 1-3", "W1-10 runs 1-3", "W1-01", "W1-03"],
   "delivery": {
     "formalResultObtainedButDeliveryFailed": 0,
     "fallbackUnavailableAfterFormalResult": 0,
