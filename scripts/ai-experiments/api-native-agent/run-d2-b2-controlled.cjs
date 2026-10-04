@@ -20,10 +20,20 @@ const CASES = Object.freeze([
 ]);
 function hash(text) { return crypto.createHash('sha256').update(text).digest('hex'); }
 async function runCandidateCase(testCase, env, executeToolCall) {
-    const started = process.hrtime.bigint(); const memos = await freshMemos(testCase.rawOwnerInput, env);
-    const candidate = await runApiNativeAgentCandidate({ rawOwnerInput: testCase.rawOwnerInput, businessMemo: memos.businessMemo, policyMemo: memos.policyMemo, env }, { executeToolCall });
+    const started = process.hrtime.bigint(); const memos = await freshMemos(testCase.rawOwnerInput, env); const formalCalls = [];
+    // The acceptance oracle records the exact read query that the Agent made.
+    // It is test-only observability, not an agent-visible workflow hint.
+    const recordedExecuteToolCall = async (name, args, options) => {
+        const result = await executeToolCall(name, args, options);
+        formalCalls.push(Object.freeze({ name, args: { ...(args || {}) }, success: result?.success === true,
+            verified: result?.verified === true || result?.executionEvidence?.verified === true,
+            queryReceipt: result?.queryReceipt || null }));
+        return result;
+    };
+    const candidate = await runApiNativeAgentCandidate({ rawOwnerInput: testCase.rawOwnerInput, businessMemo: memos.businessMemo, policyMemo: memos.policyMemo, env }, { executeToolCall: recordedExecuteToolCall });
     return Object.freeze({ ...testCase, candidate, businessMemoHash: hash(memos.businessMemo), policyMemoHash: hash(memos.policyMemo), memoTimings: memos.timings,
-        durationMs: Number(process.hrtime.bigint() - started) / 1e6, ...classifyRun(testCase, candidate) });
+        formalCalls: Object.freeze(formalCalls), durationMs: Number(process.hrtime.bigint() - started) / 1e6,
+        ...classifyRun({ ...testCase, formalCalls }, candidate) });
 }
 async function main(outputDirectory = path.join(process.cwd(), 'planning/ai-native-api')) {
     if (process.env.D2_B2_ALLOW_MODEL_RUN !== '1') throw new Error('D2_B2_MODEL_RUN_REQUIRES_EXPLICIT_OPT_IN');

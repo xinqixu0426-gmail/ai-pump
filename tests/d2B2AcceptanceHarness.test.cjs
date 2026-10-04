@@ -6,6 +6,7 @@ const { buildManifest, PRODUCT_BASELINE_COMMIT } = require('../scripts/ai-experi
 const real = require('../scripts/ai-experiments/api-native-agent/run-d2-b2-real-catalog.cjs');
 const staging = require('../scripts/ai-experiments/api-native-agent/d2B2AcceptanceStaging.cjs');
 const { assemble } = require('../scripts/ai-experiments/api-native-agent/d2B2AcceptanceAssembler.cjs');
+const { classifyRun } = require('../scripts/ai-experiments/api-native-agent/d2B2AcceptanceEvaluator.cjs');
 test('D2-B2 acceptance harness has ten controlled cases and a fresh 15-run repetition plan without starting a provider', () => {
   assert.equal(controlled.CASES.length, 10); assert.equal(repetition.REPETITION_CASE_IDS.length, 5); assert.equal(repetition.plan().length, 15);
 });
@@ -42,4 +43,18 @@ test('RH-01..07: real runner initializes environment before delayed runtime impo
   assert.equal(initialized.database.databaseSource, 'LOCAL_BUSINESS_DB');
   assert.deepEqual(order.slice(0, 2), ['environment', 'pre-database']);
   assert.throws(() => real.assertRealDatabaseSource({ NODE_ENV: 'test' }), /LOCAL_BUSINESS_DB/);
+});
+
+test('W1-10 oracle accepts complete verified pending-only or disclosed partial results, never unfiltered completeness as pending completeness', () => {
+  const candidate = ({ answer, status = 'COMPLETED', completeness, factIds = ['C-1', 'P-1'] }) => ({
+    answerValidation: { valid: true, answer, claims: [{ text: answer, factIds }], goals: [{ questionIndex: 0, status, factIds }] },
+    factLedger: { facts: [
+      { factId: 'C-1', predicate: 'collection_completeness', value: completeness, qualifiers: { collectionRef: 'purchase_tasks', returnedCount: completeness === 'COMPLETE' ? 1 : 1, totalCount: completeness === 'COMPLETE' ? 1 : 2 } },
+      { factId: 'P-1', predicate: 'purchase_status', value: '已下单', entity: { canonicalName: 'D1-R1轴承-202' } },
+    ] },
+  });
+  const oracle = { kind: 'PENDING_PURCHASE_COLLECTION' };
+  assert.equal(classifyRun({ oracle, formalCalls: [{ name: 'get_purchase_overview', args: { pendingOnly: true }, success: true, verified: true }] }, candidate({ answer: '当前待处理物料为D1-R1轴承-202。', completeness: 'COMPLETE' })).outcome.pass, true);
+  assert.equal(classifyRun({ oracle, formalCalls: [{ name: 'get_purchase_overview', args: { limit: 1 }, success: true, verified: true }] }, candidate({ answer: '当前仅返回部分采购记录，正式结果显示还有更多记录。', status: 'PARTIAL', completeness: 'PARTIAL' })).outcome.pass, true);
+  assert.equal(classifyRun({ oracle, formalCalls: [{ name: 'get_purchase_overview', args: {}, success: true, verified: true }] }, candidate({ answer: '当前待处理物料为D1-R1轴承-202。', completeness: 'COMPLETE' })).outcome.pass, false);
 });

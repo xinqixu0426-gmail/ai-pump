@@ -52,6 +52,7 @@ function serializeRun(item, options = {}) {
         safety: item?.safety || null,
         declaredStatus: item?.declaredStatus || item?.outcome?.declaredStatus || null,
         memoTimings: item?.memoTimings || null,
+        formalCalls: item?.formalCalls || [],
         metrics: candidate.metrics || item?.metrics || null,
         traces: candidate.traces || item?.traces || [],
         formalOutcomeReceipts: candidate.formalOutcomeReceipts || item?.formalOutcomeReceipts || [],

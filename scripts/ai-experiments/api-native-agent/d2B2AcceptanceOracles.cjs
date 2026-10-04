@@ -9,10 +9,11 @@ function byPart(rows, partId) { return (rows || []).find(row => Number(row?.part
 
 async function buildControlledOracles(executeToolCall, ids) {
     const call = (name, args) => executeToolCall(name, args, { allowWrite: false });
-    const [readinessAResult, detailAResult, purchaseResult, partialPurchaseResult, virtualResult, readinessBResult, readinessUResult] = await Promise.all([
+    const [readinessAResult, detailAResult, purchaseResult, pendingPurchaseResult, partialPurchaseResult, virtualResult, readinessBResult, readinessUResult] = await Promise.all([
         call('check_order_readiness', { orderId: ids.orderA }),
         call('get_order_detail', { orderId: ids.orderA }),
         call('get_purchase_overview', {}),
+        call('get_purchase_overview', { pendingOnly: true }),
         call('get_purchase_overview', { limit: 1 }),
         call('preview_virtual_readiness', { version: 1, basisRef: { kind: 'RECIPE_SCENARIO', recipeId: ids.v750General, comparisonInput: { version: 1, baselinePolicy: 'CURRENT_REBUILT', scenarios: [] }, scenarioKey: 'base' }, quantity: 10 }),
         call('check_order_readiness', { orderId: ids.orderB }),
@@ -21,6 +22,7 @@ async function buildControlledOracles(executeToolCall, ids) {
     const readinessA = formal(readinessAResult, 'order-a-readiness');
     const detailA = formal(detailAResult, 'order-a-detail').order || formal(detailAResult, 'order-a-detail');
     const purchase = formal(purchaseResult, 'purchase-overview');
+    const pendingPurchase = formal(pendingPurchaseResult, 'pending-purchase-overview');
     const partialPurchase = formal(partialPurchaseResult, 'partial-purchase-overview');
     const virtual = formal(virtualResult, 'virtual-readiness');
     const readinessB = formal(readinessBResult, 'order-b-readiness');
@@ -39,7 +41,12 @@ async function buildControlledOracles(executeToolCall, ids) {
         'W1-07': { kind: 'VIRTUAL_READINESS', recipe: virtual.recipe?.displayName || 'V750-通用款', quantity: virtual.quantity, status: virtual.status, inventoryBasis: virtual.inventoryBasis },
         'W1-08': { kind: 'UNRESOLVED', displayName: unresolved.model || unresolved.name },
         'W1-09': { kind: 'EMPTY_COMPLETE', verdict: readinessB.verdict },
-        'W1-10': { kind: 'PARTIAL_PURCHASE', returnedCount: partialPurchase.returnedCount, totalCount: partialPurchase.summary?.taskCount },
+        // Owner wording permits either a complete pending-only query or a
+        // correctly disclosed partial collection. The oracle records both
+        // formal contracts without prescribing the Agent's tool sequence.
+        'W1-10': { kind: 'PENDING_PURCHASE_COLLECTION', pendingOnly: true,
+            filteredReturnedCount: pendingPurchase.returnedCount, filteredTotalCount: pendingPurchase.summary?.taskCount,
+            partialReturnedCount: partialPurchase.returnedCount, partialTotalCount: partialPurchase.summary?.taskCount },
     });
 }
 
