@@ -1,0 +1,20 @@
+{
+  "productFreezeCommit": "cdebfb5ef6f83a4c8b39e93f3f0dcc39077e2251",
+  "harnessFreezeCommit": "d09fbd711c02248b84d7f06a48d2500b9d53a086",
+  "apiIndexFingerprint": "10bee9d8a065ea2322fcaf14bdf21cee949d0f57da8c3d5133448c1ee7d09c61",
+  "hashes": {
+    "candidateSource": "9bc459cff42e21a8b08d16074d9cdbb46e69d14834532fca5788908b0a4d8c32",
+    "factLedger": "620c95b51ecb5c4f8dad22091f86f208faa5672a553b1d80e59f9ac706e62bda",
+    "answerValidator": "84994949efd1349a885aefef3d206c85f8e19fe6d6cb3464b700a4396337b904",
+    "domainCorpus": "ab8f268b2934e5ad0d28a69579a5738d46d229d2867428279f95971b5931a937",
+    "ragHarness": "52b6ee2c6851972431b0dda92175adeea04283d6bcd970514f390b1bad0cac0b",
+    "ragFixtureAdapter": "4a33d9f873c8c521e6d5903ca5f782f8d2c461b0b2edc1d7271e38764a1828d0",
+    "answerRelevanceScorer": "f020e00d8856a1f23af8a7994bb335092d8c9b3294c4f9984ef99075b4a1d0d4",
+    "assembler": "814c59f64d9cf80cd9576d2f7c69d9c6545bac4e6a6d56d1429706861abacf3f",
+    "freshRunners": "29bf5da53a7f49e070acc25af52c2d7c199aae7b62f1638f937106e7ff59ade1",
+    "durableFreshRunner": "c25f06ec9a86a0d0232d769b7699410ab8e1431143178667c1e9fc138047a2ed",
+    "durableCaseExecutor": "f9310201e81fae9c0366af25192547e84b406a02f6053cd9dd70c232c216a480",
+    "durableCli": "f12fe613eb78e493b22852d54952c7c4a1e5dcb52fdb7974187e216ed94dcd2c",
+    "freezeVerifier": "d5ea42d6007d1cc6241abcc9c32b570d191d49fba51a323c3a82252bdad8e609"
+  }
+}

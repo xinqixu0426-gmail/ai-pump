@@ -1,0 +1,24 @@
+{
+  "phase": "R6H4-C1.3R",
+  "productChanged": false,
+  "modelCalls": 0,
+  "authoritativeExecutor": "d2B2R6DurableCaseExecutor.cjs",
+  "authoritativeCli": "run-d2-b2-r6-durable.cjs",
+  "caseProcessCardinality": 1,
+  "suites": {
+    "domain-corpus": { "cases": 12, "path": "controlled fixture -> fresh memos -> candidate -> domain scorer -> DB receipt" },
+    "rag": { "cases": 4, "path": "controlled fixture -> frozen RAG adapter -> W1-06 oracle -> scorer -> DB receipt" },
+    "targeted": { "cases": 14, "path": "controlled fixture -> frozen oracle mapping -> scorer -> DB receipt" },
+    "d1-protection": { "cases": 4, "path": "D1 controlled fixture -> frozen D1 oracle -> scorer -> DB receipt" }
+  },
+  "targetedOracleMapping": {
+    "W1-06": "W1-06",
+    "SHORTAGE_ONLY": "W1-01",
+    "PENDING_PURCHASE": "W1-10",
+    "ORDER_PRODUCTS": "W1-04"
+  },
+  "externalExecutorInjection": false,
+  "externalRagWrapperInjection": false,
+  "modelOptInRequired": "D2_B2_ALLOW_MODEL_RUN=1",
+  "checkpointContract": "immutable per-case checkpoint with required before/after DB receipt"
+}

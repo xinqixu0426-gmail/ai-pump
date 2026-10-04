@@ -1,0 +1,11 @@
+{
+  "productChanged": false,
+  "modelCalls": 0,
+  "businessExecutionsDuringPreflight": 0,
+  "databaseMutationsDuringPreflight": 0,
+  "frozenRagAdapterOnly": true,
+  "callerExecutorInjection": false,
+  "perCaseDatabaseReceiptRequired": true,
+  "semanticFailureCheckpointImmutable": true,
+  "secretScan": "PASS"
+}
