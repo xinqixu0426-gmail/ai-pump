@@ -18,6 +18,7 @@ function scripted(responses) {
 function input(overrides = {}) {
     return { rawOwnerInput: '请查正式数据', businessMemo: 'business', policyMemo: 'policy', ...overrides };
 }
+function legacyDependencies(dependencies) { return { domainCoverageEnabled: false, ...dependencies }; }
 
 test('R3-A: a formal search_coils directory cost remains per-record claimable evidence without promoting pricing parameters', () => {
     const ledger = createFactLedger({ includeCoilDirectoryCostFacts: true });
@@ -71,7 +72,7 @@ test('R3-B: declared-relevant coverage precedes one bounded completion review wi
         { content: JSON.stringify({ answer: '已完成正式查询。', claims: [{ text: '已完成正式查询。', factIds: ['F-001'] }], goals: [{ questionIndex: 0, status: 'COMPLETED', factIds: ['F-001'] }] }) },
         { content: JSON.stringify({ answer: '已完成正式查询。', claims: [{ text: '已完成正式查询。', factIds: ['F-001'] }], goals: [{ questionIndex: 0, status: 'COMPLETED', factIds: ['F-001'] }] }) },
     ]);
-    const result = await runApiNativeAgentCandidate(input(), { modelCall: model, executeToolCall: async name => ({ success: true, verified: true, executionEvidence: { verified: true }, data: name === 'search_coils' ? { data: [] } : [] }) });
+    const result = await runApiNativeAgentCandidate(input(), legacyDependencies({ modelCall: model, executeToolCall: async name => ({ success: true, verified: true, executionEvidence: { verified: true }, data: name === 'search_coils' ? { data: [] } : [] }) }));
     assert.equal(result.metrics.completionReviewCalls, 1);
     assert.equal(result.metrics.completionReviewResumed, 0);
     assert.equal(result.metrics.relevantCoverageReviewResumed, 1);
@@ -85,7 +86,7 @@ test('R3-B: a completed investigation gets at most one review and does not creat
         { content: JSON.stringify({ answer: '请补充具体对象。', claims: [], goals: [{ questionIndex: 0, status: 'CLARIFICATION', factIds: [] }] }) },
         { content: JSON.stringify({ answer: '请补充具体对象。', claims: [], goals: [{ questionIndex: 0, status: 'CLARIFICATION', factIds: [] }] }) },
     ]);
-    const result = await runApiNativeAgentCandidate(input(), { modelCall: model });
+    const result = await runApiNativeAgentCandidate(input(), legacyDependencies({ modelCall: model }));
     assert.equal(result.metrics.completionReviewCalls, 1);
     assert.equal(result.metrics.businessToolCalls, 0);
     assert.equal(result.answerValidation.valid, true);

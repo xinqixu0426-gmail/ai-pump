@@ -1,0 +1,13 @@
+{
+  "sample": "d2b2r5-pending-01",
+  "kind": "SCORING_CORRECTION_NOT_MODEL_REPLACEMENT",
+  "originalFormalCall": {
+    "name": "get_purchase_overview",
+    "args": { "pendingOnly": true },
+    "verified": true,
+    "queryReceipt": { "returnedCount": 2, "totalCount": 2, "truncated": false, "possiblyTruncated": false }
+  },
+  "revisedResult": "PASS",
+  "rootCause": "The evaluator treated the phrase '无未返回的记录' as partial disclosure and required a retained cited collection fact even though the frozen verified query receipt establishes the exact filtered collection as complete.",
+  "safety": "The Answer Validator had already accepted the answer and the formal receipt proves pendingOnly=true with a complete result."
+}

@@ -1,0 +1,28 @@
+{
+  "phase": "M5-D2-B2-R6",
+  "source": "registry/apiIndex audited at 9890e604 plus R6 working changes",
+  "aiActions": 84,
+  "formalCapabilities": 153,
+  "apiIndexExposedReadPreview": 31,
+  "domains": {
+    "business_history": 1,
+    "catalog": 2,
+    "coil": 5,
+    "cost": 6,
+    "file": 1,
+    "inventory": 1,
+    "knowledge": 3,
+    "management": 1,
+    "order": 4,
+    "procurement": 1,
+    "quotation": 5,
+    "recipe": 13
+  },
+  "metadataCorrections": [{
+    "toolName": "get_purchase_overview",
+    "beforeDomains": ["order"],
+    "afterDomains": ["procurement"],
+    "reason": "Current purchase-task overview is a procurement capability; order-specific readiness remains separately represented by order-domain producers."
+  }],
+  "apiIndexFingerprintAfterMetadataCorrection": "10bee9d8a065ea2322fcaf14bdf21cee949d0f57da8c3d5133448c1ee7d09c61"
+}

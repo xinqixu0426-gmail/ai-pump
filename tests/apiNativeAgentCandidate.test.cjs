@@ -22,6 +22,7 @@ function scripted(messages) {
     }, { calls });
 }
 function baseInput() { return { rawOwnerInput: '请查正式数据', businessMemo: '# Business\n正式业务语义。', policyMemo: '# Policy\n只读。', finalizationEnabled: false }; }
+function legacyDependencies(dependencies) { return { domainCoverageEnabled: false, ...dependencies }; }
 
 test('AG-01..06: initial control tools load a canonical schema, execute it, return its fact to the same conversation, and never ledger load_tools', async () => {
     const model = scripted([
@@ -29,13 +30,13 @@ test('AG-01..06: initial control tools load a canonical schema, execute it, retu
         { content: '', tool_calls: [toolCall('read-1', 'get_all_recipes', {})] },
         { content: JSON.stringify({ answer: '已查到正式配方目录。', claims: [{ text: '已查到正式配方目录。', factIds: ['F-001'] }], goals: [{ questionIndex: 0, status: 'COMPLETED', factIds: ['F-001'] }] }) },
     ]);
-    const result = await runApiNativeAgentCandidate(baseInput(), {
+    const result = await runApiNativeAgentCandidate(baseInput(), legacyDependencies({
         modelCall: model,
         executeToolCall: async (name, args) => {
             assert.equal(name, 'get_all_recipes'); assert.deepEqual(args, {});
             return { success: true, executionEvidence: { verified: true }, data: [{ id: 1, name: 'V750-通用款' }] };
         },
-    });
+    }));
     assert.deepEqual(model.calls[0].tools, ['load_tools', 'resolve_entity']);
     assert.ok(model.calls[1].tools.includes('get_all_recipes'));
     assert.equal(result.flags.toolResultsReturnToSameAgent, true);
@@ -54,9 +55,9 @@ test('AG-07..11: write/deferred/not-loaded calls fail closed while a second load
         { content: '', tool_calls: [toolCall('read-2', 'calculate_coil_cost', { spec: '12', sheets: 120, material: '钢带', slotType: '小眼' })] },
         { content: JSON.stringify({ answer: '请明确需要查询的线圈。', claims: [], goals: [{ questionIndex: 0, status: 'CLARIFICATION', factIds: [] }] }) },
     ]);
-    const result = await runApiNativeAgentCandidate(baseInput(), { modelCall: model,
+    const result = await runApiNativeAgentCandidate(baseInput(), legacyDependencies({ modelCall: model,
         executeToolCall: async () => ({ success: true, verified: true, executionEvidence: { verified: true }, data: [] }),
-    });
+    }));
     assert.equal(result.traces[0].code, 'TOOL_NOT_LOADED');
     assert.deepEqual(result.metrics.loadedToolNames, ['search_coils', 'calculate_coil_cost']);
     assert.equal(result.metrics.loadToolsCalls, 2);
@@ -74,10 +75,10 @@ test('RC-01..08: Main-Agent declared relevant tools are mechanically covered wit
         { content: '', tool_calls: [toolCall('read-b', 'search_coils', { spec: '12' })] },
         { content: JSON.stringify({ answer: '已取得正式目录。', claims: [{ text: '已取得正式目录。', factIds: ['F-001'] }], goals: [{ questionIndex: 0, status: 'COMPLETED', factIds: ['F-001'] }] }) },
     ]);
-    const result = await runApiNativeAgentCandidate(baseInput(), {
+    const result = await runApiNativeAgentCandidate(baseInput(), legacyDependencies({
         modelCall: model,
         executeToolCall: async name => ({ success: true, verified: true, executionEvidence: { verified: true }, data: name === 'search_coils' ? [] : [{ id: 1, name: '正式配方' }] }),
-    });
+    }));
     assert.deepEqual(result.relevantApiCoverage.requiredRelevantTools, ['get_all_recipes', 'search_coils']);
     assert.deepEqual(result.relevantApiCoverage.executedRelevantTools, ['get_all_recipes', 'search_coils']);
     assert.deepEqual(result.relevantApiCoverage.missingRelevantToolsAtFirstStop, ['search_coils']);
@@ -91,11 +92,32 @@ test('RC-01..08: Main-Agent declared relevant tools are mechanically covered wit
         { content: '', tool_calls: [toolCall('read-a', 'get_all_recipes', {})] },
         { content: JSON.stringify({ answer: '已取得正式目录。', claims: [{ text: '已取得正式目录。', factIds: ['F-001'] }], goals: [{ questionIndex: 0, status: 'COMPLETED', factIds: ['F-001'] }] }) },
     ]);
-    const singleResult = await runApiNativeAgentCandidate(baseInput(), { modelCall: single,
+    const singleResult = await runApiNativeAgentCandidate(baseInput(), legacyDependencies({ modelCall: single,
         executeToolCall: async () => ({ success: true, verified: true, executionEvidence: { verified: true }, data: [{ id: 1, name: '正式配方' }] }),
-    });
+    }));
     assert.equal(singleResult.relevantApiCoverage.finalRelevantCoverage, true);
     assert.equal(singleResult.relevantApiCoverage.coverageReviewResumed, 0);
+});
+
+test('R6 RC-01..08: a Main-Agent domain declaration expands registry metadata, requires every selected-domain API, and requires auxiliary RAG', async () => {
+    const model = scripted([
+        { content: '', tool_calls: [toolCall('domains-1', 'select_business_domains', { domains: ['procurement'] })] },
+        { content: '', tool_calls: [toolCall('purchase-1', 'get_purchase_overview', { pendingOnly: true }), toolCall('rag-1', 'search_factory_knowledge', { query: 'ORDER-A 采购' })] },
+        { content: JSON.stringify({ answer: '请明确要核对的采购范围。', claims: [], goals: [{ questionIndex: 0, status: 'CLARIFICATION', factIds: [] }] }) },
+    ]);
+    const result = await runApiNativeAgentCandidate(baseInput(), {
+        modelCall: model,
+        executeToolCall: async name => ({ success: true, verified: true, executionEvidence: { verified: true },
+            data: name === 'get_purchase_overview' ? { tasks: [], queryReceipt: { returnedCount: 0, totalCount: 0, truncated: false, possiblyTruncated: false } } : [],
+            provenance: name === 'search_factory_knowledge' ? { kind: 'knowledge_snapshot' } : undefined }),
+    });
+    assert.deepEqual(result.relevantApiCoverage.selectedBusinessDomains, ['procurement']);
+    assert.deepEqual(result.relevantApiCoverage.domainApiSet, ['get_purchase_overview']);
+    assert.deepEqual(result.relevantApiCoverage.requiredRelevantTools, ['get_purchase_overview', 'search_factory_knowledge']);
+    assert.deepEqual(result.relevantApiCoverage.executedRelevantTools, ['get_purchase_overview', 'search_factory_knowledge']);
+    assert.equal(result.relevantApiCoverage.ragAuxiliarySearched, true);
+    assert.equal(result.relevantApiCoverage.finalRelevantCoverage, true);
+    assert.equal(result.traces.some(trace => trace.name === 'select_business_domains' && trace.businessExecution), false);
 });
 
 test('AG-04 and AG-12: loaded runtime definition is compatible with existing Agent execution and nested scenarios have distinct dedup keys', async () => {
@@ -121,10 +143,10 @@ test('AG-13..14: formal errors return to the same agent, and hard safety failure
         { content: '', tool_calls: [toolCall('read-1', 'get_all_recipes', {})] },
         { content: JSON.stringify({ answer: '正式查询暂不可用，请稍后重试。', claims: [], goals: [{ questionIndex: 0, status: 'UNAVAILABLE', factIds: [] }] }) },
     ]);
-    const result = await runApiNativeAgentCandidate(baseInput(), {
+    const result = await runApiNativeAgentCandidate(baseInput(), legacyDependencies({
         modelCall: model,
         executeToolCall: async () => ({ success: false, code: 'FORMAL_TRANSPORT_UNAVAILABLE', category: 'TRANSPORT', recoverable: true }),
-    });
+    }));
     assert.equal(result.traces.find(item => item.name === 'get_all_recipes').success, false);
     assert.equal(model.calls.length, 3);
     assert.equal(result.answerValidation.valid, true);
@@ -138,11 +160,11 @@ test('AG-15: Answer Validator rejects a money claim bound to the wrong entity ev
         { content: '', tool_calls: [toolCall('read-1', 'get_recipe_detail', { recipeId: 1 })] },
         { content: JSON.stringify({ answer: '另一配方当前成本为 100 元。', claims: [{ text: '另一配方当前成本为 100 元。', factIds: ['F-003'] }], goals: [{ questionIndex: 0, status: 'COMPLETED', factIds: ['F-003'] }] }) },
     ]);
-    const result = await runApiNativeAgentCandidate({ ...baseInput(), maxMainModelCalls: 4 }, {
+    const result = await runApiNativeAgentCandidate({ ...baseInput(), maxMainModelCalls: 4 }, legacyDependencies({
         modelCall: model,
         resolveAgentEntity: async () => ({ entityType: 'recipe', mention: 'V750', status: 'RESOLVED', canonicalId: '1', canonicalName: 'V750-通用款', candidates: [], source: 'formal', verified: true }),
         executeToolCall: async _name => ({ success: true, executionEvidence: { verified: true }, data: { currentTotalCost: 100, recipeName: 'V750-通用款' } }),
-    });
+    }));
     assert.equal(result.answerValidation.valid, false);
     assert.equal(result.answerValidation.code, 'MONEY_CLAIM_BINDING_MISMATCH');
     assert.equal(result.answer, '本轮正式查询已完成，但无法验证回答中的业务事实；请根据正式查询结果重新查询。');
@@ -159,7 +181,7 @@ test('R1-04..10: claimable facts retain entity and basis, duplicate evidence is 
         { content: JSON.stringify({ answer: '已取得正式配方当前成本。', claims: [{ text: '已取得正式配方当前成本。', factIds: ['F-001'] }], goals: [{ questionIndex: 0, status: 'COMPLETED', factIds: ['F-001'] }] }) },
     ]);
     let finalValidations = 0;
-    const result = await runApiNativeAgentCandidate({ ...baseInput(), finalizationEnabled: true, completionReviewEnabled: false }, {
+    const result = await runApiNativeAgentCandidate({ ...baseInput(), finalizationEnabled: true, completionReviewEnabled: false }, legacyDependencies({
         modelCall: model,
         executeToolCall: async () => ({ success: true, verified: true, executionEvidence: { verified: true }, data: { currentTotalCost: 100, costBasis: 'current' } }),
         validateAnswer: raw => {
@@ -167,7 +189,7 @@ test('R1-04..10: claimable facts retain entity and basis, duplicate evidence is 
             if (raw === 'not-json') return { valid: false, code: 'ANSWER_ENVELOPE_INVALID', answer: null, goals: [] };
             return { valid: true, code: null, answer: '已取得正式配方当前成本。', goals: [{ questionIndex: 0, status: 'COMPLETED', factIds: ['F-001'] }] };
         },
-    });
+    }));
     assert.equal(result.answerValidation.valid, true);
     assert.equal(result.metrics.mainModelCalls, 5);
     assert.equal(finalValidations, 2);
@@ -181,10 +203,10 @@ test('R1-04..10: claimable facts retain entity and basis, duplicate evidence is 
         { content: '', tool_calls: [toolCall('read-2', 'search_coils', { spec: '13' })] },
         { content: JSON.stringify({ answer: '已取得正式目录。', claims: [{ text: '已取得正式目录。', factIds: ['F-001'] }], goals: [{ questionIndex: 0, status: 'COMPLETED', factIds: ['F-001'] }] }) },
     ]);
-    const duplicated = await runApiNativeAgentCandidate(baseInput(), {
+    const duplicated = await runApiNativeAgentCandidate(baseInput(), legacyDependencies({
         modelCall: duplicateModel,
         executeToolCall: async () => ({ success: true, verified: true, executionEvidence: { verified: true }, data: [{ id: 1, name: 'V750-通用款' }] }),
-    });
+    }));
     assert.equal(duplicated.metrics.noNewEvidenceEvents, 1);
     assert.equal(duplicated.metrics.duplicateFactsAvoided, 1);
     assert.equal(duplicated.factLedger.facts.filter(item => item.predicate === 'formal_result_available').length, 1);
@@ -204,7 +226,7 @@ test('R4 GR-01..03: every finalization repair retains the original-question goal
             { content: 'repaired-envelope' },
         ]);
         let validations = 0;
-        const result = await runApiNativeAgentCandidate({ ...baseInput(), finalizationEnabled: true, completionReviewEnabled: false }, {
+        const result = await runApiNativeAgentCandidate({ ...baseInput(), finalizationEnabled: true, completionReviewEnabled: false }, legacyDependencies({
             modelCall: model,
             executeToolCall: async () => ({ success: true, verified: true, executionEvidence: { verified: true }, data: [{ id: 1, name: '正式配方' }] }),
             validateAnswer: raw => {
@@ -212,7 +234,7 @@ test('R4 GR-01..03: every finalization repair retains the original-question goal
                 if (raw === 'first-rejected-envelope') return { valid: false, code: failureCode, detail: { code: failureCode }, answer: null, goals: [] };
                 return { valid: true, code: null, answer: '已取得正式结果。', claims: [{ text: '已取得正式结果。', factIds: ['F-001'] }], goals: [{ questionIndex: 0, status: 'COMPLETED', factIds: ['F-001'] }] };
             },
-        });
+        }));
         assert.equal(result.answerValidation.valid, true, failureCode);
         assert.equal(validations, 2, failureCode);
         const repair = model.calls.flatMap(call => call.messages)

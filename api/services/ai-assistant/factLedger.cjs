@@ -378,6 +378,14 @@ function operationalEvidenceFacts(data, base, result = {}) {
         for (const fact of operationalQuantityFacts(row, { entity, base, requirementRef, basis, context, fields })) add(fact);
     };
 
+    if (base.tool === 'search_factory_knowledge') {
+        const rows = Array.isArray(data) ? data : Array.isArray(data?.data) ? data.data : [];
+        add(makeFact({ entity: base.entity || null, predicate: 'auxiliary_knowledge_retrieval', value: rows.length, unit: 'count',
+            basis: 'AUXILIARY_KNOWLEDGE_RETRIEVAL', capabilityId: base.capabilityId, tool: base.tool,
+            qualifiers: { sourceKind: text(result?.provenance?.kind) || 'knowledge_snapshot', producer: 'knowledge_search',
+                retrievedAt: text(result?.provenance?.checkedAt) || null, returnedCount: rows.length } }));
+    }
+
     if (base.tool === 'preview_virtual_readiness') {
         const recipe = base.entity;
         const basis = text(data.inventoryBasis) || null;

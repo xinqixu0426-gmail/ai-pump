@@ -8,9 +8,12 @@ const { AI_TOOLS } = require('../../routes/ai/tools.cjs');
 const { AI_FORMAL_TOOLS } = require('../aiFormalToolDefinitions.cjs');
 const { buildApiIndex } = require('./apiIndex.cjs');
 
-const MAX_LOAD_BATCH = 8;
-const MAX_LOADED_TOOLS_PER_REQUEST = 16;
-const MAX_LOADED_SCHEMA_CHARS = 32_000;
+// Domain coverage loads the formally eligible read/preview set for a
+// Main-Agent-selected business domain. These remain bounded by the API Index,
+// never include writes, and must fit in the frozen model context.
+const MAX_LOAD_BATCH = 32;
+const MAX_LOADED_TOOLS_PER_REQUEST = 32;
+const MAX_LOADED_SCHEMA_CHARS = 64_000;
 
 const LOAD_TOOLS_TOOL = Object.freeze({
     type: 'function',

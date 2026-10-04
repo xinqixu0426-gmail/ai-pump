@@ -17,16 +17,35 @@ const { buildApiIndex, renderApiIndexForModel } = require('../../../api/services
 const { LOAD_TOOLS_TOOL, createToolSchemaSession } = require('../../../api/services/ai-assistant/toolSchemaLoader.cjs');
 const { ontology } = require('../../../api/ontology/contract.cjs');
 
-const MAX_MAIN_MODEL_CALLS = 10;
-const MAX_BUSINESS_TOOL_CALLS = 8;
+// A selected domain can expose more than ten independent safe read/preview
+// capabilities.  This bound protects a bounded investigation while allowing
+// the owner-approved domain-completeness contract to finish.
+const MAX_MAIN_MODEL_CALLS = 40;
+const MAX_BUSINESS_TOOL_CALLS = 32;
 const MAX_LOAD_TOOLS_CALLS = 4;
 const MAX_RESOLVE_CALLS = 6;
-const MAX_RUNTIME_MS = 120_000;
+const MAX_RUNTIME_MS = 300_000;
 const MAX_CURRENT_TOOL_RESULT_CHARS = 16 * 1024;
 const MAX_HISTORICAL_TOOL_RESULT_CHARS = 900;
 const MAX_FINALIZATION_MODEL_CALLS = 2;
 const MAX_COMPLETION_REVIEWS_PER_REQUEST = 1;
 const MAX_TERMINAL_OUTCOME_REVIEWS = 1;
+
+function controlTool(name, description, properties, required) {
+    return Object.freeze({ type: 'function', function: Object.freeze({ name, description,
+        parameters: Object.freeze({ type: 'object', additionalProperties: false, properties: Object.freeze(properties), required: Object.freeze(required) }) }) });
+}
+const SELECT_BUSINESS_DOMAINS_TOOL = controlTool('select_business_domains',
+    'Control-plane only: declare the business domains selected for this owner request before any business API execution. Domains must be taken from the API Index; this does not read data or create facts.', {
+        domains: Object.freeze({ type: 'array', minItems: 1, maxItems: 8, uniqueItems: true, items: Object.freeze({ type: 'string', minLength: 1 }) }),
+    }, ['domains']);
+const MARK_DOMAIN_API_NOT_APPLICABLE_TOOL = controlTool('mark_domain_api_not_applicable',
+    'Control-plane only: record why one selected-domain API cannot be safely called with currently available formal context. Use only after attempting formal resolution where needed; this never creates business facts.', {
+        toolName: Object.freeze({ type: 'string', minLength: 1 }),
+        reason: Object.freeze({ type: 'string', enum: Object.freeze(['MISSING_SAFE_INPUT', 'FORMAL_IDENTITY_UNAVAILABLE', 'FORMAL_CONTEXT_UNAVAILABLE']) }),
+        missingInput: Object.freeze({ type: 'string', minLength: 1 }),
+        source: Object.freeze({ type: 'string', minLength: 1 }),
+    }, ['toolName', 'reason', 'missingInput', 'source']);
 
 class CandidateAgentError extends Error {
     constructor(code, message) { super(message); this.name = 'CandidateAgentError'; this.code = code; }
@@ -72,8 +91,9 @@ function candidateSystemPrompt({ businessMemo, policyMemo, ontologyContext, apiI
         'The raw owner input is the primary task source. Business Memo explains business terminology. Policy Memo explains handling, preview, and persistence boundaries. Ontology explains identity and relationships. The API Index is discovery only, not a router.',
         'Initially you only have load_tools and resolve_entity. Before calling an indexed business tool, load its schema with load_tools. Choose tools and order yourself; do not assume an ID, money amount, inventory, relationship, or current configuration.',
         'If a formal result is ambiguous, not found, unsupported, or incomplete, investigate safely when useful or ask for clarification. Never silently choose a candidate. Never call a write tool or claim a write happened.',
-        'Before the first business execution, review the API Index against every business dimension in the owner request. Load every read/preview capability that you judge directly relevant; do not load unrelated tools. Loading a business tool declares it relevant, so execute it once before answering unless a formal failure, ambiguity, unsupported capability, or missing required input blocks it. Later investigation may reveal another relevant capability; load it then and investigate it too. Do not repeat a successful query with the same arguments.',
-        'After every formal result, decide yourself whether more investigation is needed. A formal count can answer a count question even if item detail projection is truncated. Projection truncation is not the same as an incomplete formal business query. If a result says NO_NEW_EVIDENCE or INVESTIGATION_NO_PROGRESS, use existing evidence, choose another capability, or clarify; do not repeatedly vary arbitrary filters. Stop only after every owner-requested business dimension has been considered and every business tool you declared relevant has either executed or has a recorded formal block.',
+        'Before the first business execution, call select_business_domains with every business domain involved in the owner request, using only API Index domain labels. Do not select domains by tool name, and do not select write behavior. The runtime then expands each selected domain to its formally eligible read/preview APIs. For every domain API, execute it once, record a formal failure, or call mark_domain_api_not_applicable with the missing safe input and its formal source. Do not repeat a successful query with the same arguments.',
+        'Every normal business investigation must also search the formal knowledge base once as an auxiliary source. Search narrowly using the owner request and any formally resolved names. Knowledge is historical/auxiliary context: it may explain or disclose a difference, but cannot replace or overwrite a current formal business result.',
+        'After every formal result, decide how to safely supply inputs to the remaining selected-domain APIs. A formal count can answer a count question even if item detail projection is truncated. Projection truncation is not the same as an incomplete formal business query. If a result says NO_NEW_EVIDENCE or INVESTIGATION_NO_PROGRESS, use existing evidence, choose another capability, or clarify; do not repeatedly vary arbitrary filters. Stop only after every selected-domain API is executed, formally blocked, or recorded not applicable, and the auxiliary knowledge search has returned a formal result (including zero hits).',
         'Before ending investigation, compare the owner request with the formal evidence already obtained and the API Index. Resolving an identity is not by itself a cost, inventory, or relationship answer. If a requested fact is already present, use it without repeating a query. If a requested fact is still missing and an available read/preview capability can investigate it, load and continue safely. If a necessary input is genuinely missing, a target remains ambiguous, or the capability is unavailable, say that specific reason and use PARTIAL, UNAVAILABLE, or CLARIFICATION rather than claiming the blocked outcome complete. Do not guess data, silently select candidates, or write data.',
         'When ready, return JSON only: {"answer":"Chinese answer","claims":[{"text":"exact assertion in answer","factIds":["F-001"]}],"goals":[{"questionIndex":0,"status":"COMPLETED|PARTIAL|UNAVAILABLE|CLARIFICATION","factIds":["F-001"]}]}. Every factual assertion needs cited fact IDs. A clarification/unavailable answer may use an empty factIds array. Never show IDs, tool names, API paths, tokens, or internal JSON to the owner.',
         '', 'FULL BUSINESS MEMO:', businessMemo || 'No business memo was supplied.',
@@ -110,12 +130,23 @@ function assistantToolMessage(message, calls) {
 function failure(name, code, details) {
     return Object.freeze({ success: false, agentToolName: name, code, category: 'SAFETY_OR_VALIDATION', recoverable: true, ...(details ? { details } : {}) });
 }
-function runtimeToolDefinitions(session) {
+function runtimeToolDefinitions(session, { domainCoverageEnabled = true } = {}) {
     return Object.freeze([
         LOAD_TOOLS_TOOL,
         RESOLVE_ENTITY_TOOL,
+        ...(domainCoverageEnabled ? [SELECT_BUSINESS_DOMAINS_TOOL, MARK_DOMAIN_API_NOT_APPLICABLE_TOOL] : []),
         ...session.loadedToolNames().map(name => boundToolDefinition(name) || session.loadedDefinitions().find(item => item.function.name === name)).filter(Boolean),
     ]);
+}
+function domainApiSetForSelection(index, domains) {
+    const selected = new Set(domains || []);
+    return Object.freeze(index.modelIndexV1
+        .filter(entry => entry.access !== 'write' && ['query', 'preview'].includes(entry.operation)
+            && entry.domains.some(domain => selected.has(domain)))
+        .map(entry => entry.toolName).sort());
+}
+function domainEnum(index) {
+    return Object.freeze([...new Set(index.modelIndexV1.flatMap(entry => entry.domains))].sort());
 }
 function finalFallback(ledger, status = 'UNAVAILABLE') {
     const snapshot = ledger.snapshot(); const facts = snapshot.facts.filter(item => item.verified);
@@ -281,6 +312,11 @@ async function runApiNativeAgentCandidate(input = {}, dependencies = {}) {
         : MAX_MAIN_MODEL_CALLS;
     const finalizationEnabled = input.finalizationEnabled !== false;
     const completionReviewEnabled = input.completionReviewEnabled !== false;
+    // The normal candidate path always uses domain coverage.  A dependency
+    // injection is retained solely for pre-R6 deterministic regression tests
+    // that verify the historical on-demand-schema primitive in isolation; it
+    // is not part of the owner input or the production runtime contract.
+    const domainCoverageEnabled = dependencies.domainCoverageEnabled !== false;
     const startedAt = Date.now();
     const messages = [
         { role: 'system', content: candidateSystemPrompt({ businessMemo: input.businessMemo, policyMemo: input.policyMemo, ontologyContext, apiIndex: apiIndexText }) },
@@ -288,17 +324,19 @@ async function runApiNativeAgentCandidate(input = {}, dependencies = {}) {
         { role: 'user', content: rawOwnerInput },
     ];
     const toolResults = []; const traces = []; const finalizationAttempts = []; const formalOutcomeReceipts = []; const successfulCalls = new Set(); const formalEvidence = new Set();
-    // The Agent itself selects relevance through the API Index.  Runtime only
-    // records that declaration and mechanically prevents a premature answer
-    // after an Agent-declared business capability has not been attempted.
+    // Main Agent selects domains, never individual tools. Runtime expands that
+    // declaration mechanically through API Index metadata and prevents a
+    // premature answer until each domain capability has a terminal state.
     const requiredRelevantTools = new Set(); const executedRelevantTools = new Set(); const failedRelevantTools = new Set(); const blockedRelevantTools = new Set();
+    const selectedBusinessDomains = new Set(); const domainApiSet = new Set(); const notApplicableDomainApis = new Map();
+    let ragAuxiliarySearched = false;
     const context = { selectedToolNames: new Set(), entityBindings: new Map(), resolvedRecipeIds: new Set(), resolvedRecipeBindings: new Map(), resolvedCoilBindings: new Map(), resolvedPartBindings: new Map(), ambiguousCoilKeys: new Set(), signal: input.signal };
     let mainModelCalls = 0; let loadToolsCalls = 0; let resolveCalls = 0; let businessToolCalls = 0;
     let secondDecisionAfterResult = false; let resultReturnedToAgent = false; let noNewEvidenceEvents = 0; let duplicateFactsAvoided = 0; let consecutiveNoNewEvidence = 0; let noProgressEvents = 0;
     let completionReviewCalls = 0; let completionReviewResumed = 0; let relevantCoverageReviewResumed = 0; let terminalOutcomeReviewCalls = 0; let missingRelevantToolsAtFirstStop = null; const stoppingReasons = [];
 
     function missingRelevantTools() {
-        return [...requiredRelevantTools].filter(name => !executedRelevantTools.has(name) && !failedRelevantTools.has(name)).sort();
+        return [...requiredRelevantTools].filter(name => !executedRelevantTools.has(name) && !failedRelevantTools.has(name) && !notApplicableDomainApis.has(name)).sort();
     }
     function relevantCoverage() {
         const missing = missingRelevantTools();
@@ -311,6 +349,10 @@ async function runApiNativeAgentCandidate(input = {}, dependencies = {}) {
             ...(missingRelevantToolsAtFirstStop ? { missingRelevantToolsAtFirstStop: Object.freeze([...missingRelevantToolsAtFirstStop]) } : {}),
             coverageReviewResumed: relevantCoverageReviewResumed,
             finalRelevantCoverage: missing.length === 0,
+            selectedBusinessDomains: Object.freeze([...selectedBusinessDomains].sort()),
+            domainApiSet: Object.freeze([...domainApiSet].sort()),
+            notApplicableDomainApis: Object.freeze([...notApplicableDomainApis.entries()].map(([toolName, detail]) => Object.freeze({ toolName, ...detail })).sort((a, b) => a.toolName.localeCompare(b.toolName))),
+            ragAuxiliarySearched,
         });
     }
 
@@ -391,10 +433,16 @@ async function runApiNativeAgentCandidate(input = {}, dependencies = {}) {
         if (Date.now() - startedAt > MAX_RUNTIME_MS) return complete(finalFallback(ledger, 'UNAVAILABLE'), 'UNAVAILABLE');
         if (turn > 0 && toolResults.length > 0) secondDecisionAfterResult = true;
         compactHistoricalToolMessages(messages);
-        const message = await runModel(messages, { tools: runtimeToolDefinitions(session), env: input.env, signal: input.signal, timeoutMs: Math.max(1, MAX_RUNTIME_MS - (Date.now() - startedAt)) });
+        const message = await runModel(messages, { tools: runtimeToolDefinitions(session, { domainCoverageEnabled }), env: input.env, signal: input.signal, timeoutMs: Math.max(1, MAX_RUNTIME_MS - (Date.now() - startedAt)) });
         mainModelCalls += 1;
         const calls = toolCallsFrom(message);
         if (calls.length === 0) {
+            if (domainCoverageEnabled && selectedBusinessDomains.size === 0 && turn + 1 < maxMainModelCalls) {
+                stoppingReasons.push('BUSINESS_DOMAIN_DECLARATION_REQUIRED');
+                messages.push({ role: 'assistant', content: String(message.content || '') });
+                messages.push({ role: 'system', content: `BUSINESS_DOMAIN_DECLARATION_REQUIRED: Before answering or executing any business API, call select_business_domains using one or more API Index domain labels. Allowed domains: ${JSON.stringify(domainEnum(apiIndex))}.` });
+                continue;
+            }
             const missing = missingRelevantTools();
             if (missing.length > 0 && turn + 1 < maxMainModelCalls) {
                 if (!missingRelevantToolsAtFirstStop) missingRelevantToolsAtFirstStop = [...missing];
@@ -402,6 +450,12 @@ async function runApiNativeAgentCandidate(input = {}, dependencies = {}) {
                 stoppingReasons.push('RELEVANT_API_COVERAGE_INCOMPLETE');
                 messages.push({ role: 'assistant', content: String(message.content || '') });
                 messages.push({ role: 'system', content: `RELEVANT_API_COVERAGE_INCOMPLETE: You loaded these read/preview business tools as relevant to the owner request but have not attempted them: ${JSON.stringify(missing)}. Continue this same investigation and execute each missing declared-relevant tool once with formally resolved inputs where needed. Do not finalize before every declared-relevant tool has executed or returned a formal block. This is a completeness control, not a tool-order instruction; do not load unrelated tools or repeat successful calls.` });
+                continue;
+            }
+            if (domainCoverageEnabled && !ragAuxiliarySearched && turn + 1 < maxMainModelCalls) {
+                stoppingReasons.push('RAG_AUXILIARY_REQUIRED');
+                messages.push({ role: 'assistant', content: String(message.content || '') });
+                messages.push({ role: 'system', content: 'RAG_AUXILIARY_REQUIRED: Execute search_factory_knowledge once as an auxiliary investigation using a narrow query from the owner request and any formally resolved canonical names. A zero-hit formal result is acceptable. Do not use knowledge to overwrite current formal state.' });
                 continue;
             }
             // A no-tool response is a candidate answer, not proof that every
@@ -435,8 +489,53 @@ async function runApiNativeAgentCandidate(input = {}, dependencies = {}) {
         messages.push(assistantToolMessage(message, calls));
         for (const rawCall of calls) {
             let call = rawCall;
-            const currentTools = new Set(runtimeToolDefinitions(session).map(item => item.function.name));
+            const currentTools = new Set(runtimeToolDefinitions(session, { domainCoverageEnabled }).map(item => item.function.name));
+            if (call.name === 'select_business_domains') {
+                const requested = Array.isArray(call.args?.domains) ? [...new Set(call.args.domains.map(value => String(value).trim()).filter(Boolean))] : [];
+                const allowed = new Set(domainEnum(apiIndex));
+                if (!requested.length || requested.some(domain => !allowed.has(domain))) {
+                    appendToolMessage(call, failure(call.name, 'INVALID_BUSINESS_DOMAIN_DECLARATION', { allowedDomains: [...allowed].sort() }), false);
+                    continue;
+                }
+                requested.forEach(domain => selectedBusinessDomains.add(domain));
+                const names = new Set(domainApiSetForSelection(apiIndex, selectedBusinessDomains));
+                // Knowledge search is a mandatory auxiliary source, not an
+                // owner-selected knowledge domain and not a current authority.
+                names.add('search_factory_knowledge');
+                for (const name of names) {
+                    requiredRelevantTools.add(name);
+                    if (name !== 'search_factory_knowledge') domainApiSet.add(name);
+                }
+                const newNames = [...names].filter(name => !context.selectedToolNames.has(name));
+                const result = newNames.length ? session.load(newNames) : { success: true, controlPlane: true, newlyLoadedToolNames: [], loadedToolNames: session.loadedToolNames() };
+                if (result.success) {
+                    for (const name of result.newlyLoadedToolNames) {
+                        context.selectedToolNames.add(name);
+                    }
+                }
+                appendToolMessage(call, result.success ? { ...result, selectedBusinessDomains: [...selectedBusinessDomains].sort(), domainApiSet: [...domainApiSet].sort(), ragAuxiliaryTool: 'search_factory_knowledge' } : result, false);
+                continue;
+            }
+            if (call.name === 'mark_domain_api_not_applicable') {
+                const toolName = String(call.args?.toolName || '').trim();
+                const reason = String(call.args?.reason || '').trim();
+                const missingInput = String(call.args?.missingInput || '').trim();
+                const source = String(call.args?.source || '').trim();
+                if (!domainApiSet.has(toolName) || executedRelevantTools.has(toolName) || failedRelevantTools.has(toolName)
+                    || !['MISSING_SAFE_INPUT', 'FORMAL_IDENTITY_UNAVAILABLE', 'FORMAL_CONTEXT_UNAVAILABLE'].includes(reason)
+                    || !missingInput || !source) {
+                    appendToolMessage(call, failure(call.name, 'INVALID_DOMAIN_NOT_APPLICABLE_RECORD'), false);
+                    continue;
+                }
+                notApplicableDomainApis.set(toolName, Object.freeze({ reason, missingInput, source }));
+                appendToolMessage(call, { success: true, controlPlane: true, toolName, reason, missingInput, source }, false);
+                continue;
+            }
             if (call.name === 'load_tools') {
+                if (domainCoverageEnabled && selectedBusinessDomains.size === 0) {
+                    appendToolMessage(call, failure(call.name, 'BUSINESS_DOMAIN_DECLARATION_REQUIRED'), false);
+                    continue;
+                }
                 loadToolsCalls += 1;
                 const result = loadToolsCalls > MAX_LOAD_TOOLS_CALLS ? failure(call.name, 'LOAD_TOOLS_CALL_LIMIT_EXCEEDED') : session.load(call.args.toolNames);
                 if (result.success) for (const name of result.newlyLoadedToolNames) {
@@ -445,6 +544,9 @@ async function runApiNativeAgentCandidate(input = {}, dependencies = {}) {
                 }
                 appendToolMessage(call, result, false);
                 continue;
+            }
+            if (domainCoverageEnabled && call.name !== 'resolve_entity' && call.name !== 'resolve_page_context_entity' && selectedBusinessDomains.size === 0) {
+                appendToolMessage(call, failure(call.name, 'BUSINESS_DOMAIN_DECLARATION_REQUIRED'), false); continue;
             }
             if (!currentTools.has(call.name)) { appendToolMessage(call, failure(call.name, 'TOOL_NOT_LOADED'), false); continue; }
             if (call.name === 'resolve_entity' || call.name === 'resolve_page_context_entity') {
@@ -464,6 +566,7 @@ async function runApiNativeAgentCandidate(input = {}, dependencies = {}) {
             } catch (error) { result = formalToolFailure({ code: error?.code || 'FORMAL_TOOL_FAILED', details: error?.details }, call.name); }
             if (result.success === true && call.name !== 'resolve_entity' && call.name !== 'resolve_page_context_entity') successfulCalls.add(callKey(call.name, call.args));
             appendToolMessage(call, result, true);
+            if (call.name === 'search_factory_knowledge' && result?.success === true && result?.verified === true) ragAuxiliarySearched = true;
             if (call.name === 'compare_recipe_scenarios' && result?.success === true) {
                 const receipts = formalScenarioOutcomeReceipts(result.data);
                 formalOutcomeReceipts.push(...receipts);

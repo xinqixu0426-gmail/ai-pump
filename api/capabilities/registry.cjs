@@ -38,7 +38,6 @@ const DOMAIN_CAPABILITY_NAMES = Object.freeze({
     order: Object.freeze([
         'get_order_detail',
         'get_recent_orders',
-        'get_purchase_overview',
         'get_order_readiness_overview',
         'check_order_readiness',
         'plan_order_readiness_actions',
@@ -54,6 +53,9 @@ const DOMAIN_CAPABILITY_NAMES = Object.freeze({
         'update_order_item',
         'delete_order',
         'execute_order_readiness_action',
+    ]),
+    procurement: Object.freeze([
+        'get_purchase_overview',
     ]),
     quotation: Object.freeze([
         'search_quotations',

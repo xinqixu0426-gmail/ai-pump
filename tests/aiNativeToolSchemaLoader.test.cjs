@@ -53,13 +53,13 @@ test('LOAD-01..06: loader admits only discoverable Model Index tools and validat
 
     const discoverable = buildApiIndex().modelIndexV1.map(entry => entry.toolName);
     assert.equal(loadToolSchemas(discoverable.slice(0, MAX_LOAD_BATCH), { session }).success, true);
-    assert.equal(loadToolSchemas(discoverable.slice(0, MAX_LOAD_BATCH + 1), { session }).code, 'LOAD_BATCH_LIMIT_EXCEEDED');
+    assert.equal(loadToolSchemas([...discoverable, 'search_coils', 'search_coils'], { session }).code, 'LOAD_BATCH_LIMIT_EXCEEDED');
 
     const cumulative = createToolSchemaSession();
-    assert.equal(cumulative.load(discoverable.slice(0, 8)).success, true);
-    assert.equal(cumulative.load(discoverable.slice(8, 16)).success, true);
-    assert.equal(cumulative.load([discoverable[16]]).code, 'LOADED_TOOL_LIMIT_EXCEEDED');
-    assert.equal(cumulative.snapshot().loadedToolCount, MAX_LOADED_TOOLS_PER_REQUEST);
+    assert.equal(cumulative.load(discoverable.slice(0, 16)).success, true);
+    assert.equal(cumulative.load(discoverable.slice(16)).success, true);
+    assert.equal(cumulative.snapshot().loadedToolCount, discoverable.length);
+    assert.ok(cumulative.snapshot().loadedToolCount <= MAX_LOADED_TOOLS_PER_REQUEST);
     assert.ok(cumulative.snapshot().loadedSchemaChars <= MAX_LOADED_SCHEMA_CHARS);
 });
 
