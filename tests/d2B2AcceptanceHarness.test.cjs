@@ -12,6 +12,12 @@ const { RAG_FIXTURES, ragObservation, scoreRagAuthority } = require('../scripts/
 const { performance, scoreAnswerRelevance } = require('../scripts/ai-experiments/api-native-agent/d2B2R6AcceptanceScoring.cjs');
 const { CANONICAL_ARTIFACTS, PRODUCT_FREEZE_COMMIT, assembleR6, publishR6 } = require('../scripts/ai-experiments/api-native-agent/d2B2R6AcceptanceAssembler.cjs');
 const r6Fresh = require('../scripts/ai-experiments/api-native-agent/d2B2R6FreshRunners.cjs');
+const { freezeManifestData, verifyR6AcceptanceFreeze } = require('../scripts/ai-experiments/api-native-agent/d2B2R6FreezeVerifier.cjs');
+const { createFrozenRagFixtureExecutor } = require('../scripts/ai-experiments/api-native-agent/d2B2R6RagFixtureAdapter.cjs');
+function testFreezeManifest(directory, harnessFreezeCommit = 'test-freeze') {
+  const target = path.join(directory, 'freeze-manifest.json'); fs.writeFileSync(target, JSON.stringify(freezeManifestData(harnessFreezeCommit)));
+  return target;
+}
 const { classifyRun, domainCoverage } = require('../scripts/ai-experiments/api-native-agent/d2B2AcceptanceEvaluator.cjs');
 test('D2-B2 acceptance harness has ten controlled cases and a fresh 15-run repetition plan without starting a provider', () => {
   assert.equal(controlled.CASES.length, 10); assert.equal(repetition.REPETITION_CASE_IDS.length, 5); assert.equal(repetition.plan().length, 15);
@@ -93,8 +99,9 @@ test('R6H4B AS-01..12: R6 assembly is staging-only, freeze-pinned, composition-c
   assert.equal(assembleR6(failingRoot, plan).final.status, 'FAIL');
 });
 test('R6H4C0 C0-01..20: all future fresh suites preflight without model calls and retain scorer inputs in staging', () => {
+  const freezeRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'd2-b2-r6-freeze-')); const manifestPath = testFreezeManifest(freezeRoot);
   for (const suite of ['domain-corpus', 'rag', 'targeted', 'd1-protection']) {
-    const receipt = r6Fresh.preflight(suite); assert.equal(receipt.preflight, true); assert.equal(receipt.modelCalls, 0);
+    const receipt = r6Fresh.preflight(suite, { manifestPath }); assert.equal(receipt.preflight, true); assert.equal(receipt.modelCalls, 0);
   }
   assert.equal(r6Fresh.TARGETED_CASES.length, 14); assert.deepEqual(r6Fresh.D1_PROTECTION_CASE_IDS, ['D1-03', 'D1-07', 'D1-08', 'D1-10']);
   const candidate = { answerValidation: { claims: [{ factIds: ['Q'] }], answer: 'ORDER-A缺3个。' }, factLedger: { facts: [{ factId: 'Q', predicate: 'shortage_quantity' }] }, relevantApiCoverage: { selectedBusinessDomains: ['order'], domainApiSet: [], ragAuxiliarySearched: true }, traces: [{ name: 'search_factory_knowledge', success: true }] };
@@ -104,9 +111,21 @@ test('R6H4C0 C0-01..20: all future fresh suites preflight without model calls an
   assert.equal(scored.domainCoverageScore.applicableExecutionCoverage, 1);
   assert.ok(r6Fresh.SAFETY_FIELDS.every(field => Object.hasOwn(scored.safety, field)));
   const root = fs.mkdtempSync(path.join(os.tmpdir(), 'd2-b2-r6-gates-'));
-  const receipt = r6Fresh.stageGateReceipt(root, { runId: 'pre-model-r6', phase: 'PRE_MODEL', harnessFreezeCommit: 'test-freeze', gates: { npmTest: 'PASS', lint: 'PASS' } });
+  const receipt = r6Fresh.stageGateReceipt(root, { runId: 'pre-model-r6', phase: 'PRE_MODEL', manifestPath, gates: { npmTest: 'PASS', lint: 'PASS' } });
   assert.equal(receipt.allPass, true);
-  assert.throws(() => r6Fresh.stageGateReceipt(root, { runId: 'post-model-r6', phase: 'INVALID', harnessFreezeCommit: 'test-freeze', gates: {} }), /R6_GATE_RECEIPT_PHASE_INVALID/);
+  assert.throws(() => r6Fresh.stageGateReceipt(root, { runId: 'post-model-r6', phase: 'INVALID', manifestPath, gates: {} }), /R6_GATE_RECEIPT_PHASE_INVALID/);
+});
+test('R6H4C01 FI-01..20: frozen RAG adapter and byte-level freeze verifier reject replacements and dirty sources', async () => {
+  const delegated = []; const executor = createFrozenRagFixtureExecutor(async (...args) => { delegated.push(args); return { success: true, verified: true, data: ['real'] }; }, 'RAG-01');
+  const knowledge = await executor('search_factory_knowledge', { query: 'bearing' }); assert.equal(knowledge.data.length, 1); assert.equal(delegated.length, 0);
+  await executor('get_order_detail', { id: 'ORDER-A' }); assert.equal(delegated.length, 1);
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), 'd2-b2-r6-integrity-')); const manifestPath = testFreezeManifest(root, 'integrity-freeze');
+  assert.equal(verifyR6AcceptanceFreeze({ manifestPath }).harnessFreezeCommit, 'integrity-freeze');
+  const bad = JSON.parse(fs.readFileSync(manifestPath, 'utf8')); bad.hashes.candidateSource = 'bad'; fs.writeFileSync(manifestPath, JSON.stringify(bad));
+  assert.throws(() => verifyR6AcceptanceFreeze({ manifestPath }), /R6_ACCEPTANCE_FREEZE_INTEGRITY_FAILED/);
+  fs.writeFileSync(manifestPath, JSON.stringify(freezeManifestData('integrity-freeze')));
+  assert.throws(() => r6Fresh.preflight('rag', { manifestPath, harnessFreezeCommit: 'caller-forgery' }), /R6_ACCEPTANCE_FREEZE_INTEGRITY_FAILED/);
+  assert.equal(r6Fresh.preflight('rag', { manifestPath }).modelCalls, 0);
 });
 test('D2-B2 source manifest pins the B1 product baseline and the reviewed 31-capability API Index contract', () => {
   const manifest = buildManifest({ harnessCommit: 'test-harness' }); assert.equal(manifest.productBaselineCommit, PRODUCT_BASELINE_COMMIT); assert.equal(manifest.apiIndexCount, 31); assert.equal(manifest.apiIndexFingerprint, '10bee9d8a065ea2322fcaf14bdf21cee949d0f57da8c3d5133448c1ee7d09c61'); assert.equal(typeof manifest.realRunnerHash, 'string'); assert.equal(typeof manifest.exclusiveEvidenceContractHash, 'string');
