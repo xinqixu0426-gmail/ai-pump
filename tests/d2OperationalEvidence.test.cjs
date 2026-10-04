@@ -4,7 +4,7 @@ const assert = require('node:assert/strict');
 const test = require('node:test');
 
 const { createFactLedger } = require('../api/services/ai-assistant/factLedger.cjs');
-const { validateAnswer } = require('../api/services/ai-assistant/answerValidator.cjs');
+const { validateAnswer, operationalQuantityMentions } = require('../api/services/ai-assistant/answerValidator.cjs');
 const { renderClaimableFactsForModel } = require('../scripts/ai-experiments/api-native-agent/apiNativeAgentCandidate.cjs');
 const { executeOrderTool } = require('../api/routes/ai/executors/orderExecutors.cjs');
 const { createD2Wave1ControlledFixture } = require('./helpers/d2Wave1ControlledFixture.cjs');
@@ -90,6 +90,37 @@ test('W1-36..37: model-facing catalog keeps operational roles and names but hide
     assert.equal(JSON.stringify(catalog).includes('"partId"'), false);
     assert.equal(JSON.stringify(catalog).includes('"orderId"'), false);
     assert.equal(JSON.stringify(catalog).includes('"coilId"'), false);
+});
+
+test('OV-01..08: operational quantity parsing binds every value to its local role', () => {
+    const roles = text => operationalQuantityMentions(text).map(item => [item.value, item.unit, item.role]);
+    assert.deepEqual(roles('缺料共1项。'), [[1, 'count', 'SHORTAGE_LINE_COUNT']]);
+    assert.deepEqual(roles('有1项物料库存不足。'), [[1, 'count', 'SHORTAGE_LINE_COUNT']]);
+    assert.deepEqual(roles('D1轴承缺3个。'), [[3, 'piece', 'SHORTAGE']]);
+    assert.deepEqual(roles('需求10个，可用7个，缺3个。'), [[10, 'piece', 'REQUIRED'], [7, 'piece', 'AVAILABLE'], [3, 'piece', 'SHORTAGE']]);
+    assert.deepEqual(roles('计划采购3个，已下单0个，已到货0个，已入库0个。'), [[3, 'piece', 'PLANNED_PURCHASE'], [0, 'piece', 'ORDERED'], [0, 'piece', 'RECEIVED'], [0, 'piece', 'STOCKED']]);
+    assert.deepEqual(roles('缺3个，计划采购3个。'), [[3, 'piece', 'SHORTAGE'], [3, 'piece', 'PLANNED_PURCHASE']]);
+    assert.deepEqual(roles('有1项缺料，轴承-A缺3个。'), [[1, 'count', 'SHORTAGE_LINE_COUNT'], [3, 'piece', 'SHORTAGE']]);
+});
+
+test('OV-09..15: validator keeps strict quantity entity, role, unit and collection checks', () => {
+    const { ledger } = appendOperationalEvidence();
+    const required = fact(ledger, 'required_quantity', 'REQUIRED');
+    const available = fact(ledger, 'available_quantity', 'AVAILABLE');
+    const shortage = fact(ledger, 'shortage_quantity', 'SHORTAGE');
+    const planned = fact(ledger, 'purchase_quantity', 'PLANNED_PURCHASE');
+    const ordered = fact(ledger, 'purchase_quantity_ordered', 'ORDERED');
+    const received = fact(ledger, 'purchase_quantity_received', 'RECEIVED');
+    const stocked = fact(ledger, 'purchase_quantity_stocked', 'STOCKED');
+    const lineCount = ledger.facts.find(item => item.predicate === 'shortage_line_count' && item.qualifiers?.quantityRole === 'SHORTAGE_LINE_COUNT');
+    const check = (answer, factIds) => validateAnswer(JSON.stringify({ answer, claims: [{ text: answer, factIds }], goals: [{ questionIndex: 0, status: 'COMPLETED', factIds }] }), { ledger, judge: { questions: ['运营数量'] }, mode: 'READ' });
+    assert.equal(check(`缺料共${lineCount.value}项。`, [lineCount.factId]).valid, true);
+    assert.equal(check('需求10个，可用7个，缺3个。', [required.factId, available.factId, shortage.factId]).valid, true);
+    assert.equal(check(`计划采购${planned.value}个，已下单${ordered.value}个，已到货${received.value}个，已入库${stocked.value}个。`, [planned.factId, ordered.factId, received.factId, stocked.factId]).valid, true);
+    assert.equal(check('轴承-A 缺3个。', [required.factId]).code, 'OPERATIONAL_QUANTITY_BINDING_MISMATCH');
+    assert.equal(check('密封件-B 缺3个。', [shortage.factId]).code, 'OPERATIONAL_QUANTITY_BINDING_MISMATCH');
+    assert.equal(check('轴承-A 缺3套。', [shortage.factId]).code, 'OPERATIONAL_QUANTITY_BINDING_MISMATCH');
+    assert.equal(check('轴承-A 缺3。', [shortage.factId]).code, 'OPERATIONAL_QUANTITY_BINDING_MISMATCH');
 });
 
 test('W1-25: purchase overview survives the formal executor receipt before the ledger projects it', async () => {
