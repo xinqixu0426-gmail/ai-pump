@@ -1,0 +1,8 @@
+{
+  "authority": "M5-D2-B2-R6H4C01-Freeze-Manifest.json",
+  "verification": "Current file bytes are SHA-256 hashed and compared with the frozen manifest; the current API Index is rebuilt and fingerprinted.",
+  "failure": "R6_ACCEPTANCE_FREEZE_INTEGRITY_FAILED",
+  "callerSuppliedFreezeReceipt": "rejected when it differs from the verified manifest",
+  "docsOnlyChanges": "allowed because verification is source-hash based rather than HEAD-equality based",
+  "deterministicTests": ["FI-08 candidate hash mismatch", "FI-09 Fact Ledger mismatch", "FI-10 Answer Validator mismatch", "FI-11 fresh runners mismatch", "FI-12 RAG adapter mismatch", "FI-13 API Index mismatch", "FI-14 harness receipt mismatch", "FI-17 dirty frozen source", "FI-18 docs-only difference"]
+}

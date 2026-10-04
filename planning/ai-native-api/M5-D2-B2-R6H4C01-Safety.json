@@ -1,0 +1,9 @@
+{
+  "modelCalls": 0,
+  "businessExecutionsDuringPreflight": 0,
+  "dbMutations": 0,
+  "writeExecutions": 0,
+  "secretScan": "PASS",
+  "externalRagWrapperAllowedInAuthoritativeRun": false,
+  "freezeReceiptFromVerifiedManifest": true
+}

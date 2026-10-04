@@ -1,0 +1,9 @@
+{
+  "adapter": "d2B2R6RagFixtureAdapter.cjs",
+  "authoritativePath": "runRagFresh internally creates this adapter; caller-provided wrappers are not accepted",
+  "interceptedTool": "search_factory_knowledge",
+  "otherTools": "delegated unchanged to the real controlled-fixture executor",
+  "fixtureCases": ["RAG-01", "RAG-02", "RAG-03", "RAG-04"],
+  "contract": "Returns a verified formal knowledge-search envelope. Fact Ledger remains responsible for auxiliary_knowledge_retrieval projection; the adapter never injects facts or answers.",
+  "businessDbMutation": 0
+}
