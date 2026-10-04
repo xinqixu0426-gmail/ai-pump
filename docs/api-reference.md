@@ -338,7 +338,7 @@ BOM 快照角色为 `fixed/shell/barrelLength/stainlessShellBundle/longScrew/cap
 | 方法 | 路径 | 入参 | 返回/说明 |
 |---|---|---|---|
 | `GET` | `/api/orders` | 可选 query：`limit`、`status`、`customerName`、`contractNo` | 经 `orderQueries` 返回只读订单列表；支持状态精确筛选、客户/合同号模糊筛选和最多 100 条限制。按创建顺序平衡全部活动订单的库存占用并在响应中返回实时采购缺口及采购参考价，同一库存不会被多个订单重复使用，但不写回订单快照 |
-| `GET` | `/api/orders/purchase-overview` | query `{ limit?, supplier?, pendingOnly? }` | 经 `orderQueries` 聚合当前活动订单的采购任务；支持供应商模糊筛选、只看待采购任务和最多 100 条限制，返回筛选后汇总、`filters`、`returnedCount/truncated` 及按待采购优先排列的任务明细。每条已正式绑定的物料保留 `partId` 或 `coilId`、`inventoryType` 和正式采购阶段；无正式绑定时不补造 ID。严格只读，不修改采购计划、订单或库存 |
+| `GET` | `/api/orders/purchase-overview` | query `{ limit?, supplier?, pendingOnly? }` | 经 `orderQueries` 聚合当前活动订单的采购任务；支持供应商模糊筛选、只看待采购任务（`pendingOnly=true` 正式表示 `pendingQty > 0`，即待处理/未完成采购任务）和最多 100 条限制，返回筛选后汇总、`filters`、`returnedCount/truncated` 及按待采购优先排列的任务明细。每条已正式绑定的物料保留 `partId` 或 `coilId`、`inventoryType` 和正式采购阶段；无正式绑定时不补造 ID。严格只读，不修改采购计划、订单或库存 |
 | `GET` | `/api/orders/lookup` | `query=订单ID/客户名称/合同号` | 经 `orderQueries` 只读查找订单候选，不刷新采购计划；AI 按客户或合同解析订单时使用 |
 | `GET` | `/api/orders/readiness-overview` | 无 | 经 `orderQueries` 一次计算全部活动订单的库存平衡和生产准备结论；返回分类汇总、主要问题、缺料和第一个未阻塞处理步骤，只读不写库 |
 | `GET` | `/api/orders/:id` | 无 | 经 `orderQueries` 只读返回单个订单，标准字段含 `id/createdAt/updatedAt`；采购清单按全部活动订单实时平衡后仅覆盖响应视图，不改变数据库及 `updatedAt`。AI executor 的只读详情结果另返回 `collections.items/purchaseList/todos` 的完整性元数据；订单行中的配方名称是历史快照，未经过当前目录再次验证时不得当作当前 canonical 配方关系 |

@@ -460,13 +460,13 @@ const AI_TOOLS = [
         type: 'function',
         function: {
             name: 'get_purchase_overview',
-            description: '读取当前全部活动订单的采购任务总览，返回供应商、物料、计划/已下单/已到货/已入库/待采购数量及关联订单。仅当用户询问采购任务、供应商、采购物料、待采购数量或采购进度时使用；“采购中的订单/单子/单据有几个”属于订单状态查询，禁止使用本工具。只读，不修改采购、订单或库存。',
+            description: '读取当前全部活动订单的采购任务总览，返回供应商、物料、计划/已下单/已到货/已入库/待采购数量及关联订单。仅当用户询问采购任务、供应商、采购物料、待采购数量、待处理/未完成采购任务或采购进度时使用；“采购中的订单/单子/单据有几个”属于订单状态查询，禁止使用本工具。只读，不修改采购、订单或库存。',
             parameters: {
                 type: 'object',
                 properties: {
                     limit: { type: 'integer', minimum: 1, maximum: 100, description: '最多返回的采购任务数量（可选）' },
                     supplier: { type: 'string', description: '供应商名称模糊筛选（可选）' },
-                    pendingOnly: { type: 'boolean', description: '仅返回待采购数量大于0的任务（可选）' }
+                    pendingOnly: { type: 'boolean', description: '仅返回待采购数量大于0的待处理/未完成采购任务（可选）' }
                 }
             }
         }

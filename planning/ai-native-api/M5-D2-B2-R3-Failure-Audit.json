@@ -1,0 +1,72 @@
+{
+  "phase": "AI-NATIVE D2-B2-R3",
+  "source": "frozen D2-B2-R2 controlled staging artifacts",
+  "samples": [
+    {
+      "caseId": "W1-06",
+      "runs": [
+        {
+          "runId": "d2b2r2-w106-1",
+          "formalTools": ["resolve_entity", "check_order_readiness", "get_purchase_overview"],
+          "formalResultStatus": "verified readiness and purchase overview",
+          "claimableEvidence": ["readiness_status", "shortage_line_count", "shortage_quantity", "purchase_status", "purchase_quantity"],
+          "finalizationAttempt1": "GOAL_STATUS_MISSING: one owner question was emitted as goals for questionIndex 0 and 1",
+          "finalizationAttempt2": "GOAL_STATUS_MISSING: duplicate sub-goal persisted",
+          "fallbackReason": "reserved finalization attempts exhausted; valid UNAVAILABLE fallback",
+          "businessOutcome": "formal shortage and matching purchase task were obtained but not delivered"
+        },
+        {
+          "runId": "d2b2r2-w106-2",
+          "formalTools": ["resolve_entity", "check_order_readiness", "get_purchase_overview"],
+          "formalResultStatus": "verified readiness and purchase overview",
+          "claimableEvidence": ["shortage_quantity", "purchase_status", "purchase_quantity"],
+          "finalizationAttempt1": "GOAL_STATUS_MISSING",
+          "finalizationAttempt2": "GOAL_STATUS_MISSING",
+          "fallbackReason": "reserved finalization attempts exhausted",
+          "businessOutcome": "single-question / multi-outcome goal-cardinality defect"
+        },
+        {
+          "runId": "d2b2r2-w106-3",
+          "formalTools": ["resolve_entity", "check_order_readiness", "get_purchase_overview", "get_order_knowledge_package"],
+          "formalResultStatus": "verified readiness and purchase overview",
+          "claimableEvidence": ["shortage_quantity", "purchase_status", "purchase_quantity"],
+          "finalizationAttempt1": "OPERATIONAL_QUANTITY_BINDING_MISMATCH on over-broad line-count wording",
+          "finalizationAttempt2": "GOAL_STATUS_MISSING",
+          "fallbackReason": "reserved finalization attempts exhausted",
+          "businessOutcome": "the R3 repair must keep one goal per original owner question and avoid unrequested operational detail"
+        }
+      ],
+      "rootCause": "finalizer and repair instruction treated sub-outcomes as separate goals although the source request has exactly one owner question"
+    },
+    {
+      "caseId": "W1-09",
+      "runId": "d2b2r2-w109-1",
+      "formalTools": ["resolve_entity", "check_order_readiness"],
+      "formalResultStatus": "verified order readiness verdict 可生产, shortage line count 0, complete shortage collection",
+      "claimableEvidence": ["readiness_status", "shortage_line_count", "collection_completeness"],
+      "finalizationAttempt1": "COLLECTION_COMPLETENESS_MISMATCH / NO_SHORTAGE_REQUIRES_COMPLETE_FORMAL_RESULT for a claim citing readiness and complete collection",
+      "finalizationAttempt2": "ANSWER_VERIFIED after removing the no-shortage conclusion",
+      "fallbackReason": null,
+      "businessOutcome": "valid formal no-shortage result was under-delivered because the validator recognized only READY/ready and not the formal ready-equivalent 可生产",
+      "rootCause": "generic readiness-status normalization gap; not a readiness or shortage algorithm defect"
+    },
+    {
+      "caseId": "W1-10",
+      "runId": "d2b2r2-w110-1",
+      "formalTools": ["get_purchase_overview", "resolve_entity", "search_factory_knowledge"],
+      "formalResultStatus": "verified unfiltered purchase overview; complete collection with two returned tasks",
+      "formalPendingOnlySemantics": "orderQueries filters pendingOnly=true to tasks with pendingQty > 0",
+      "claimableEvidence": ["collection_completeness", "purchase_status", "purchase_quantity", "unresolved_requirement"],
+      "finalizationAttempt1": "ANSWER_VERIFIED; agent stated that 待处理 was not formally defined and delivered a PARTIAL answer from an unfiltered complete response",
+      "finalizationAttempt2": null,
+      "fallbackReason": null,
+      "businessOutcome": "tool schema exposes pendingOnly only as 待采购数量大于0 and did not make the formal Owner-language mapping to pending/unfinished procurement explicit",
+      "harnessOracleRisk": "the controlled oracle currently scores only a PARTIAL purchase collection generated independently with limit=1. A complete pendingOnly result is also a formally complete answer to an all-pending-items request; this must be adjudicated explicitly rather than hidden by product behavior."
+    }
+  ],
+  "constraints": {
+    "identifierQuantityParser": "frozen from R2",
+    "businessAlgorithms": "not modified",
+    "historicalEvidence": "preserved; this file records diagnosis only"
+  }
+}

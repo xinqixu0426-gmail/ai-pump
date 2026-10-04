@@ -80,6 +80,44 @@ test('W1-19..23: validator fails closed for wrong operational entity, role, unit
     assert.equal(valid.valid, true);
 });
 
+test('NS-01..06: no-shortage claims require a formal ready verdict and a complete zero-row shortage collection', () => {
+    const build = ({ verdict = '可生产', canProduce = true, complete = true, returnedCount = 0, totalCount = 0, unresolved = 0 } = {}) => {
+        const ledger = createFactLedger({ includeOperationalEvidenceFacts: true });
+        ledger.appendToolResult({ toolName: 'check_order_readiness', args: { orderId: 21 }, entityBindings: bindings(), result: {
+            success: true, verified: true, data: {
+                verdict, canProduce, metrics: { shortageLineCount: 0, unresolvedLineCount: unresolved },
+                collections: { shortages: { complete, returnedCount, totalCount, hasMore: !complete } }, shortages: [],
+            },
+        } });
+        return ledger.snapshot();
+    };
+    const check = ledger => {
+        const factIds = ledger.facts.filter(item => ['readiness_status', 'collection_completeness', 'shortage_line_count'].includes(item.predicate)).map(item => item.factId);
+        return validateAnswer(JSON.stringify({ answer: '当前没有已识别缺料。', claims: [{ text: '当前没有已识别缺料。', factIds }], goals: [{ questionIndex: 0, status: 'COMPLETED', factIds }] }), { ledger, judge: { questions: ['缺料'] }, mode: 'READ' });
+    };
+    assert.equal(check(build()).valid, true, 'formal 可生产 + complete zero rows');
+    assert.equal(check(build({ complete: false })).code, 'COLLECTION_COMPLETENESS_MISMATCH');
+    assert.equal(check(build({ verdict: 'waiting_materials', canProduce: false })).code, 'COLLECTION_COMPLETENESS_MISMATCH');
+    assert.equal(check(build({ returnedCount: 0, totalCount: 1 })).code, 'COLLECTION_COMPLETENESS_MISMATCH');
+    assert.equal(check(build({ unresolved: 1 })).code, 'COLLECTION_COMPLETENESS_MISMATCH');
+});
+
+test('PC-01..07: a verified partial purchase collection remains deliverable but cannot be presented as complete', () => {
+    const { ledger } = appendOperationalEvidence();
+    const partial = ledger.facts.find(item => item.predicate === 'collection_completeness' && item.qualifiers?.collectionRef === 'purchase_tasks');
+    const partialAnswer = '当前仅返回1条采购任务，正式结果显示还有更多记录。';
+    const partialResult = validateAnswer(JSON.stringify({
+        answer: partialAnswer, claims: [{ text: partialAnswer, factIds: [partial.factId] }],
+        goals: [{ questionIndex: 0, status: 'PARTIAL', factIds: [partial.factId] }],
+    }), { ledger, judge: { questions: ['待处理采购'] }, mode: 'READ' });
+    assert.equal(partialResult.valid, true);
+    const allResult = validateAnswer(JSON.stringify({
+        answer: '全部采购任务只有这些。', claims: [{ text: '全部采购任务只有这些。', factIds: [partial.factId] }],
+        goals: [{ questionIndex: 0, status: 'PARTIAL', factIds: [partial.factId] }],
+    }), { ledger, judge: { questions: ['待处理采购'] }, mode: 'READ' });
+    assert.equal(allResult.code, 'COLLECTION_COMPLETENESS_MISMATCH');
+});
+
 test('W1-36..37: model-facing catalog keeps operational roles and names but hides internal numeric identities', () => {
     const { ledger } = appendOperationalEvidence();
     const catalog = renderClaimableFactsForModel(ledger);

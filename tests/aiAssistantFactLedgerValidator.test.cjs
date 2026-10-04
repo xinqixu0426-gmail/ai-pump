@@ -69,6 +69,34 @@ test('Answer Validator requires claim references, formal money parity, and one s
     assert.equal(missingGoal.code, 'GOAL_STATUS_MISSING');
 });
 
+test('goal cardinality follows original owner questions, not claims or sub-outcomes', () => {
+    const { ledger, factIds } = addProfitFacts();
+    const oneQuestion = validateAnswer(JSON.stringify({
+        answer: '已取得两项正式结果。',
+        claims: [
+            { text: '已取得两项正式结果。', factIds: factIds.slice(0, 2) },
+            { text: '已取得两项正式结果。', factIds: factIds.slice(2) },
+        ],
+        goals: [{ questionIndex: 0, status: 'COMPLETED', factIds }],
+    }), { ledger, judge: { questions: ['一个问题，包含两个业务结果'] }, mode: 'READ' });
+    assert.equal(oneQuestion.valid, true);
+
+    const duplicate = validateAnswer(JSON.stringify({
+        answer: '已取得两项正式结果。', claims: [{ text: '已取得两项正式结果。', factIds }],
+        goals: [
+            { questionIndex: 0, status: 'COMPLETED', factIds: factIds.slice(0, 2) },
+            { questionIndex: 0, status: 'COMPLETED', factIds: factIds.slice(2) },
+        ],
+    }), { ledger, judge: { questions: ['一个问题'] }, mode: 'READ' });
+    assert.equal(duplicate.code, 'GOAL_STATUS_MISSING');
+
+    const extra = validateAnswer(JSON.stringify({
+        answer: '已取得两项正式结果。', claims: [{ text: '已取得两项正式结果。', factIds }],
+        goals: [{ questionIndex: 0, status: 'COMPLETED', factIds }, { questionIndex: 1, status: 'COMPLETED', factIds }],
+    }), { ledger, judge: { questions: ['一个问题'] }, mode: 'READ' });
+    assert.equal(extra.code, 'GOAL_STATUS_MISSING');
+});
+
 test('multi-goal answer maps each completed investigation to verified formal facts without promoting attachment context', () => {
     const ledger = createFactLedger();
     const cost = ledger.appendToolResult({ toolName: 'preview_recipe_cost', result: { success: true, verified: true, data: { unitCost: 268.49, costBasis: 'CURRENT_REBUILT' } } }).factIds;

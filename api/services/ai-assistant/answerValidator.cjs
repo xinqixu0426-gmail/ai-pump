@@ -246,7 +246,8 @@ function claimOperationalQuantityBinding(claim, verified, allFacts) {
 function claimCollectionCompletenessBinding(claim, verified) {
     if (!/(?:全部|所有|只有这些|仅有这些)/.test(claim.text)) return { valid: true, detail: null };
     const cited = claim.factIds.map(id => verified.get(id)).filter(Boolean);
-    const operational = cited.some(fact => fact?.qualifiers?.quantityRole || ['readiness_status', 'unresolved_requirement'].includes(fact?.predicate));
+    const operational = cited.some(fact => fact?.qualifiers?.quantityRole
+        || ['readiness_status', 'unresolved_requirement', 'collection_completeness'].includes(fact?.predicate));
     if (!operational) return { valid: true, detail: null };
     const completeness = cited.filter(fact => fact?.predicate === 'collection_completeness');
     if (!completeness.some(fact => fact.value === 'COMPLETE' && fact.qualifiers?.complete === true)) {
@@ -257,9 +258,17 @@ function claimCollectionCompletenessBinding(claim, verified) {
 function claimNoShortageBinding(claim, verified) {
     if (!/(?:无|没有).{0,8}(?:缺料|短缺)|(?:未发现).{0,8}(?:缺料|短缺)/.test(claim.text)) return { valid: true, detail: null };
     const cited = claim.factIds.map(id => verified.get(id)).filter(Boolean);
-    const readinessReady = cited.some(fact => fact?.predicate === 'readiness_status' && ['READY', 'ready'].includes(String(fact.value)));
-    const complete = cited.some(fact => fact?.predicate === 'collection_completeness' && fact.value === 'COMPLETE' && fact.qualifiers?.complete === true);
-    return readinessReady && complete
+    // Readiness is a formal producer verdict, not an English-only enum.  A
+    // producer may render READY as 可生产 while retaining the authoritative
+    // canProduce boolean.  Both are required to be formal facts; text alone
+    // never proves an empty shortage set.
+    const readinessReady = cited.some(fact => fact?.predicate === 'readiness_status'
+        && (fact?.qualifiers?.unresolvedLineCount == null || Number(fact.qualifiers.unresolvedLineCount) === 0)
+        && (['READY', 'ready'].includes(String(fact.value)) || fact?.qualifiers?.canProduce === true));
+    const completeEmpty = cited.some(fact => fact?.predicate === 'collection_completeness'
+        && fact.value === 'COMPLETE' && fact.qualifiers?.complete === true
+        && Number(fact.qualifiers?.returnedCount) === 0 && Number(fact.qualifiers?.totalCount) === 0);
+    return readinessReady && completeEmpty
         ? { valid: true, detail: null }
         : { valid: false, detail: { claimText: claim.text, reason: 'NO_SHORTAGE_REQUIRES_COMPLETE_FORMAL_RESULT', citedFactIds: cited.map(fact => fact.factId) } };
 }
