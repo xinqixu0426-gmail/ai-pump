@@ -17,7 +17,7 @@ function runDirectory(outputDirectory, kind, runId) {
     // R6 acceptance has independent writers for each semantic suite.  Keep
     // the vocabulary closed so a runner cannot silently invent a staging
     // location or publish a canonical artifact directly.
-    if (!/^(?:controlled|repetition|real|domain-corpus|rag|targeted|d1-protection)$/u.test(kind)) throw new Error('D2_B2_RUN_KIND_INVALID');
+    if (!/^(?:controlled|repetition|real|domain-corpus|rag|targeted|d1-protection|r6-gates)$/u.test(kind)) throw new Error('D2_B2_RUN_KIND_INVALID');
     return path.join(rootFor(outputDirectory), kind, requireRunId(runId));
 }
 function createExclusiveRun(outputDirectory, { kind, runId }) {

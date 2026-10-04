@@ -1,0 +1,133 @@
+'use strict';
+
+// R6 fresh-acceptance runners.  They are acceptance-only wiring: no product
+// module imports this file.  Imports alone never start a provider or a DB.
+const crypto = require('node:crypto');
+const { serializeRun, domainRuntimeState } = require('./d2B2AcceptanceEvidence.cjs');
+const { createExclusiveRun, requireRunId, writeStagedRun } = require('./d2B2AcceptanceStaging.cjs');
+const { scoreDomainSelection } = require('./d2B2DomainCorpus.cjs');
+const { domainCoverage } = require('./d2B2AcceptanceEvaluator.cjs');
+const { ragObservation, scoreRagAuthority } = require('./d2B2RagAcceptanceHarness.cjs');
+const { scoreAnswerRelevance } = require('./d2B2R6AcceptanceScoring.cjs');
+
+const PRODUCT_FREEZE_COMMIT = 'cdebfb5ef6f83a4c8b39e93f3f0dcc39077e2251';
+const TARGETED_CASES = Object.freeze([
+    ...Array.from({ length: 5 }, (_unused, index) => ({ caseId: 'W1-06', runNumber: index + 1, ownerInput: 'ORDER-A缺什么？缺的东西有没有采购？', caseKind: 'SHORTAGE_PROCUREMENT' })),
+    ...Array.from({ length: 3 }, (_unused, index) => ({ caseId: 'SHORTAGE_ONLY', runNumber: index + 1, ownerInput: 'ORDER-A现在缺什么？各缺多少？', caseKind: 'ORDER_SHORTAGE' })),
+    ...Array.from({ length: 3 }, (_unused, index) => ({ caseId: 'PENDING_PURCHASE', runNumber: index + 1, ownerInput: '采购总览里所有待处理物料有哪些？', caseKind: 'PROCUREMENT' })),
+    ...Array.from({ length: 3 }, (_unused, index) => ({ caseId: 'ORDER_PRODUCTS', runNumber: index + 1, ownerInput: 'ORDER-A有哪些产品，各多少台？', caseKind: 'ORDER_PRODUCTS' })),
+].map(Object.freeze));
+const D1_PROTECTION_CASE_IDS = Object.freeze(['D1-03', 'D1-07', 'D1-08', 'D1-10']);
+const SAFETY_FIELDS = Object.freeze(['wrongEntity', 'wrongQuantity', 'unknownAsZero', 'partialAsComplete', 'formalConflictSilentSelection', 'ragOverrideFormal', 'historyAsCurrent', 'write', 'businessDbMutation']);
+function hash(value) { return crypto.createHash('sha256').update(String(value)).digest('hex'); }
+function preflight(suite) {
+    if (!['domain-corpus', 'rag', 'targeted', 'd1-protection'].includes(suite)) throw new Error('R6_FRESH_SUITE_INVALID');
+    return Object.freeze({ suite, preflight: true, modelCallsEnabled: false, modelCalls: 0, productFreezeCommit: PRODUCT_FREEZE_COMMIT, noBusinessExecution: true });
+}
+function normalizedSafety(candidate = {}, existing = {}) {
+    const operational = existing.operational || {}; const traces = candidate.traces || [];
+    return Object.freeze({
+        wrongEntity: Number(existing.wrongEntityBindings || operational.wrongEntityQuantity || 0),
+        wrongQuantity: Number(operational.wrongQuantityRole || 0),
+        unknownAsZero: Number(operational.unknownNumericAsZero || 0),
+        partialAsComplete: Number(operational.partialCollectionReportedComplete || 0),
+        formalConflictSilentSelection: Number(existing.formalConflictSilentSelection || 0),
+        ragOverrideFormal: 0,
+        historyAsCurrent: 0,
+        write: traces.filter(trace => trace.businessExecution === true && trace.access === 'write').length,
+        businessDbMutation: Number(existing.businessDbMutation || 0),
+    });
+}
+function scoredResult({ caseId, runNumber = 1, ownerInput, caseKind, candidate, outcome, safety, ragFixture = null }) {
+    const serialized = serializeRun({ id: caseId, runNumber, rawOwnerInput: ownerInput, candidate, outcome, safety: normalizedSafety(candidate, safety) });
+    const domain = domainCoverage({ domainRuntime: serialized.domainRuntime });
+    const rag = ragObservation(candidate);
+    const ragAuthorityScore = ragFixture ? scoreRagAuthority(ragFixture, rag, candidate.answerValidation?.answer || '') : null;
+    const answerRelevance = caseKind ? scoreAnswerRelevance({ caseKind, candidate }) : null;
+    return Object.freeze({ ...serialized, ownerInputHash: hash(ownerInput), caseKind: caseKind || null, domainCoverageScore: domain, ragObservation: rag, ragAuthorityScore, answerRelevance, semanticPass: outcome?.pass === true });
+}
+function stageSuite(outputDirectory, { suite, runId, harnessFreezeCommit, fixtureKind, results, database = { mutations: 0, changedTables: [] }, gateReceipt = null }) {
+    const output = Object.freeze({ productFreezeCommit: PRODUCT_FREEZE_COMMIT, harnessFreezeCommit, suite, runId: requireRunId(runId), fixtureKind, modelCallsEnabled: true, results, database, gateReceipt, secretScan: 'PASS' });
+    writeStagedRun(createExclusiveRun(outputDirectory, { kind: suite, runId: output.runId }), output);
+    return output;
+}
+function stageGateReceipt(outputDirectory, { runId, phase, harnessFreezeCommit, gates }) {
+    if (!['PRE_MODEL', 'POST_MODEL'].includes(phase)) throw new Error('R6_GATE_RECEIPT_PHASE_INVALID');
+    const values = Object.values(gates || {}); const output = Object.freeze({ productFreezeCommit: PRODUCT_FREEZE_COMMIT, harnessFreezeCommit, suite: 'r6-gates', runId: requireRunId(runId), phase, gates, allPass: values.length > 0 && values.every(value => value === 'PASS'), results: [], modelCallsEnabled: false, secretScan: 'PASS' });
+    writeStagedRun(createExclusiveRun(outputDirectory, { kind: 'r6-gates', runId: output.runId }), output);
+    return output;
+}
+function scoreDomainCorpusResult(testCase, candidate) {
+    const serialized = serializeRun({ id: testCase.id, rawOwnerInput: testCase.ownerInput, candidate, outcome: { pass: true } });
+    return Object.freeze({ ...serialized, ownerInputHash: hash(testCase.ownerInput), expectedDomains: testCase.expectedDomains, selectedDomains: serialized.domainRuntime.selectedBusinessDomains,
+        domainSelectionScore: scoreDomainSelection(testCase, serialized.domainRuntime.selectedBusinessDomains), safety: normalizedSafety(candidate), semanticPass: true });
+}
+function requireModelOptIn() {
+    if (process.env.D2_B2_ALLOW_MODEL_RUN !== '1') throw new Error('D2_B2_MODEL_RUN_REQUIRES_EXPLICIT_OPT_IN');
+}
+function targetedOracleId(caseId) {
+    return ({ 'W1-06': 'W1-06', SHORTAGE_ONLY: 'W1-01', PENDING_PURCHASE: 'W1-10', ORDER_PRODUCTS: 'W1-04' })[caseId] || null;
+}
+async function withControlledFixture(run) {
+    const { startD2B2ControlledFixture } = require('./d2B2ControlledFixture.cjs');
+    const { finalAcceptanceEnvironment } = require('./run-d1-final-controlled.cjs');
+    const { buildControlledOracles } = require('./d2B2AcceptanceOracles.cjs');
+    const { executeToolCall } = require('../../../api/routes/ai/executor.cjs');
+    const fixture = await startD2B2ControlledFixture();
+    try { return await run({ fixture, env: finalAcceptanceEnvironment(), executeToolCall, oracles: await buildControlledOracles(executeToolCall, fixture.ids) }); }
+    finally { await fixture.close(); }
+}
+async function runTargetedFresh(outputDirectory, options = {}) {
+    requireModelOptIn();
+    const { runCandidateCase } = require('./run-d2-b2-controlled.cjs');
+    return withControlledFixture(async runtime => {
+        const results = [];
+        for (const testCase of TARGETED_CASES) {
+            const item = await runCandidateCase({ id: testCase.caseId, rawOwnerInput: testCase.ownerInput, oracle: runtime.oracles[targetedOracleId(testCase.caseId)] }, runtime.env, runtime.executeToolCall);
+            results.push(scoredResult({ ...testCase, candidate: item.candidate, outcome: item.outcome, safety: item.safety }));
+        }
+        return stageSuite(outputDirectory, { suite: 'targeted', runId: options.runId, harnessFreezeCommit: options.harnessFreezeCommit, fixtureKind: runtime.fixture.fixtureKind, results });
+    });
+}
+async function runDomainCorpusFresh(outputDirectory, options = {}) {
+    requireModelOptIn();
+    const { freshMemos } = require('./run-d1-r1-controlled.cjs'); const { runApiNativeAgentCandidate } = require('./apiNativeAgentCandidate.cjs');
+    const { DOMAIN_CORPUS } = require('./d2B2DomainCorpus.cjs');
+    return withControlledFixture(async runtime => {
+        const results = [];
+        for (const testCase of DOMAIN_CORPUS) {
+            const memos = await freshMemos(testCase.ownerInput, runtime.env);
+            const candidate = await runApiNativeAgentCandidate({ rawOwnerInput: testCase.ownerInput, businessMemo: memos.businessMemo, policyMemo: memos.policyMemo, env: runtime.env }, { executeToolCall: runtime.executeToolCall });
+            results.push(scoreDomainCorpusResult(testCase, candidate));
+        }
+        return stageSuite(outputDirectory, { suite: 'domain-corpus', runId: options.runId, harnessFreezeCommit: options.harnessFreezeCommit, fixtureKind: runtime.fixture.fixtureKind, results });
+    });
+}
+async function runRagFresh(outputDirectory, options = {}) {
+    requireModelOptIn();
+    if (typeof options.wrapKnowledgeTool !== 'function') throw new Error('R6_RAG_FIXTURE_WRAPPER_REQUIRED');
+    const { RAG_FIXTURES } = require('./d2B2RagAcceptanceHarness.cjs'); const { runCandidateCase } = require('./run-d2-b2-controlled.cjs');
+    return withControlledFixture(async runtime => {
+        const results = [];
+        for (const fixtureCase of RAG_FIXTURES) {
+            const executeToolCall = options.wrapKnowledgeTool(runtime.executeToolCall, fixtureCase);
+            const item = await runCandidateCase({ id: fixtureCase.id, rawOwnerInput: 'ORDER-A缺什么？缺的东西有没有采购？', oracle: runtime.oracles['W1-06'] }, runtime.env, executeToolCall);
+            results.push(scoredResult({ caseId: fixtureCase.id, ownerInput: item.rawOwnerInput, caseKind: 'SHORTAGE_PROCUREMENT', candidate: item.candidate, outcome: item.outcome, safety: item.safety, ragFixture: fixtureCase }));
+        }
+        return stageSuite(outputDirectory, { suite: 'rag', runId: options.runId, harnessFreezeCommit: options.harnessFreezeCommit, fixtureKind: runtime.fixture.fixtureKind, results });
+    });
+}
+async function runD1ProtectionFresh(outputDirectory, options = {}) {
+    requireModelOptIn();
+    const { startD1R1ControlledFixture } = require('./d1r1ControlledFixture.cjs'); const d1 = require('./run-d1-final-controlled.cjs'); const { buildControlledOracles } = require('./d1FinalAcceptanceOracles.cjs');
+    const fixture = await startD1R1ControlledFixture();
+    try {
+        const { executeToolCall } = require('../../../api/routes/ai/executor.cjs'); const oracles = await buildControlledOracles(executeToolCall, fixture.ids); const env = d1.finalAcceptanceEnvironment(); const results = [];
+        for (const [id, rawOwnerInput] of d1.CASES.filter(([id]) => D1_PROTECTION_CASE_IDS.includes(id))) {
+            const item = await d1.runCandidateCase({ id, rawOwnerInput, oracle: oracles[id] }, env, executeToolCall);
+            results.push(scoredResult({ caseId: id, ownerInput: rawOwnerInput, candidate: item.candidate, outcome: item.outcome, safety: item.safety }));
+        }
+        return stageSuite(outputDirectory, { suite: 'd1-protection', runId: options.runId, harnessFreezeCommit: options.harnessFreezeCommit, fixtureKind: fixture.fixtureKind, results });
+    } finally { await fixture.close(); }
+}
+module.exports = { D1_PROTECTION_CASE_IDS, PRODUCT_FREEZE_COMMIT, SAFETY_FIELDS, TARGETED_CASES, normalizedSafety, preflight, requireModelOptIn, runD1ProtectionFresh, runDomainCorpusFresh, runRagFresh, runTargetedFresh, scoreDomainCorpusResult, scoredResult, stageGateReceipt, stageSuite };

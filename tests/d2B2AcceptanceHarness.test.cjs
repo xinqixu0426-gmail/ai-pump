@@ -11,6 +11,7 @@ const { DOMAIN_CORPUS, scoreDomainSelection } = require('../scripts/ai-experimen
 const { RAG_FIXTURES, ragObservation, scoreRagAuthority } = require('../scripts/ai-experiments/api-native-agent/d2B2RagAcceptanceHarness.cjs');
 const { performance, scoreAnswerRelevance } = require('../scripts/ai-experiments/api-native-agent/d2B2R6AcceptanceScoring.cjs');
 const { CANONICAL_ARTIFACTS, PRODUCT_FREEZE_COMMIT, assembleR6, publishR6 } = require('../scripts/ai-experiments/api-native-agent/d2B2R6AcceptanceAssembler.cjs');
+const r6Fresh = require('../scripts/ai-experiments/api-native-agent/d2B2R6FreshRunners.cjs');
 const { classifyRun, domainCoverage } = require('../scripts/ai-experiments/api-native-agent/d2B2AcceptanceEvaluator.cjs');
 test('D2-B2 acceptance harness has ten controlled cases and a fresh 15-run repetition plan without starting a provider', () => {
   assert.equal(controlled.CASES.length, 10); assert.equal(repetition.REPETITION_CASE_IDS.length, 5); assert.equal(repetition.plan().length, 15);
@@ -53,18 +54,20 @@ test('R6H4B AR-01..07 and PF-01..03: cited fact semantics catch dumps while dete
 });
 test('R6H4B AS-01..12: R6 assembly is staging-only, freeze-pinned, composition-checked, and fails closed', () => {
   const root = fs.mkdtempSync(path.join(os.tmpdir(), 'd2-b2-r6-assembly-'));
-  const plan = { productFreezeCommit: PRODUCT_FREEZE_COMMIT, harnessFreezeCommit: 'r6h4b-test-freeze', domainCorpusRunId: 'domain-corpus-r6', ragAuthorityRunIds: ['rag-01', 'rag-02', 'rag-03', 'rag-04'], targetedRunIds: Array.from({ length: 14 }, (_unused, index) => `targeted-${index + 1}`), d1ProtectionRunId: 'd1-protection-r6' };
+  const plan = { productFreezeCommit: PRODUCT_FREEZE_COMMIT, harnessFreezeCommit: 'r6h4b-test-freeze', domainCorpusRunId: 'domain-corpus-r6', ragAuthorityRunIds: ['rag-01', 'rag-02', 'rag-03', 'rag-04'], targetedRunIds: Array.from({ length: 14 }, (_unused, index) => `targeted-${index + 1}`), d1ProtectionRunId: 'd1-protection-r6', preModelGateRunId: 'pre-gates-r6', postModelGateRunId: 'post-gates-r6' };
   assert.throws(() => assembleR6(root, plan), /R6_ACCEPTANCE_REQUIRED_RUN_MISSING/);
   const record = (kind, runId, results, overrides = {}) => {
     const run = staging.createExclusiveRun(root, { kind, runId });
     staging.writeStagedRun(run, { productFreezeCommit: PRODUCT_FREEZE_COMMIT, harnessFreezeCommit: plan.harnessFreezeCommit, results, ...overrides });
   };
-  const safe = (caseId = 'fixture') => ({ caseId, safety: { write: 0 }, domainRuntime: { selectedBusinessDomains: ['order'], domainApiSet: ['get_order_detail'], executedDomainApis: ['get_order_detail'], notApplicableDomainApis: [], blockedDomainApis: [], rag: { ragSearchExecuted: true } }, metrics: { mainModelCalls: 1, businessToolCalls: 1 }, durationMs: 10, context: { totalApproxContextTokens: 20 } });
-  record('domain-corpus', plan.domainCorpusRunId, Array.from({ length: 12 }, () => safe('DOMAIN')));
-  plan.ragAuthorityRunIds.forEach((id, index) => record('rag', id, [safe(`RAG-0${index + 1}`)]));
+  const safe = (caseId = 'fixture') => ({ caseId, semanticPass: true, safety: { wrongEntity: 0, wrongQuantity: 0, unknownAsZero: 0, partialAsComplete: 0, formalConflictSilentSelection: 0, ragOverrideFormal: 0, historyAsCurrent: 0, write: 0, businessDbMutation: 0 }, domainRuntime: { selectedBusinessDomains: ['order'], domainApiSet: ['get_order_detail'], executedDomainApis: ['get_order_detail'], notApplicableDomainApis: [], blockedDomainApis: [], rag: { ragSearchExecuted: true } }, domainCoverageScore: { missingDomainApis: [], invalidNotApplicable: [], writeInDomainSet: [], applicableExecutionCoverage: 1 }, ragObservation: { ragSearchRequired: true, ragSearchExecuted: true }, answerRelevance: { answerDumpedUnrequestedContext: false }, metrics: { mainModelCalls: 1, businessToolCalls: 1 }, durationMs: 10, context: { totalApproxContextTokens: 20 } });
+  record('domain-corpus', plan.domainCorpusRunId, Array.from({ length: 12 }, () => ({ ...safe('DOMAIN'), domainSelectionScore: { exactMatch: true, highRiskMiss: false } })));
+  plan.ragAuthorityRunIds.forEach((id, index) => record('rag', id, [{ ...safe(`RAG-0${index + 1}`), ragAuthorityScore: { semanticPass: true, ragCurrentOverride: false, historyPresentedAsCurrent: false } }]));
   const composition = ['W1-06', 'W1-06', 'W1-06', 'W1-06', 'W1-06', 'SHORTAGE_ONLY', 'SHORTAGE_ONLY', 'SHORTAGE_ONLY', 'PENDING_PURCHASE', 'PENDING_PURCHASE', 'PENDING_PURCHASE', 'ORDER_PRODUCTS', 'ORDER_PRODUCTS', 'ORDER_PRODUCTS'];
   plan.targetedRunIds.forEach((id, index) => record('targeted', id, [safe(composition[index])]));
   record('d1-protection', plan.d1ProtectionRunId, Array.from({ length: 4 }, () => safe('D1')));
+  record('r6-gates', plan.preModelGateRunId, [], { phase: 'PRE_MODEL', allPass: true });
+  record('r6-gates', plan.postModelGateRunId, [], { phase: 'POST_MODEL', allPass: true });
   assert.throws(() => assembleR6(root, { ...plan, productFreezeCommit: 'wrong' }), /R6_ACCEPTANCE_FREEZE_MISMATCH/);
   assert.throws(() => assembleR6(root, { ...plan, harnessFreezeCommit: 'wrong-harness' }), /R6_ACCEPTANCE_FREEZE_MISMATCH/);
   assert.throws(() => assembleR6(root, { ...plan, targetedRunIds: [...plan.targetedRunIds.slice(0, 13), plan.targetedRunIds[0]] }), /R6_ACCEPTANCE_REQUIRED_RUN_MISSING/);
@@ -81,7 +84,29 @@ test('R6H4B AS-01..12: R6 assembly is staging-only, freeze-pinned, composition-c
   const assembled = publishR6(root, plan);
   assert.equal(assembled.targetedComposition['W1-06'], 5);
   assert.equal(assembled.performance.averageModelCalls, 1);
+  assert.equal(assembled.final.status, 'PASS');
   assert.equal(fs.existsSync(path.join(root, CANONICAL_ARTIFACTS.acceptance)), true);
+  const failingRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'd2-b2-r6-semantic-'));
+  fs.cpSync(path.join(root, 'M5-D2-B2-runs'), path.join(failingRoot, 'M5-D2-B2-runs'), { recursive: true });
+  const targetPath = path.join(failingRoot, 'M5-D2-B2-runs', 'targeted', 'targeted-1', 'artifact.json');
+  const failedTarget = JSON.parse(fs.readFileSync(targetPath, 'utf8')); failedTarget.results[0].semanticPass = false; fs.writeFileSync(targetPath, JSON.stringify(failedTarget));
+  assert.equal(assembleR6(failingRoot, plan).final.status, 'FAIL');
+});
+test('R6H4C0 C0-01..20: all future fresh suites preflight without model calls and retain scorer inputs in staging', () => {
+  for (const suite of ['domain-corpus', 'rag', 'targeted', 'd1-protection']) {
+    const receipt = r6Fresh.preflight(suite); assert.equal(receipt.preflight, true); assert.equal(receipt.modelCalls, 0);
+  }
+  assert.equal(r6Fresh.TARGETED_CASES.length, 14); assert.deepEqual(r6Fresh.D1_PROTECTION_CASE_IDS, ['D1-03', 'D1-07', 'D1-08', 'D1-10']);
+  const candidate = { answerValidation: { claims: [{ factIds: ['Q'] }], answer: 'ORDER-A缺3个。' }, factLedger: { facts: [{ factId: 'Q', predicate: 'shortage_quantity' }] }, relevantApiCoverage: { selectedBusinessDomains: ['order'], domainApiSet: [], ragAuxiliarySearched: true }, traces: [{ name: 'search_factory_knowledge', success: true }] };
+  const scored = r6Fresh.scoredResult({ caseId: 'SHORTAGE_ONLY', ownerInput: 'ORDER-A现在缺什么？各缺多少？', caseKind: 'ORDER_SHORTAGE', candidate, outcome: { pass: true } });
+  assert.equal(scored.answerRelevance.answerDumpedUnrequestedContext, false);
+  assert.equal(scored.ragObservation.ragSearchExecuted, true);
+  assert.equal(scored.domainCoverageScore.applicableExecutionCoverage, 1);
+  assert.ok(r6Fresh.SAFETY_FIELDS.every(field => Object.hasOwn(scored.safety, field)));
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), 'd2-b2-r6-gates-'));
+  const receipt = r6Fresh.stageGateReceipt(root, { runId: 'pre-model-r6', phase: 'PRE_MODEL', harnessFreezeCommit: 'test-freeze', gates: { npmTest: 'PASS', lint: 'PASS' } });
+  assert.equal(receipt.allPass, true);
+  assert.throws(() => r6Fresh.stageGateReceipt(root, { runId: 'post-model-r6', phase: 'INVALID', harnessFreezeCommit: 'test-freeze', gates: {} }), /R6_GATE_RECEIPT_PHASE_INVALID/);
 });
 test('D2-B2 source manifest pins the B1 product baseline and the reviewed 31-capability API Index contract', () => {
   const manifest = buildManifest({ harnessCommit: 'test-harness' }); assert.equal(manifest.productBaselineCommit, PRODUCT_BASELINE_COMMIT); assert.equal(manifest.apiIndexCount, 31); assert.equal(manifest.apiIndexFingerprint, '10bee9d8a065ea2322fcaf14bdf21cee949d0f57da8c3d5133448c1ee7d09c61'); assert.equal(typeof manifest.realRunnerHash, 'string'); assert.equal(typeof manifest.exclusiveEvidenceContractHash, 'string');
