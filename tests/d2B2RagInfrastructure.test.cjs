@@ -11,6 +11,7 @@ const { freezeManifestData } = require('../scripts/ai-experiments/api-native-age
 const supervisor = require('../scripts/ai-experiments/api-native-agent/d2B2R6ProcessSupervisor.cjs');
 const { writeDiagnostic } = require('../scripts/ai-experiments/api-native-agent/run-d2-b2-r6-rag-infra-diagnostic.cjs');
 const { scanForSecrets } = require('../scripts/ai-experiments/api-native-agent/d2B2AcceptanceEvidence.cjs');
+const { finalAcceptanceEnvironment } = require('../scripts/ai-experiments/api-native-agent/run-d1-final-controlled.cjs');
 
 function manifest(directory) {
     const target = path.join(directory, 'manifest.json');
@@ -34,6 +35,12 @@ test('R6 launch infra: catchable JS and provider errors persist terminal FAILED_
     const providerFailure = JSON.parse(fs.readFileSync(path.join(attempts, 'RAG-01-attempt-2.failed-infra.json'), 'utf8'));
     assert.equal(providerFailure.classification, 'PROVIDER_ERROR');
     assert.ok(durable.inspectFreshBatch(root, { suite: 'rag', batchRunId: 'rag-errors', manifestPath }).blockedCases.includes('RAG-01'));
+});
+
+test('R6 launch infra: isolated acceptance environment admits the current R6 context without changing production configuration', () => {
+    const prior = process.env.D1_R1_CONTEXT_WINDOW_TOKENS; delete process.env.D1_R1_CONTEXT_WINDOW_TOKENS;
+    try { assert.equal(finalAcceptanceEnvironment().AI_CONTEXT_WINDOW_TOKENS, '131072'); }
+    finally { if (prior === undefined) delete process.env.D1_R1_CONTEXT_WINDOW_TOKENS; else process.env.D1_R1_CONTEXT_WINDOW_TOKENS = prior; }
 });
 
 test('R6 launch infra: successful and semantic-fail checkpoints are immutable and not infra retries', async () => {

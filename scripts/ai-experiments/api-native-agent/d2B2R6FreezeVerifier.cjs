@@ -18,6 +18,7 @@ const HASHED_FILES = Object.freeze({
     answerRelevanceScorer: 'scripts/ai-experiments/api-native-agent/d2B2R6AcceptanceScoring.cjs',
     assembler: 'scripts/ai-experiments/api-native-agent/d2B2R6AcceptanceAssembler.cjs',
     freshRunners: 'scripts/ai-experiments/api-native-agent/d2B2R6FreshRunners.cjs',
+    acceptanceEnvironment: 'scripts/ai-experiments/api-native-agent/run-d1-final-controlled.cjs',
     durableFreshRunner: 'scripts/ai-experiments/api-native-agent/d2B2R6DurableFreshRunner.cjs',
     durableCaseExecutor: 'scripts/ai-experiments/api-native-agent/d2B2R6DurableCaseExecutor.cjs',
     durableCli: 'scripts/ai-experiments/api-native-agent/run-d2-b2-r6-durable.cjs',

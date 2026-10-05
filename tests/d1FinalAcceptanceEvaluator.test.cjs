@@ -197,7 +197,7 @@ test('SR-01..07: Final runners own the environment helper and initialize it befo
     assert.equal(typeof finalAcceptanceEnvironment, 'function');
     const env = finalAcceptanceEnvironment();
     assert.equal(env.DEEPSEEK_MODEL, 'deepseek-chat');
-    assert.equal(env.AI_CONTEXT_WINDOW_TOKENS, process.env.D1_R1_CONTEXT_WINDOW_TOKENS || '65536');
+    assert.equal(env.AI_CONTEXT_WINDOW_TOKENS, process.env.D1_R1_CONTEXT_WINDOW_TOKENS || '131072');
     const controlledSource = fs.readFileSync(path.join(process.cwd(), 'scripts/ai-experiments/api-native-agent/run-d1-final-controlled.cjs'), 'utf8');
     const repetitionSource = fs.readFileSync(path.join(process.cwd(), 'scripts/ai-experiments/api-native-agent/run-d1-final-controlled-repetition.cjs'), 'utf8');
     assert.doesNotMatch(controlledSource, /\{\s*freshMemos,\s*environment\s*\}/u);
