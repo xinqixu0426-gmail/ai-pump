@@ -44,6 +44,22 @@ function nativeKnowledgePlan() {
     ];
 }
 
+function nativeProcurementPlan() {
+    return [
+        modelToolCall('domains', 'select_business_domains', { domains: ['procurement'] }),
+        modelToolCall('load', 'load_tools', { toolNames: ['get_purchase_overview', 'search_factory_knowledge'] }),
+        modelToolCall('purchases', 'get_purchase_overview', {}),
+        modelToolCall('knowledge', 'search_factory_knowledge', { query: '待处理采购' }),
+        { choices: [{ message: { content: '调查完成。' } }] },
+        { choices: [{ message: { content: '开始整理最终答复。' } }] },
+        { choices: [{ message: { content: JSON.stringify({
+            answer: '当前没有待处理采购任务。',
+            claims: [{ text: '当前没有待处理采购任务。', factIds: ['F-002'] }],
+            goals: [{ questionIndex: 0, status: 'COMPLETED', factIds: ['F-002'] }],
+        }) } }] },
+    ];
+}
+
 test('Native production parity: acceptance wrapper and read runtime share the exact Native core and formal ledger contract', async () => {
     assert.equal(runNativeAgentCore, runApiNativeAgentCandidate);
     assert.deepEqual(NATIVE_FACT_LEDGER_OPTIONS, {
@@ -108,5 +124,32 @@ test('Native production parity: a bounded unsupported outcome stays validator-ve
     assert.equal(result.answerValidation.valid, true);
     assert.equal(result.answerValidation.code, 'ANSWER_VERIFIED');
     assert.equal(result.goalStatuses[0].status, 'UNAVAILABLE');
+    assert.equal(result.metrics.writeProposalCreated, false);
+});
+
+test('Native production parity: a normal read completes from formal procurement evidence after bounded finalization', async () => {
+    const plan = nativeProcurementPlan();
+    let modelCalls = 0;
+    const result = await runAiAssistant({ userMessage: '采购总览里所有待处理物料有哪些？' }, {
+        forceNativeCore: true,
+        policySnapshot: { policyVersion: 1, policyContent: '只读正式业务规则。' },
+        mainModelCall: async () => plan[modelCalls++],
+        executeToolCall: async name => ({
+            success: true,
+            verified: true,
+            executionEvidence: { verified: true },
+            ...(name === 'get_purchase_overview' ? {
+                queryReceipt: { returnedCount: 0, totalCount: 0, truncated: false, possiblyTruncated: false },
+                data: { tasks: [] },
+            } : { data: [], provenance: { kind: 'controlled_knowledge' } }),
+        }),
+    });
+    assert.equal(result.answer, '当前没有待处理采购任务。');
+    assert.equal(result.answerValidation.valid, true);
+    assert.equal(result.answerValidation.code, 'ANSWER_VERIFIED');
+    assert.equal(result.answerValidation.goals[0].status, 'COMPLETED');
+    assert.deepEqual(result.capabilityBroker.domains, ['procurement']);
+    assert.equal(result.factLedger.facts.some(fact => fact.predicate === 'collection_completeness'), true);
+    assert.equal(result.metrics.actualToolCalls, 2);
     assert.equal(result.metrics.writeProposalCreated, false);
 });
