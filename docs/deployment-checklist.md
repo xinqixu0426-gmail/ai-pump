@@ -275,7 +275,7 @@ npm run verify:release
 
 该命令会依次执行：
 
-- `npm audit`
+- `npm audit --omit=dev` 与 `npm --prefix apps/web-next audit --omit=dev`：发布硬门禁只审计实际生产运行依赖；开发/构建依赖的升级与审计处置必须在独立维护票中完成，不能靠 `npm audit fix --force` 在发布窗口临时升级主版本。
 - `npm test`
 - `npm run test:deep-api`，在临时数据库副本上执行跨模块 API 冒烟测试
 - `npm run build`

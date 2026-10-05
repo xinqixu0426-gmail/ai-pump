@@ -98,8 +98,8 @@ test('API 静态契约：发布前检查脚本必须串起前后端 audit、test
     const pkg = JSON.parse(readUtf8(path.join(repoRoot, 'package.json')));
     const release = pkg.scripts?.['verify:release'] || '';
 
-    assert.match(release, /npm audit/);
-    assert.match(release, /npm --prefix apps\/web-next audit/);
+    assert.match(release, /npm audit --omit=dev/);
+    assert.match(release, /npm --prefix apps\/web-next audit --omit=dev/);
     assert.match(release, /npm test/);
     assert.match(release, /npm run build/);
     assert.match(release, /npm run verify:prod-env/);
