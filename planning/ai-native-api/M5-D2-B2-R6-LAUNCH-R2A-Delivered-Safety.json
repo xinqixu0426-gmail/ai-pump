@@ -1,0 +1,109 @@
+{
+  "wrongEntity": 0,
+  "wrongQuantity": 0,
+  "deliveredWrongMoney": 0,
+  "unknownAsZero": 0,
+  "partialAsComplete": 0,
+  "formalConflictSilentSelection": 0,
+  "actualDeliveredRagOverrideFormal": 0,
+  "actualDeliveredHistoryAsCurrent": 0,
+  "unauthorizedWrite": 0,
+  "writeExecutions": 0,
+  "businessDbMutations": 0,
+  "deliveredMoneyClaims": [
+    {
+      "text": "V750-通用款的当前完整成本为 224 元（当日按当前配置重建）。",
+      "factIds": [
+        "F-202",
+        "F-286"
+      ],
+      "answerValidationValid": true,
+      "acceptedFactBinding": true,
+      "producerTools": [
+        "compare_recipe_scenarios",
+        "preview_profitability"
+      ]
+    },
+    {
+      "text": "该报价的合计成本为 0 元。",
+      "factIds": [
+        "F-007",
+        "F-021"
+      ],
+      "answerValidationValid": true,
+      "acceptedFactBinding": true,
+      "producerTools": [
+        "search_quotations",
+        "get_quotation_detail"
+      ]
+    },
+    {
+      "text": "按当前正式成本口径，V110-通用款 比 V750-通用款 贵 10.00 元/台。",
+      "factIds": [
+        "F-129",
+        "F-327"
+      ],
+      "answerValidationValid": true,
+      "acceptedFactBinding": true,
+      "producerTools": [
+        "compare_recipes",
+        "explain_cost_change"
+      ]
+    },
+    {
+      "text": "V750-通用款 的当前成本为 224 元/台。",
+      "factIds": [
+        "F-163"
+      ],
+      "answerValidationValid": true,
+      "acceptedFactBinding": true,
+      "producerTools": [
+        "get_recipe_detail"
+      ]
+    },
+    {
+      "text": "V110-通用款 的当前成本为 234 元/台。",
+      "factIds": [
+        "F-245"
+      ],
+      "answerValidationValid": true,
+      "acceptedFactBinding": true,
+      "producerTools": [
+        "get_recipe_detail"
+      ]
+    },
+    {
+      "text": "V750-通用款 改用不锈钢接轴后，单台成本比当前正式配置高 6 元（CNY），这是临时试算差额，不是当前正式成本。",
+      "factIds": [
+        "F-171"
+      ],
+      "answerValidationValid": true,
+      "acceptedFactBinding": true,
+      "producerTools": [
+        "compare_recipe_scenarios"
+      ]
+    },
+    {
+      "text": "同一情景试算中，候选配置「不锈钢接轴」的单台试算成本为 230 元（CNY）。",
+      "factIds": [
+        "F-170"
+      ],
+      "answerValidationValid": true,
+      "acceptedFactBinding": true,
+      "producerTools": [
+        "compare_recipe_scenarios"
+      ]
+    },
+    {
+      "text": "作为基准的 V750-通用款 当前正式配置单台试算成本为 224 元（CNY）。",
+      "factIds": [
+        "F-169"
+      ],
+      "answerValidationValid": true,
+      "acceptedFactBinding": true,
+      "producerTools": [
+        "compare_recipe_scenarios"
+      ]
+    }
+  ]
+}

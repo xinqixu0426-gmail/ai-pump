@@ -1,0 +1,14 @@
+{
+  "ticket": "R6-LAUNCH-R2A",
+  "assemblyVersion": "R6_LAUNCH_R2_POST_PROCESSING_V2",
+  "assemblyCommit": "aa6279a653a27b4a5d614e481eaf253a5c81abb0",
+  "assemblySource": "scripts/ai-experiments/api-native-agent/d2B2R6LaunchAcceptanceAssemblerV2.cjs",
+  "assemblySourceHash": "8b10af2c2c5518f7fd59f26bd897af8e7d8123800e9df6b49052416a017c61f7",
+  "productFreeze": "65f5cf5380bc460a032b904bb032c4bf18a1ca76",
+  "semanticHarnessFreeze": "39d0f3a2cc862ac632f901c5c2b24982d2610dc7",
+  "apiIndexFingerprint": "fd1047c4a2dc8ed8b9faa691676e2c2cfd652e74224c6fcda6747cf28b6b16e2",
+  "modelCalls": 0,
+  "providerCalls": 0,
+  "semanticCasesRerun": 0,
+  "sourceCaseEvidenceMutated": false
+}

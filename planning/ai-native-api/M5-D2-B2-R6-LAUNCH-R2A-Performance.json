@@ -1,0 +1,13 @@
+{
+  "averageSelectedDomains": 2.911764705882353,
+  "averageDomainApiSetSize": 8.558823529411764,
+  "averageExecutedApis": 4.676470588235294,
+  "averageNotApplicableApis": 3.0294117647058822,
+  "averageBlockedApis": 0.29411764705882354,
+  "averageRagCalls": 1,
+  "averageModelCalls": 14.705882352941176,
+  "averageBusinessToolCalls": 8.205882352941176,
+  "medianDurationMs": 21984,
+  "p95DurationMs": 119820,
+  "averageContextTokens": 23487.029411764706
+}

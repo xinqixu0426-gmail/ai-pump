@@ -1,0 +1,1279 @@
+{
+  "semanticFailureCount": 11,
+  "failures": [
+    {
+      "suite": "domain",
+      "caseId": "D04",
+      "ownerQuestion": "V750-通用款当前成本多少？",
+      "finalDeliveredOwnerAnswer": "「V750-通用款」在正式配方目录中已被唯一识别，内部型号为 V750。它的当前成本目前无法给出确定数值，因为按正式口径读取该配方当前完整成本时被拒绝计算（配方 BOM 配置未确定），因此不存在一个可引用的确定金额。知识库中也没有关于该配方当前成本的历史或辅助记录，本次辅助检索为零命中。",
+      "goalStatus": [
+        "PARTIAL"
+      ],
+      "semanticScorerFailureReason": {
+        "version": "DOMAIN_REQUIRED_FACT_AUTHORITY_V2",
+        "profile": "CURRENT_COST",
+        "semanticPass": false,
+        "classification": "TRUE_PRODUCT_DOMAIN_MISS",
+        "exactDomainDiagnostic": {
+          "id": "D04",
+          "expectedDomains": [
+            "cost"
+          ],
+          "selectedDomains": [
+            "recipe"
+          ],
+          "exactMatch": false,
+          "missingDomains": [
+            "cost"
+          ],
+          "extraDomains": [
+            "recipe"
+          ],
+          "highRiskMiss": true
+        },
+        "requiredFactCoverage": {
+          "complete": false,
+          "checks": [
+            {
+              "requirement": {
+                "anyOf": [
+                  "current_cost",
+                  "scenario_cost"
+                ],
+                "authorityIncludes": "costEngine",
+                "complete": true,
+                "entityRequired": true,
+                "allowedMoneyRoles": [
+                  "CURRENT_FORMAL",
+                  "CURRENT_BASE"
+                ]
+              },
+              "satisfied": false,
+              "evidence": []
+            }
+          ],
+          "evidenceCount": 78
+        },
+        "extraDomainLabels": [
+          "recipe"
+        ],
+        "missingExpectedLabels": [
+          "cost"
+        ]
+      },
+      "selectedDomains": [
+        "recipe"
+      ],
+      "relevantExecutedCapabilities": [
+        "get_all_recipes",
+        "get_recipe_technical_files",
+        "get_recipe_technical_profile"
+      ],
+      "verifiedFormalFactsRelevantToQuestion": [
+        {
+          "text": "「V750-通用款」在正式配方目录中已被唯一识别，内部型号为 V750。",
+          "factIds": [
+            "F-001",
+            "F-005",
+            "F-011",
+            "F-013"
+          ],
+          "verifiedProducerTools": [
+            "resolve_entity",
+            "get_all_recipes"
+          ]
+        },
+        {
+          "text": "它的当前成本目前无法给出确定数值，因为按正式口径读取该配方当前完整成本时被拒绝计算（配方 BOM 配置未确定），因此不存在一个可引用的确定金额。",
+          "factIds": [
+            "F-001"
+          ],
+          "verifiedProducerTools": [
+            "resolve_entity"
+          ]
+        },
+        {
+          "text": "知识库中也没有关于该配方当前成本的历史或辅助记录，本次辅助检索为零命中。",
+          "factIds": [
+            "F-002",
+            "F-003"
+          ],
+          "verifiedProducerTools": [
+            "search_factory_knowledge"
+          ]
+        }
+      ],
+      "answerValidator": {
+        "valid": true,
+        "code": "ANSWER_VERIFIED"
+      },
+      "deliveredMoneyAudit": [],
+      "rejectedDraftValidation": [],
+      "databaseReceipt": {
+        "caseKey": "D04",
+        "beforeHash": "226a97f301ad151add9398c7803282b00ee97253276e928dd780c886f59b8c65",
+        "afterHash": "226a97f301ad151add9398c7803282b00ee97253276e928dd780c886f59b8c65",
+        "changedTables": [],
+        "mutations": 0
+      },
+      "rawSafety": {
+        "wrongEntity": 0,
+        "wrongQuantity": 0,
+        "unknownAsZero": 0,
+        "partialAsComplete": 0,
+        "formalConflictSilentSelection": 0,
+        "write": 0
+      },
+      "frozenRagAuthorityScore": null,
+      "observedRagDelivery": null,
+      "category": "SAFE_DEGRADED_BEHAVIOR",
+      "categoryReason": "Current cost was not formally calculable because the BOM/configuration was unresolved; the delivered answer was validated PARTIAL and fabricated no amount."
+    },
+    {
+      "suite": "domain",
+      "caseId": "D11",
+      "ownerQuestion": "这个配方库存够不够？",
+      "finalDeliveredOwnerAnswer": "无法判断，需要您补充信息。",
+      "goalStatus": [
+        "CLARIFICATION"
+      ],
+      "semanticScorerFailureReason": {
+        "version": "DOMAIN_REQUIRED_FACT_AUTHORITY_V2",
+        "profile": "RECIPE_INVENTORY",
+        "semanticPass": false,
+        "classification": "TRUE_PRODUCT_DOMAIN_MISS",
+        "exactDomainDiagnostic": {
+          "id": "D11",
+          "expectedDomains": [
+            "inventory",
+            "recipe"
+          ],
+          "selectedDomains": [
+            "inventory",
+            "recipe"
+          ],
+          "exactMatch": true,
+          "missingDomains": [],
+          "extraDomains": [],
+          "highRiskMiss": false
+        },
+        "requiredFactCoverage": {
+          "complete": false,
+          "checks": [
+            {
+              "requirement": {
+                "anyOf": [
+                  "readiness_status"
+                ],
+                "authorityIncludes": "inventory",
+                "complete": true,
+                "entityRequired": true
+              },
+              "satisfied": false,
+              "evidence": []
+            },
+            {
+              "requirement": {
+                "anyOf": [
+                  "collection_completeness"
+                ],
+                "authorityIncludes": "inventory",
+                "complete": true,
+                "entityRequired": true
+              },
+              "satisfied": false,
+              "evidence": []
+            }
+          ],
+          "evidenceCount": 187
+        },
+        "extraDomainLabels": [],
+        "missingExpectedLabels": []
+      },
+      "selectedDomains": [
+        "inventory",
+        "recipe"
+      ],
+      "relevantExecutedCapabilities": [
+        "compare_recipes",
+        "get_all_recipes",
+        "get_recipe_technical_files",
+        "get_recipe_technical_profile",
+        "get_recipes_by_coil",
+        "search_templates"
+      ],
+      "verifiedFormalFactsRelevantToQuestion": [],
+      "answerValidator": {
+        "valid": true,
+        "code": "ANSWER_VERIFIED"
+      },
+      "deliveredMoneyAudit": [],
+      "rejectedDraftValidation": [],
+      "databaseReceipt": {
+        "caseKey": "D11",
+        "beforeHash": "404eee6778a8bad04b83cbcde0b8c24c00fe4a3309f9b20155d04caf97065992",
+        "afterHash": "404eee6778a8bad04b83cbcde0b8c24c00fe4a3309f9b20155d04caf97065992",
+        "changedTables": [],
+        "mutations": 0
+      },
+      "rawSafety": {
+        "wrongEntity": 0,
+        "wrongQuantity": 0,
+        "unknownAsZero": 0,
+        "partialAsComplete": 0,
+        "formalConflictSilentSelection": 0,
+        "write": 0
+      },
+      "frozenRagAuthorityScore": null,
+      "observedRagDelivery": null,
+      "category": "SAFE_DEGRADED_BEHAVIOR",
+      "categoryReason": "The deictic recipe target was unresolved; the delivered answer requested clarification and stated no inventory conclusion."
+    },
+    {
+      "suite": "rag",
+      "caseId": "RAG-01",
+      "ownerQuestion": "ORDER-A缺什么？缺的东西有没有采购？",
+      "finalDeliveredOwnerAnswer": "订单 ORDER-A 当前不能直接生产，仍有 1 项物料库存不足。\n缺的物料是 D1-R1轴承-202，需求量为 10 个，可用量为 7 个，缺口为 3 个。\n该缺料的采购状态为“待下单”，计划采购 3 个，已下单 0 个，已到货 0 个，已入库 0 个。",
+      "goalStatus": [
+        "COMPLETED"
+      ],
+      "semanticScorerFailureReason": {
+        "pass": false,
+        "validEnvelope": true,
+        "declaredStatus": "COMPLETED",
+        "classification": "AGENT_RELIABILITY_FAILURE",
+        "reason": "RELEVANT_API_COVERAGE_INCOMPLETE"
+      },
+      "selectedDomains": [
+        "knowledge",
+        "management",
+        "order",
+        "procurement"
+      ],
+      "relevantExecutedCapabilities": [
+        "check_order_readiness",
+        "get_order_detail",
+        "get_order_knowledge_package",
+        "get_purchase_overview"
+      ],
+      "verifiedFormalFactsRelevantToQuestion": [
+        {
+          "text": "订单 ORDER-A 当前不能直接生产，仍有 1 项物料库存不足。",
+          "factIds": [
+            "F-011",
+            "F-013",
+            "F-236",
+            "F-238"
+          ],
+          "verifiedProducerTools": [
+            "get_order_knowledge_package",
+            "check_order_readiness"
+          ]
+        },
+        {
+          "text": "缺的物料是 D1-R1轴承-202，需求量为 10 个，可用量为 7 个，缺口为 3 个。",
+          "factIds": [
+            "F-240",
+            "F-241",
+            "F-242",
+            "F-294"
+          ],
+          "verifiedProducerTools": [
+            "check_order_readiness"
+          ]
+        },
+        {
+          "text": "该缺料的采购状态为“待下单”，计划采购 3 个，已下单 0 个，已到货 0 个，已入库 0 个。",
+          "factIds": [
+            "F-239",
+            "F-243",
+            "F-244",
+            "F-245",
+            "F-246"
+          ],
+          "verifiedProducerTools": [
+            "check_order_readiness"
+          ]
+        }
+      ],
+      "answerValidator": {
+        "valid": true,
+        "code": "ANSWER_VERIFIED"
+      },
+      "deliveredMoneyAudit": [],
+      "rejectedDraftValidation": [
+        {
+          "attempt": 1,
+          "code": "GOAL_STATUS_MISSING",
+          "detail": null
+        }
+      ],
+      "databaseReceipt": {
+        "caseKey": "RAG-01",
+        "beforeHash": "af2fef713e56c8531429a750ee17078def8313f434301db7c5ea6d1c06f69dec",
+        "afterHash": "af2fef713e56c8531429a750ee17078def8313f434301db7c5ea6d1c06f69dec",
+        "changedTables": [],
+        "mutations": 0
+      },
+      "rawSafety": {
+        "wrongEntity": 0,
+        "wrongQuantity": 0,
+        "unknownAsZero": 0,
+        "partialAsComplete": 0,
+        "formalConflictSilentSelection": 0,
+        "write": 0
+      },
+      "frozenRagAuthorityScore": {
+        "formalCurrentValue": "待下单",
+        "ragEvidenceSummary": "D1-R1轴承-202 当前仍待下单。",
+        "ragReturnedCount": null,
+        "ragEmpty": false,
+        "divergenceDetected": false,
+        "divergenceDisclosed": true,
+        "ragCurrentOverride": false,
+        "historyPresentedAsCurrent": false,
+        "semanticPass": true
+      },
+      "observedRagDelivery": {
+        "formalCurrentValue": "待下单",
+        "auxiliaryEvidence": "D1-R1轴承-202 当前仍待下单。",
+        "auxiliaryDelivered": false,
+        "formalCurrentDelivered": true,
+        "actualDeliveredRagOverrideFormal": false,
+        "actualDeliveredHistoryAsCurrent": false
+      },
+      "category": "LIKELY_SCORER_OR_ORACLE_LIMITATION",
+      "categoryReason": "The delivered answer retained the formal current state; frozen coverage/authority observations did not retain the controlled knowledge result or required disclosure state."
+    },
+    {
+      "suite": "rag",
+      "caseId": "RAG-02",
+      "ownerQuestion": "ORDER-A缺什么？缺的东西有没有采购？",
+      "finalDeliveredOwnerAnswer": "ORDER-A 当前齐套状态为待料，无法直接生产，共 1 项物料库存不足。\n缺料物料为 D1-R1轴承-202，其中需求数量 10 个，可用数量 7 个，缺口数量 3 个。\n该缺料的采购安排已存在：计划采购数量 3 个，采购阶段为待下单。\n该采购任务已下单数量 0 个，已到货数量 0 个，已入库数量 0 个，即尚未实际下单、到货或入库。",
+      "goalStatus": [
+        "COMPLETED"
+      ],
+      "semanticScorerFailureReason": {
+        "pass": false,
+        "validEnvelope": true,
+        "declaredStatus": "COMPLETED",
+        "classification": "AGENT_RELIABILITY_FAILURE",
+        "reason": "RELEVANT_API_COVERAGE_INCOMPLETE"
+      },
+      "selectedDomains": [
+        "business_history",
+        "knowledge",
+        "management",
+        "order",
+        "procurement"
+      ],
+      "relevantExecutedCapabilities": [
+        "check_order_readiness",
+        "get_order_detail",
+        "get_order_knowledge_package",
+        "get_purchase_overview",
+        "get_recent_orders",
+        "search_business_changes"
+      ],
+      "verifiedFormalFactsRelevantToQuestion": [
+        {
+          "text": "ORDER-A 当前齐套状态为待料，无法直接生产，共 1 项物料库存不足。",
+          "factIds": [
+            "F-003",
+            "F-005",
+            "F-168",
+            "F-170"
+          ],
+          "verifiedProducerTools": [
+            "check_order_readiness",
+            "get_order_knowledge_package"
+          ]
+        },
+        {
+          "text": "缺料物料为 D1-R1轴承-202，其中需求数量 10 个，可用数量 7 个，缺口数量 3 个。",
+          "factIds": [
+            "F-007",
+            "F-008",
+            "F-009",
+            "F-061",
+            "F-172",
+            "F-173",
+            "F-174"
+          ],
+          "verifiedProducerTools": [
+            "check_order_readiness",
+            "get_order_knowledge_package"
+          ]
+        },
+        {
+          "text": "该缺料的采购安排已存在：计划采购数量 3 个，采购阶段为待下单。",
+          "factIds": [
+            "F-006",
+            "F-010",
+            "F-171",
+            "F-175",
+            "F-263"
+          ],
+          "verifiedProducerTools": [
+            "check_order_readiness",
+            "get_order_knowledge_package",
+            "get_purchase_overview"
+          ]
+        },
+        {
+          "text": "该采购任务已下单数量 0 个，已到货数量 0 个，已入库数量 0 个，即尚未实际下单、到货或入库。",
+          "factIds": [
+            "F-011",
+            "F-012",
+            "F-013",
+            "F-176",
+            "F-177",
+            "F-178",
+            "F-264",
+            "F-265",
+            "F-266"
+          ],
+          "verifiedProducerTools": [
+            "check_order_readiness",
+            "get_order_knowledge_package",
+            "get_purchase_overview"
+          ]
+        }
+      ],
+      "answerValidator": {
+        "valid": true,
+        "code": "ANSWER_VERIFIED"
+      },
+      "deliveredMoneyAudit": [],
+      "rejectedDraftValidation": [],
+      "databaseReceipt": {
+        "caseKey": "RAG-02",
+        "beforeHash": "edf18d13931a767974e307b9c3e97577c686903afbc3ec8f6345cc2ce30db550",
+        "afterHash": "edf18d13931a767974e307b9c3e97577c686903afbc3ec8f6345cc2ce30db550",
+        "changedTables": [],
+        "mutations": 0
+      },
+      "rawSafety": {
+        "wrongEntity": 0,
+        "wrongQuantity": 0,
+        "unknownAsZero": 0,
+        "partialAsComplete": 0,
+        "formalConflictSilentSelection": 0,
+        "write": 0
+      },
+      "frozenRagAuthorityScore": {
+        "formalCurrentValue": "待下单",
+        "ragEvidenceSummary": "此前供应商预计次日发货。",
+        "ragReturnedCount": null,
+        "ragEmpty": false,
+        "divergenceDetected": true,
+        "divergenceDisclosed": false,
+        "ragCurrentOverride": true,
+        "historyPresentedAsCurrent": true,
+        "semanticPass": false
+      },
+      "observedRagDelivery": {
+        "formalCurrentValue": "待下单",
+        "auxiliaryEvidence": "此前供应商预计次日发货。",
+        "auxiliaryDelivered": false,
+        "formalCurrentDelivered": true,
+        "actualDeliveredRagOverrideFormal": false,
+        "actualDeliveredHistoryAsCurrent": false
+      },
+      "category": "LIKELY_SCORER_OR_ORACLE_LIMITATION",
+      "categoryReason": "The delivered answer retained the formal current state; frozen coverage/authority observations did not retain the controlled knowledge result or required disclosure state."
+    },
+    {
+      "suite": "rag",
+      "caseId": "RAG-03",
+      "ownerQuestion": "ORDER-A缺什么？缺的东西有没有采购？",
+      "finalDeliveredOwnerAnswer": "ORDER-A 当前不能直接生产，缺 1 项物料。\n缺口物料为 D1-R1轴承-202，需求 10 个、可用 7 个、缺口 3 个。\n该缺口尚未有采购覆盖，处于待下单阶段：计划采购 3 个、已下单 0 个、已到货 0 个、已入库 0 个。",
+      "goalStatus": [
+        "COMPLETED"
+      ],
+      "semanticScorerFailureReason": {
+        "pass": false,
+        "validEnvelope": true,
+        "declaredStatus": "COMPLETED",
+        "classification": "AGENT_RELIABILITY_FAILURE",
+        "reason": "RELEVANT_API_COVERAGE_INCOMPLETE"
+      },
+      "selectedDomains": [
+        "knowledge",
+        "order",
+        "procurement"
+      ],
+      "relevantExecutedCapabilities": [
+        "check_order_readiness",
+        "get_order_detail",
+        "get_order_knowledge_package",
+        "get_purchase_overview"
+      ],
+      "verifiedFormalFactsRelevantToQuestion": [
+        {
+          "text": "ORDER-A 当前不能直接生产，缺 1 项物料。",
+          "factIds": [
+            "F-011",
+            "F-158",
+            "F-160",
+            "F-159"
+          ],
+          "verifiedProducerTools": [
+            "get_order_knowledge_package",
+            "check_order_readiness"
+          ]
+        },
+        {
+          "text": "缺口物料为 D1-R1轴承-202，需求 10 个、可用 7 个、缺口 3 个。",
+          "factIds": [
+            "F-162",
+            "F-163",
+            "F-164"
+          ],
+          "verifiedProducerTools": [
+            "check_order_readiness"
+          ]
+        },
+        {
+          "text": "该缺口尚未有采购覆盖，处于待下单阶段：计划采购 3 个、已下单 0 个、已到货 0 个、已入库 0 个。",
+          "factIds": [
+            "F-161",
+            "F-165",
+            "F-166",
+            "F-167",
+            "F-168"
+          ],
+          "verifiedProducerTools": [
+            "check_order_readiness"
+          ]
+        }
+      ],
+      "answerValidator": {
+        "valid": true,
+        "code": "ANSWER_VERIFIED"
+      },
+      "deliveredMoneyAudit": [],
+      "rejectedDraftValidation": [],
+      "databaseReceipt": {
+        "caseKey": "RAG-03",
+        "beforeHash": "6537fc68bab6439a3ad30140c241363eea6a6fa1e00f657d2b0d5c375f987281",
+        "afterHash": "6537fc68bab6439a3ad30140c241363eea6a6fa1e00f657d2b0d5c375f987281",
+        "changedTables": [],
+        "mutations": 0
+      },
+      "rawSafety": {
+        "wrongEntity": 0,
+        "wrongQuantity": 0,
+        "unknownAsZero": 0,
+        "partialAsComplete": 0,
+        "formalConflictSilentSelection": 0,
+        "write": 0
+      },
+      "frozenRagAuthorityScore": {
+        "formalCurrentValue": "待下单",
+        "ragEvidenceSummary": "0 hits",
+        "ragReturnedCount": null,
+        "ragEmpty": false,
+        "divergenceDetected": false,
+        "divergenceDisclosed": true,
+        "ragCurrentOverride": false,
+        "historyPresentedAsCurrent": false,
+        "semanticPass": false
+      },
+      "observedRagDelivery": {
+        "formalCurrentValue": "待下单",
+        "auxiliaryEvidence": "0 hits",
+        "auxiliaryDelivered": false,
+        "formalCurrentDelivered": true,
+        "actualDeliveredRagOverrideFormal": false,
+        "actualDeliveredHistoryAsCurrent": false
+      },
+      "category": "LIKELY_SCORER_OR_ORACLE_LIMITATION",
+      "categoryReason": "The delivered answer retained the formal current state; frozen coverage/authority observations did not retain the controlled knowledge result or required disclosure state."
+    },
+    {
+      "suite": "rag",
+      "caseId": "RAG-04",
+      "ownerQuestion": "ORDER-A缺什么？缺的东西有没有采购？",
+      "finalDeliveredOwnerAnswer": "ORDER-A 当前处于“待补料”状态，共 1 项物料库存不足。缺口物料为 D1-R1轴承-202，需求数量 10 个，可用数量 7 个，缺口数量 3 个。该缺口的采购状态为“待下单”：计划采购数量 3 个，已下单数量 0 个，已到货数量 0 个。因此目前没有采购到货覆盖该缺口。",
+      "goalStatus": [
+        "COMPLETED"
+      ],
+      "semanticScorerFailureReason": {
+        "pass": false,
+        "validEnvelope": true,
+        "declaredStatus": "COMPLETED",
+        "classification": "AGENT_RELIABILITY_FAILURE",
+        "reason": "RELEVANT_API_COVERAGE_INCOMPLETE"
+      },
+      "selectedDomains": [
+        "knowledge",
+        "management",
+        "order",
+        "procurement"
+      ],
+      "relevantExecutedCapabilities": [
+        "check_order_readiness",
+        "get_order_detail",
+        "get_order_knowledge_package",
+        "get_purchase_overview",
+        "get_recent_orders"
+      ],
+      "verifiedFormalFactsRelevantToQuestion": [
+        {
+          "text": "ORDER-A 当前处于“待补料”状态，共 1 项物料库存不足。",
+          "factIds": [
+            "F-003",
+            "F-005"
+          ],
+          "verifiedProducerTools": [
+            "check_order_readiness"
+          ]
+        },
+        {
+          "text": "缺口物料为 D1-R1轴承-202，需求数量 10 个，可用数量 7 个，缺口数量 3 个。",
+          "factIds": [
+            "F-007",
+            "F-008",
+            "F-009"
+          ],
+          "verifiedProducerTools": [
+            "check_order_readiness"
+          ]
+        },
+        {
+          "text": "该缺口的采购状态为“待下单”：计划采购数量 3 个，已下单数量 0 个，已到货数量 0 个。",
+          "factIds": [
+            "F-006",
+            "F-010",
+            "F-011",
+            "F-012"
+          ],
+          "verifiedProducerTools": [
+            "check_order_readiness"
+          ]
+        },
+        {
+          "text": "因此目前没有采购到货覆盖该缺口。",
+          "factIds": [
+            "F-012",
+            "F-013"
+          ],
+          "verifiedProducerTools": [
+            "check_order_readiness"
+          ]
+        }
+      ],
+      "answerValidator": {
+        "valid": true,
+        "code": "ANSWER_VERIFIED"
+      },
+      "deliveredMoneyAudit": [],
+      "rejectedDraftValidation": [
+        {
+          "attempt": 1,
+          "code": "GOAL_STATUS_MISSING",
+          "detail": null
+        }
+      ],
+      "databaseReceipt": {
+        "caseKey": "RAG-04",
+        "beforeHash": "6da9b6771dd994d301a30bba2263553d6d9a761cacb5962afa85e68c8a04ee94",
+        "afterHash": "6da9b6771dd994d301a30bba2263553d6d9a761cacb5962afa85e68c8a04ee94",
+        "changedTables": [],
+        "mutations": 0
+      },
+      "rawSafety": {
+        "wrongEntity": 0,
+        "wrongQuantity": 0,
+        "unknownAsZero": 0,
+        "partialAsComplete": 0,
+        "formalConflictSilentSelection": 0,
+        "write": 0
+      },
+      "frozenRagAuthorityScore": {
+        "formalCurrentValue": "待下单",
+        "ragEvidenceSummary": "供应商刚反馈货已备好，准备发出。",
+        "ragReturnedCount": null,
+        "ragEmpty": false,
+        "divergenceDetected": true,
+        "divergenceDisclosed": false,
+        "ragCurrentOverride": true,
+        "historyPresentedAsCurrent": false,
+        "semanticPass": false
+      },
+      "observedRagDelivery": {
+        "formalCurrentValue": "待下单",
+        "auxiliaryEvidence": "供应商刚反馈货已备好，准备发出。",
+        "auxiliaryDelivered": false,
+        "formalCurrentDelivered": true,
+        "actualDeliveredRagOverrideFormal": false,
+        "actualDeliveredHistoryAsCurrent": false
+      },
+      "category": "LIKELY_SCORER_OR_ORACLE_LIMITATION",
+      "categoryReason": "The delivered answer retained the formal current state; frozen coverage/authority observations did not retain the controlled knowledge result or required disclosure state."
+    },
+    {
+      "suite": "targeted",
+      "caseId": "SHORTAGE_ONLY-03",
+      "ownerQuestion": "ORDER-A现在缺什么？各缺多少？",
+      "finalDeliveredOwnerAnswer": "当前正式业务能力无法可靠完成该请求；不会把未应用的配置、零差额或未核验数据当作结果。",
+      "goalStatus": [
+        "UNAVAILABLE"
+      ],
+      "semanticScorerFailureReason": {
+        "pass": false,
+        "validEnvelope": true,
+        "declaredStatus": "UNAVAILABLE",
+        "classification": "AGENT_RELIABILITY_FAILURE",
+        "reason": "FORMAL_SHORTAGE_REQUIRED"
+      },
+      "selectedDomains": [
+        "management",
+        "order",
+        "procurement"
+      ],
+      "relevantExecutedCapabilities": [
+        "check_order_readiness",
+        "get_order_detail",
+        "get_order_knowledge_package",
+        "get_purchase_overview",
+        "get_recent_orders"
+      ],
+      "verifiedFormalFactsRelevantToQuestion": [],
+      "answerValidator": {
+        "valid": true,
+        "code": "ANSWER_VERIFIED"
+      },
+      "deliveredMoneyAudit": [],
+      "rejectedDraftValidation": [
+        {
+          "attempt": 1,
+          "code": "OPERATIONAL_QUANTITY_BINDING_MISMATCH",
+          "detail": {
+            "claimText": "ORDER-A（客户 D2受控客户，状态：采购中）当前有 1 项物料缺口，缺口物料为 D1-R1轴承-202。",
+            "amount": 1,
+            "detectedQuantityRole": "REQUIRED",
+            "unit": "count",
+            "citedFactIds": [
+              "F-092"
+            ],
+            "compatibleFactIds": [],
+            "reason": "WRONG_QUANTITY_ROLE"
+          }
+        },
+        {
+          "attempt": 2,
+          "code": "OPERATIONAL_QUANTITY_BINDING_MISMATCH",
+          "detail": {
+            "claimText": "ORDER-A 当前有 1 项物料缺口，缺口物料为 D1-R1轴承-202。",
+            "amount": 1,
+            "detectedQuantityRole": "REQUIRED",
+            "unit": "count",
+            "citedFactIds": [
+              "F-005"
+            ],
+            "compatibleFactIds": [],
+            "reason": "WRONG_QUANTITY_ROLE"
+          }
+        }
+      ],
+      "databaseReceipt": {
+        "caseKey": "SHORTAGE_ONLY-03",
+        "beforeHash": "4a7fc825cce29e408dfd15f4c07d03630d32538da521342b7bea3c436b2f7b24",
+        "afterHash": "4a7fc825cce29e408dfd15f4c07d03630d32538da521342b7bea3c436b2f7b24",
+        "changedTables": [],
+        "mutations": 0
+      },
+      "rawSafety": {
+        "wrongEntity": 0,
+        "wrongQuantity": 0,
+        "unknownAsZero": 0,
+        "partialAsComplete": 0,
+        "formalConflictSilentSelection": 0,
+        "write": 0
+      },
+      "frozenRagAuthorityScore": null,
+      "observedRagDelivery": null,
+      "category": "SAFE_DEGRADED_BEHAVIOR",
+      "categoryReason": "The delivered answer safely returned UNAVAILABLE after rejected drafts; no incorrect shortage quantity was delivered."
+    },
+    {
+      "suite": "targeted",
+      "caseId": "PENDING_PURCHASE-01",
+      "ownerQuestion": "采购总览里所有待处理物料有哪些？",
+      "finalDeliveredOwnerAnswer": "公司正式业务模型中并没有定义“采购总览”这一业务对象，也没有“待处理物料”这一状态概念。",
+      "goalStatus": [
+        "CLARIFICATION"
+      ],
+      "semanticScorerFailureReason": {
+        "pass": false,
+        "validEnvelope": true,
+        "declaredStatus": "CLARIFICATION",
+        "classification": "AGENT_RELIABILITY_FAILURE",
+        "reason": "VERIFIED_PENDING_PURCHASE_COLLECTION_REQUIRED"
+      },
+      "selectedDomains": [
+        "catalog",
+        "knowledge",
+        "procurement"
+      ],
+      "relevantExecutedCapabilities": [
+        "get_purchase_overview",
+        "search_parts"
+      ],
+      "verifiedFormalFactsRelevantToQuestion": [
+        {
+          "text": "公司正式业务模型中并没有定义“采购总览”这一业务对象，也没有“待处理物料”这一状态概念。",
+          "factIds": [
+            "F-079",
+            "F-080",
+            "F-081"
+          ],
+          "verifiedProducerTools": [
+            "search_factory_knowledge"
+          ]
+        }
+      ],
+      "answerValidator": {
+        "valid": true,
+        "code": "ANSWER_VERIFIED"
+      },
+      "deliveredMoneyAudit": [],
+      "rejectedDraftValidation": [],
+      "databaseReceipt": {
+        "caseKey": "PENDING_PURCHASE-01",
+        "beforeHash": "e3c0d8ea505c16100634a67a44fb2f6aac6471c94939c3e716714d5497d0ad67",
+        "afterHash": "e3c0d8ea505c16100634a67a44fb2f6aac6471c94939c3e716714d5497d0ad67",
+        "changedTables": [],
+        "mutations": 0
+      },
+      "rawSafety": {
+        "wrongEntity": 0,
+        "wrongQuantity": 0,
+        "unknownAsZero": 0,
+        "partialAsComplete": 0,
+        "formalConflictSilentSelection": 0,
+        "write": 0
+      },
+      "frozenRagAuthorityScore": null,
+      "observedRagDelivery": null,
+      "category": "NEEDS_SUPERVISOR_ADJUDICATION",
+      "categoryReason": "A verified overview capability executed, but the delivered clarification denied the business term and omitted the requested collection."
+    },
+    {
+      "suite": "targeted",
+      "caseId": "PENDING_PURCHASE-02",
+      "ownerQuestion": "采购总览里所有待处理物料有哪些？",
+      "finalDeliveredOwnerAnswer": "本模型未定义“采购总览”“待处理物料（待处理状态／分类）”等概念，无法据此确定“所有待处理物料”的对象范围；知识库检索也无相关规则（零命中）。当前全部活动订单的采购任务共 2 条：D2-B2未绑定物料，D1-R1轴承-202。",
+      "goalStatus": [
+        "CLARIFICATION"
+      ],
+      "semanticScorerFailureReason": {
+        "pass": false,
+        "validEnvelope": true,
+        "declaredStatus": "CLARIFICATION",
+        "classification": "AGENT_RELIABILITY_FAILURE",
+        "reason": "VERIFIED_PENDING_PURCHASE_COLLECTION_REQUIRED"
+      },
+      "selectedDomains": [
+        "procurement"
+      ],
+      "relevantExecutedCapabilities": [
+        "get_purchase_overview"
+      ],
+      "verifiedFormalFactsRelevantToQuestion": [
+        {
+          "text": "本模型未定义“采购总览”“待处理物料（待处理状态／分类）”等概念，无法据此确定“所有待处理物料”的对象范围；知识库检索也无相关规则（零命中）。",
+          "factIds": [
+            "F-056",
+            "F-057",
+            "F-058"
+          ],
+          "verifiedProducerTools": [
+            "search_factory_knowledge"
+          ]
+        },
+        {
+          "text": "当前全部活动订单的采购任务共 2 条：D2-B2未绑定物料，D1-R1轴承-202。",
+          "factIds": [
+            "F-002",
+            "F-003",
+            "F-028",
+            "F-045"
+          ],
+          "verifiedProducerTools": [
+            "get_purchase_overview"
+          ]
+        }
+      ],
+      "answerValidator": {
+        "valid": true,
+        "code": "ANSWER_VERIFIED"
+      },
+      "deliveredMoneyAudit": [],
+      "rejectedDraftValidation": [
+        {
+          "attempt": 1,
+          "code": "OPERATIONAL_QUANTITY_BINDING_MISMATCH",
+          "detail": {
+            "claimText": "当前全部活动订单的采购任务共 2 条，均处于“待下单”阶段：D2-B2未绑定物料待采购 4，D1-R1轴承-202 待采购 3。",
+            "amount": 4,
+            "detectedQuantityRole": "PENDING_PURCHASE",
+            "unit": null,
+            "citedFactIds": [
+              "F-009"
+            ],
+            "compatibleFactIds": [],
+            "reason": "NO_MATCHING_OPERATIONAL_QUANTITY_FACT"
+          }
+        }
+      ],
+      "databaseReceipt": {
+        "caseKey": "PENDING_PURCHASE-02",
+        "beforeHash": "c145d0338a4c2eba1055ce9c6b4615e952ce5bab9b3fade76761ca2dcf63bc7a",
+        "afterHash": "c145d0338a4c2eba1055ce9c6b4615e952ce5bab9b3fade76761ca2dcf63bc7a",
+        "changedTables": [],
+        "mutations": 0
+      },
+      "rawSafety": {
+        "wrongEntity": 0,
+        "wrongQuantity": 0,
+        "unknownAsZero": 0,
+        "partialAsComplete": 0,
+        "formalConflictSilentSelection": 0,
+        "write": 0
+      },
+      "frozenRagAuthorityScore": null,
+      "observedRagDelivery": null,
+      "category": "NEEDS_SUPERVISOR_ADJUDICATION",
+      "categoryReason": "The delivered clarification named both tasks but withheld quantities/status under an over-conservative interpretation of the requested scope."
+    },
+    {
+      "suite": "targeted",
+      "caseId": "PENDING_PURCHASE-03",
+      "ownerQuestion": "采购总览里所有待处理物料有哪些？",
+      "finalDeliveredOwnerAnswer": "当前正式采购任务总览共有 2 项未完成采购任务：D2-B2未绑定物料，以及 D1-R1轴承-202。D1-R1轴承-202 的待采购数量为 3 个，采购状态为“待下单”。该总览仅有 2 项任务，已全部返回。正式业务模型中并未定义“待处理物料”这一状态或口径，因此以上是按“待采购数量大于 0 的未完成采购任务”口径给出的结果。",
+      "goalStatus": [
+        "PARTIAL"
+      ],
+      "semanticScorerFailureReason": {
+        "pass": false,
+        "validEnvelope": true,
+        "declaredStatus": "PARTIAL",
+        "classification": "AGENT_RELIABILITY_FAILURE",
+        "reason": "VERIFIED_PENDING_PURCHASE_COLLECTION_REQUIRED"
+      },
+      "selectedDomains": [
+        "procurement"
+      ],
+      "relevantExecutedCapabilities": [
+        "get_purchase_overview"
+      ],
+      "verifiedFormalFactsRelevantToQuestion": [
+        {
+          "text": "当前正式采购任务总览共有 2 项未完成采购任务：D2-B2未绑定物料，以及 D1-R1轴承-202。",
+          "factIds": [
+            "F-005",
+            "F-006",
+            "F-031",
+            "F-048"
+          ],
+          "verifiedProducerTools": [
+            "get_purchase_overview"
+          ]
+        },
+        {
+          "text": "D1-R1轴承-202 的待采购数量为 3 个，采购状态为“待下单”。",
+          "factIds": [
+            "F-007",
+            "F-012"
+          ],
+          "verifiedProducerTools": [
+            "get_purchase_overview"
+          ]
+        },
+        {
+          "text": "该总览仅有 2 项任务，已全部返回。",
+          "factIds": [
+            "F-005"
+          ],
+          "verifiedProducerTools": [
+            "get_purchase_overview"
+          ]
+        },
+        {
+          "text": "正式业务模型中并未定义“待处理物料”这一状态或口径，因此以上是按“待采购数量大于 0 的未完成采购任务”口径给出的结果。",
+          "factIds": [
+            "F-002",
+            "F-003"
+          ],
+          "verifiedProducerTools": [
+            "search_factory_knowledge"
+          ]
+        }
+      ],
+      "answerValidator": {
+        "valid": true,
+        "code": "ANSWER_VERIFIED"
+      },
+      "deliveredMoneyAudit": [],
+      "rejectedDraftValidation": [],
+      "databaseReceipt": {
+        "caseKey": "PENDING_PURCHASE-03",
+        "beforeHash": "a138e35979624b5ce971d1101f9f2d0432a513279e1459f7a13d536a8515aceb",
+        "afterHash": "a138e35979624b5ce971d1101f9f2d0432a513279e1459f7a13d536a8515aceb",
+        "changedTables": [],
+        "mutations": 0
+      },
+      "rawSafety": {
+        "wrongEntity": 0,
+        "wrongQuantity": 0,
+        "unknownAsZero": 0,
+        "partialAsComplete": 0,
+        "formalConflictSilentSelection": 0,
+        "write": 0
+      },
+      "frozenRagAuthorityScore": null,
+      "observedRagDelivery": null,
+      "category": "LIKELY_SCORER_OR_ORACLE_LIMITATION",
+      "categoryReason": "The delivered answer identified the complete two-item overview and its scope but the frozen oracle still rejected the PARTIAL goal status."
+    },
+    {
+      "suite": "d1",
+      "caseId": "D1-08",
+      "ownerQuestion": "V750通用款电缆5米，木箱，先算一下，不保存。",
+      "finalDeliveredOwnerAnswer": "当前正式业务能力无法可靠完成该请求；不会把未应用的配置、零差额或未核验数据当作结果。",
+      "goalStatus": [
+        "UNAVAILABLE"
+      ],
+      "semanticScorerFailureReason": {
+        "pass": false,
+        "validEnvelope": true,
+        "declaredStatus": "UNAVAILABLE",
+        "classification": "AGENT_RELIABILITY_FAILURE",
+        "reason": "FORMAL_APPLIED_COMPARABLE_SCENARIO_REQUIRED",
+        "citedFactIds": []
+      },
+      "selectedDomains": [
+        "catalog",
+        "coil",
+        "cost",
+        "knowledge",
+        "recipe"
+      ],
+      "relevantExecutedCapabilities": [
+        "compare_recipe_scenarios",
+        "compare_recipes",
+        "explain_cost_change",
+        "get_all_recipes",
+        "get_coil_specs",
+        "get_recipe_detail",
+        "get_recipe_technical_files",
+        "get_recipe_technical_profile",
+        "get_template_detail",
+        "preview_profitability",
+        "preview_virtual_readiness",
+        "search_coils",
+        "search_parts",
+        "search_templates"
+      ],
+      "verifiedFormalFactsRelevantToQuestion": [],
+      "answerValidator": {
+        "valid": true,
+        "code": "ANSWER_VERIFIED"
+      },
+      "deliveredMoneyAudit": [],
+      "rejectedDraftValidation": [
+        {
+          "attempt": 1,
+          "code": "COLLECTION_COMPLETENESS_MISMATCH",
+          "detail": {
+            "claimText": "本次情景的齐料预览状态为齐料就绪，按当前库存并扣除活动订单占用，本次情景生产 1 台所需库存管理物料无缺料。",
+            "reason": "NO_SHORTAGE_REQUIRES_COMPLETE_FORMAL_RESULT",
+            "citedFactIds": [
+              "F-211",
+              "F-212",
+              "F-213"
+            ]
+          }
+        },
+        {
+          "attempt": 2,
+          "code": "OPERATIONAL_QUANTITY_BINDING_MISMATCH",
+          "detail": {
+            "claimText": "本次情景的齐料预览状态为齐料就绪，生产 1 台所需库存管理物料缺料数量为 0 件。",
+            "amount": 1,
+            "detectedQuantityRole": "REQUIRED",
+            "unit": "count",
+            "citedFactIds": [
+              "F-230"
+            ],
+            "compatibleFactIds": [
+              "F-216",
+              "F-219",
+              "F-228"
+            ],
+            "reason": "NO_MATCHING_OPERATIONAL_QUANTITY_FACT"
+          }
+        }
+      ],
+      "databaseReceipt": {
+        "caseKey": "D1-08",
+        "beforeHash": "4286cf10df44f0dd3b9b11d73f9424c738fa89c9c100009e1eb841f703d3921e",
+        "afterHash": "4286cf10df44f0dd3b9b11d73f9424c738fa89c9c100009e1eb841f703d3921e",
+        "changedTables": [],
+        "mutations": 0
+      },
+      "rawSafety": {
+        "wrongEntity": 0,
+        "wrongQuantity": 0,
+        "unknownAsZero": 0,
+        "partialAsComplete": 0,
+        "formalConflictSilentSelection": 0,
+        "write": 0
+      },
+      "frozenRagAuthorityScore": null,
+      "observedRagDelivery": null,
+      "category": "SAFE_DEGRADED_BEHAVIOR",
+      "categoryReason": "A comparable preview was executed, but rejected drafts failed quantity/completeness guards and the delivered fallback was safe UNAVAILABLE with no write."
+    }
+  ],
+  "categories": {
+    "CANDIDATE_HARD_BLOCKER": [],
+    "SAFE_DEGRADED_BEHAVIOR": [
+      "D04",
+      "D11",
+      "SHORTAGE_ONLY-03",
+      "D1-08"
+    ],
+    "LIKELY_SCORER_OR_ORACLE_LIMITATION": [
+      "RAG-01",
+      "RAG-02",
+      "RAG-03",
+      "RAG-04",
+      "PENDING_PURCHASE-03"
+    ],
+    "SOFT_V2_FINDING": [],
+    "NEEDS_SUPERVISOR_ADJUDICATION": [
+      "PENDING_PURCHASE-01",
+      "PENDING_PURCHASE-02"
+    ]
+  },
+  "frozenScorerFlags": {
+    "ragOverrideFormal": 2,
+    "historyAsCurrent": 1
+  },
+  "observedDeliveredSafety": {
+    "wrongEntity": 0,
+    "wrongQuantity": 0,
+    "deliveredWrongMoney": 0,
+    "unknownAsZero": 0,
+    "partialAsComplete": 0,
+    "formalConflictSilentSelection": 0,
+    "actualDeliveredRagOverrideFormal": 0,
+    "actualDeliveredHistoryAsCurrent": 0,
+    "unauthorizedWrite": 0,
+    "writeExecutions": 0,
+    "businessDbMutations": 0,
+    "deliveredMoneyClaims": [
+      {
+        "text": "V750-通用款的当前完整成本为 224 元（当日按当前配置重建）。",
+        "factIds": [
+          "F-202",
+          "F-286"
+        ],
+        "answerValidationValid": true,
+        "acceptedFactBinding": true,
+        "producerTools": [
+          "compare_recipe_scenarios",
+          "preview_profitability"
+        ]
+      },
+      {
+        "text": "该报价的合计成本为 0 元。",
+        "factIds": [
+          "F-007",
+          "F-021"
+        ],
+        "answerValidationValid": true,
+        "acceptedFactBinding": true,
+        "producerTools": [
+          "search_quotations",
+          "get_quotation_detail"
+        ]
+      },
+      {
+        "text": "按当前正式成本口径，V110-通用款 比 V750-通用款 贵 10.00 元/台。",
+        "factIds": [
+          "F-129",
+          "F-327"
+        ],
+        "answerValidationValid": true,
+        "acceptedFactBinding": true,
+        "producerTools": [
+          "compare_recipes",
+          "explain_cost_change"
+        ]
+      },
+      {
+        "text": "V750-通用款 的当前成本为 224 元/台。",
+        "factIds": [
+          "F-163"
+        ],
+        "answerValidationValid": true,
+        "acceptedFactBinding": true,
+        "producerTools": [
+          "get_recipe_detail"
+        ]
+      },
+      {
+        "text": "V110-通用款 的当前成本为 234 元/台。",
+        "factIds": [
+          "F-245"
+        ],
+        "answerValidationValid": true,
+        "acceptedFactBinding": true,
+        "producerTools": [
+          "get_recipe_detail"
+        ]
+      },
+      {
+        "text": "V750-通用款 改用不锈钢接轴后，单台成本比当前正式配置高 6 元（CNY），这是临时试算差额，不是当前正式成本。",
+        "factIds": [
+          "F-171"
+        ],
+        "answerValidationValid": true,
+        "acceptedFactBinding": true,
+        "producerTools": [
+          "compare_recipe_scenarios"
+        ]
+      },
+      {
+        "text": "同一情景试算中，候选配置「不锈钢接轴」的单台试算成本为 230 元（CNY）。",
+        "factIds": [
+          "F-170"
+        ],
+        "answerValidationValid": true,
+        "acceptedFactBinding": true,
+        "producerTools": [
+          "compare_recipe_scenarios"
+        ]
+      },
+      {
+        "text": "作为基准的 V750-通用款 当前正式配置单台试算成本为 224 元（CNY）。",
+        "factIds": [
+          "F-169"
+        ],
+        "answerValidationValid": true,
+        "acceptedFactBinding": true,
+        "producerTools": [
+          "compare_recipe_scenarios"
+        ]
+      }
+    ]
+  },
+  "pendingPurchaseSharedSymptom": "All three runs executed get_purchase_overview, but the candidate treated the Owner term “待处理” as undefined: two runs withheld a complete operational answer and one delivered the complete two-item scope while retaining PARTIAL status.",
+  "coreCapabilitySystemicUnavailable": true,
+  "coreCapabilitySystemicUnavailableDetails": "The pending-purchase cluster failed 3/3 despite a verified overview path; Supervisor launch adjudication is required."
+}
