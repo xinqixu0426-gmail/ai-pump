@@ -155,6 +155,9 @@ test('frozen V1 domain oracle and preserved C2 evidence remain byte-identical to
     const relative = 'scripts/ai-experiments/api-native-agent/d2B2DomainCorpus.cjs';
     const frozen = childProcess.execFileSync('git', ['show', `ed56109a42859c2c3984f06256c8a3c02d12a00c:${relative}`], { cwd: root, encoding: 'utf8' });
     assert.equal(fs.readFileSync(path.join(root, relative), 'utf8'), frozen);
-    const changedEvidence = childProcess.execFileSync('git', ['diff', '--name-only', 'ed56109a42859c2c3984f06256c8a3c02d12a00c', '--', 'planning/ai-native-api/M5-D2-B2-runs'], { cwd: root, encoding: 'utf8' }).trim();
+    // Later acceptance batches are additive evidence. Immutability means that
+    // evidence already present at the preserved commit cannot be modified,
+    // deleted, or renamed; it does not prohibit new run-unique artifacts.
+    const changedEvidence = childProcess.execFileSync('git', ['diff', '--name-only', '--diff-filter=MDR', 'ed56109a42859c2c3984f06256c8a3c02d12a00c', '--', 'planning/ai-native-api/M5-D2-B2-runs'], { cwd: root, encoding: 'utf8' }).trim();
     assert.equal(changedEvidence, '');
 });
