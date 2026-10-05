@@ -571,6 +571,8 @@ parts.stock 的 stockStatus 只接受正式 low(0<stock≤5)/out(stock≤0)/atte
 
 AI-Native 的模型 API Index 把 `domains` 定义为非互斥的能力导航标签，不把领域标签当作意图分类结果或事实权威。每个可暴露的只读/预览能力还投影其主要职责、可建立的正式事实、逐事实 authority、与其他业务领域的重叠及明确不能建立的事实；这些信息从 capability registry、正式 capability source of truth 和既有 API 合同派生，不改变正式 API、schema 或业务计算。例如 `get_recipe_detail` 可在 recipe 导航上下文中返回完整 `current_cost`，但该金额的正式 authority 仍是 `costEngine`；`get_order_knowledge_package` 可在 order/knowledge 上下文中正式建立 `source_file` 结果。选中领域后，领域内 eligible read/preview 能力仍必须全部达到执行、失败/阻塞或有正式理由的不适用终态。领域标签的精确集合只作为效率诊断；业务正确性按所需正式事实、authority、完整性和安全约束判定。
 
+领域展开只决定调查覆盖面，不扩大 Owner-facing 回答范围。Main Agent 和最终组装阶段可以使用所有已取得的正式证据核验结论，但最终只报告 Owner 实际请求的事实及必要的歧义、冲突、限制或安全提示；不得因为后台完成了领域内全量调查就主动倾倒未请求的比较、替代情景、成本拆分、历史、技术细节或辅助知识。Owner 明确要求比较、情景分析、明细、历史或解释时，对应维度仍属于回答范围。Money Guard、数量角色、完整性及事实引用校验保持严格。
+
 | `GET` | `/api/ai/domain-policy` | 无 | Owner-only。返回当前不可变 Published Domain Policy 与可编辑 Draft；Draft 的 `version` 是并发保护令牌，运行中的 Assistant 只读取 Published。 |
 | `PUT` | `/api/ai/domain-policy/draft` | `{ content, expectedVersion, reason? }` | Owner-only。保存 Draft，必须携带当前 Draft `expectedVersion`；版本不一致返回 `DOMAIN_POLICY_CONFLICT`，保存不改变运行时 Policy。 |
 | `GET` | `/api/ai/domain-policy/versions` | 无 | Owner-only。返回不可变 Published/SUPERSEDED 历史和 Domain Policy 审计。 |

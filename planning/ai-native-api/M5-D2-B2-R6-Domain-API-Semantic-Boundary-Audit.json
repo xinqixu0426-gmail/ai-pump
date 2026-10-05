@@ -1,5 +1,5 @@
 {
-  "schemaVersion": "D2_B2_R6_DOMAIN_BOUNDARY_AUDIT_V1",
+  "schemaVersion": "D2_B2_R6_DOMAIN_BOUNDARY_AUDIT_V2",
   "conclusion": "CONFIRMED_NON_EXCLUSIVE_DOMAIN_OVERLAP",
   "oldApiIndexFingerprint": "10bee9d8a065ea2322fcaf14bdf21cee949d0f57da8c3d5133448c1ee7d09c61",
   "newApiIndexFingerprint": "fd1047c4a2dc8ed8b9faa691676e2c2cfd652e74224c6fcda6747cf28b6b16e2",
@@ -44,6 +44,9 @@
       "formalFactsProduced": [
         "business_change_event"
       ],
+      "evidenceProducers": {
+        "business_change_event": "PREDICATE_SPECIFIC_PAYLOAD_EXTRACTOR"
+      },
       "overlappingBusinessDomains": [
         "business_history"
       ],
@@ -77,6 +80,10 @@
         "part_catalog_attribute",
         "part_identity"
       ],
+      "evidenceProducers": {
+        "part_catalog_attribute": "PREDICATE_SPECIFIC_PAYLOAD_EXTRACTOR",
+        "part_identity": "PREDICATE_SPECIFIC_PAYLOAD_EXTRACTOR"
+      },
       "overlappingBusinessDomains": [
         "catalog"
       ],
@@ -111,6 +118,10 @@
         "coil_identity",
         "coil_specification"
       ],
+      "evidenceProducers": {
+        "coil_identity": "PREDICATE_SPECIFIC_PAYLOAD_EXTRACTOR",
+        "coil_specification": "PREDICATE_SPECIFIC_PAYLOAD_EXTRACTOR"
+      },
       "overlappingBusinessDomains": [
         "coil"
       ],
@@ -145,6 +156,10 @@
         "coil_directory_cost",
         "coil_identity"
       ],
+      "evidenceProducers": {
+        "coil_directory_cost": "FACT_LEDGER",
+        "coil_identity": "PREDICATE_SPECIFIC_PAYLOAD_EXTRACTOR"
+      },
       "overlappingBusinessDomains": [
         "coil",
         "cost"
@@ -180,6 +195,9 @@
       "formalFactsProduced": [
         "current_cost"
       ],
+      "evidenceProducers": {
+        "current_cost": "PREDICATE_SPECIFIC_PAYLOAD_EXTRACTOR"
+      },
       "overlappingBusinessDomains": [
         "coil",
         "cost"
@@ -215,6 +233,9 @@
       "formalFactsProduced": [
         "copper_price"
       ],
+      "evidenceProducers": {
+        "copper_price": "PREDICATE_SPECIFIC_PAYLOAD_EXTRACTOR"
+      },
       "overlappingBusinessDomains": [
         "coil",
         "cost"
@@ -248,6 +269,9 @@
       "formalFactsProduced": [
         "knowledge_record"
       ],
+      "evidenceProducers": {
+        "knowledge_record": "PREDICATE_SPECIFIC_PAYLOAD_EXTRACTOR"
+      },
       "overlappingBusinessDomains": [
         "knowledge"
       ],
@@ -281,6 +305,9 @@
       "formalFactsProduced": [
         "auxiliary_knowledge_retrieval"
       ],
+      "evidenceProducers": {
+        "auxiliary_knowledge_retrieval": "FACT_LEDGER"
+      },
       "overlappingBusinessDomains": [
         "catalog",
         "coil",
@@ -330,6 +357,15 @@
         "shortage_quantity",
         "source_file"
       ],
+      "evidenceProducers": {
+        "order_line_quantity": "FACT_LEDGER",
+        "order_snapshot_recipe": "FACT_LEDGER",
+        "order_status": "FACT_LEDGER",
+        "purchase_status": "FACT_LEDGER",
+        "readiness_status": "FACT_LEDGER",
+        "shortage_quantity": "FACT_LEDGER",
+        "source_file": "PREDICATE_SPECIFIC_PAYLOAD_EXTRACTOR"
+      },
       "overlappingBusinessDomains": [
         "file",
         "knowledge",
@@ -378,6 +414,15 @@
         "shortage_line_count",
         "shortage_quantity"
       ],
+      "evidenceProducers": {
+        "available_quantity": "FACT_LEDGER",
+        "purchase_quantity": "FACT_LEDGER",
+        "purchase_status": "FACT_LEDGER",
+        "readiness_status": "FACT_LEDGER",
+        "required_quantity": "FACT_LEDGER",
+        "shortage_line_count": "FACT_LEDGER",
+        "shortage_quantity": "FACT_LEDGER"
+      },
       "overlappingBusinessDomains": [
         "inventory",
         "management",
@@ -421,6 +466,13 @@
         "order_snapshot_recipe",
         "order_status"
       ],
+      "evidenceProducers": {
+        "order_contract_number": "FACT_LEDGER",
+        "order_customer_attribute": "FACT_LEDGER",
+        "order_line_quantity": "FACT_LEDGER",
+        "order_snapshot_recipe": "FACT_LEDGER",
+        "order_status": "FACT_LEDGER"
+      },
       "overlappingBusinessDomains": [
         "order"
       ],
@@ -454,6 +506,10 @@
         "order_collection",
         "order_status"
       ],
+      "evidenceProducers": {
+        "order_collection": "PREDICATE_SPECIFIC_PAYLOAD_EXTRACTOR",
+        "order_status": "PREDICATE_SPECIFIC_PAYLOAD_EXTRACTOR"
+      },
       "overlappingBusinessDomains": [
         "order",
         "procurement"
@@ -499,6 +555,15 @@
         "purchase_quantity_stocked",
         "purchase_status"
       ],
+      "evidenceProducers": {
+        "collection_completeness": "FACT_LEDGER",
+        "purchase_pending_quantity": "FACT_LEDGER",
+        "purchase_quantity": "FACT_LEDGER",
+        "purchase_quantity_ordered": "FACT_LEDGER",
+        "purchase_quantity_received": "FACT_LEDGER",
+        "purchase_quantity_stocked": "FACT_LEDGER",
+        "purchase_status": "FACT_LEDGER"
+      },
       "overlappingBusinessDomains": [
         "order",
         "procurement"
@@ -536,6 +601,11 @@
         "quotation_customer",
         "quotation_status"
       ],
+      "evidenceProducers": {
+        "quotation_amount": "PREDICATE_SPECIFIC_PAYLOAD_EXTRACTOR",
+        "quotation_customer": "PREDICATE_SPECIFIC_PAYLOAD_EXTRACTOR",
+        "quotation_status": "PREDICATE_SPECIFIC_PAYLOAD_EXTRACTOR"
+      },
       "overlappingBusinessDomains": [
         "customer",
         "quotation"
@@ -576,6 +646,12 @@
         "order_history",
         "quotation_history"
       ],
+      "evidenceProducers": {
+        "collection_completeness": "PREDICATE_SPECIFIC_PAYLOAD_EXTRACTOR",
+        "customer_identity": "PREDICATE_SPECIFIC_PAYLOAD_EXTRACTOR",
+        "order_history": "PREDICATE_SPECIFIC_PAYLOAD_EXTRACTOR",
+        "quotation_history": "PREDICATE_SPECIFIC_PAYLOAD_EXTRACTOR"
+      },
       "overlappingBusinessDomains": [
         "business_history",
         "customer",
@@ -613,6 +689,10 @@
         "customer_collection",
         "customer_identity"
       ],
+      "evidenceProducers": {
+        "customer_collection": "PREDICATE_SPECIFIC_PAYLOAD_EXTRACTOR",
+        "customer_identity": "PREDICATE_SPECIFIC_PAYLOAD_EXTRACTOR"
+      },
       "overlappingBusinessDomains": [
         "customer",
         "quotation"
@@ -647,6 +727,10 @@
         "quotation_collection",
         "quotation_status"
       ],
+      "evidenceProducers": {
+        "quotation_collection": "PREDICATE_SPECIFIC_PAYLOAD_EXTRACTOR",
+        "quotation_status": "PREDICATE_SPECIFIC_PAYLOAD_EXTRACTOR"
+      },
       "overlappingBusinessDomains": [
         "customer",
         "quotation"
@@ -681,6 +765,9 @@
       "formalFactsProduced": [
         "recipe_cost_difference"
       ],
+      "evidenceProducers": {
+        "recipe_cost_difference": "PREDICATE_SPECIFIC_PAYLOAD_EXTRACTOR"
+      },
       "overlappingBusinessDomains": [
         "cost",
         "quotation",
@@ -717,6 +804,10 @@
         "recipe_collection",
         "recipe_identity"
       ],
+      "evidenceProducers": {
+        "recipe_collection": "PREDICATE_SPECIFIC_PAYLOAD_EXTRACTOR",
+        "recipe_identity": "PREDICATE_SPECIFIC_PAYLOAD_EXTRACTOR"
+      },
       "overlappingBusinessDomains": [
         "catalog",
         "recipe"
@@ -753,6 +844,11 @@
         "recipe_bom",
         "recipe_identity"
       ],
+      "evidenceProducers": {
+        "current_cost": "FACT_LEDGER",
+        "recipe_bom": "PREDICATE_SPECIFIC_PAYLOAD_EXTRACTOR",
+        "recipe_identity": "PREDICATE_SPECIFIC_PAYLOAD_EXTRACTOR"
+      },
       "overlappingBusinessDomains": [
         "catalog",
         "cost",
@@ -790,6 +886,11 @@
         "part_identity",
         "recipe_bom"
       ],
+      "evidenceProducers": {
+        "coil_identity": "PREDICATE_SPECIFIC_PAYLOAD_EXTRACTOR",
+        "part_identity": "PREDICATE_SPECIFIC_PAYLOAD_EXTRACTOR",
+        "recipe_bom": "PREDICATE_SPECIFIC_PAYLOAD_EXTRACTOR"
+      },
       "overlappingBusinessDomains": [
         "catalog",
         "coil",
@@ -827,6 +928,10 @@
         "recipe_identity",
         "source_file"
       ],
+      "evidenceProducers": {
+        "recipe_identity": "PREDICATE_SPECIFIC_PAYLOAD_EXTRACTOR",
+        "source_file": "PREDICATE_SPECIFIC_PAYLOAD_EXTRACTOR"
+      },
       "overlappingBusinessDomains": [
         "file",
         "recipe"
@@ -860,6 +965,9 @@
       "formalFactsProduced": [
         "recipe_technical_profile"
       ],
+      "evidenceProducers": {
+        "recipe_technical_profile": "PREDICATE_SPECIFIC_PAYLOAD_EXTRACTOR"
+      },
       "overlappingBusinessDomains": [
         "catalog",
         "recipe"
@@ -895,6 +1003,10 @@
         "coil_identity",
         "recipe_collection"
       ],
+      "evidenceProducers": {
+        "coil_identity": "PREDICATE_SPECIFIC_PAYLOAD_EXTRACTOR",
+        "recipe_collection": "PREDICATE_SPECIFIC_PAYLOAD_EXTRACTOR"
+      },
       "overlappingBusinessDomains": [
         "coil",
         "recipe"
@@ -930,6 +1042,10 @@
         "part_identity",
         "recipe_collection"
       ],
+      "evidenceProducers": {
+        "part_identity": "PREDICATE_SPECIFIC_PAYLOAD_EXTRACTOR",
+        "recipe_collection": "PREDICATE_SPECIFIC_PAYLOAD_EXTRACTOR"
+      },
       "overlappingBusinessDomains": [
         "catalog",
         "recipe"
@@ -963,6 +1079,9 @@
       "formalFactsProduced": [
         "template_detail"
       ],
+      "evidenceProducers": {
+        "template_detail": "PREDICATE_SPECIFIC_PAYLOAD_EXTRACTOR"
+      },
       "overlappingBusinessDomains": [
         "catalog",
         "recipe"
@@ -996,6 +1115,9 @@
       "formalFactsProduced": [
         "template_collection"
       ],
+      "evidenceProducers": {
+        "template_collection": "PREDICATE_SPECIFIC_PAYLOAD_EXTRACTOR"
+      },
       "overlappingBusinessDomains": [
         "catalog",
         "recipe"
@@ -1032,6 +1154,10 @@
         "scenario_cost",
         "scenario_cost_difference"
       ],
+      "evidenceProducers": {
+        "scenario_cost": "FACT_LEDGER",
+        "scenario_cost_difference": "FACT_LEDGER"
+      },
       "overlappingBusinessDomains": [
         "cost",
         "recipe"
@@ -1066,6 +1192,9 @@
       "formalFactsProduced": [
         "recipe_cost_difference"
       ],
+      "evidenceProducers": {
+        "recipe_cost_difference": "FACT_LEDGER"
+      },
       "overlappingBusinessDomains": [
         "cost",
         "recipe"
@@ -1104,6 +1233,11 @@
         "gross_margin_on_sales",
         "gross_profit_per_unit"
       ],
+      "evidenceProducers": {
+        "current_cost": "PREDICATE_SPECIFIC_PAYLOAD_EXTRACTOR",
+        "gross_margin_on_sales": "FACT_LEDGER",
+        "gross_profit_per_unit": "FACT_LEDGER"
+      },
       "overlappingBusinessDomains": [
         "cost",
         "quotation",
@@ -1147,6 +1281,13 @@
         "required_quantity",
         "shortage_quantity"
       ],
+      "evidenceProducers": {
+        "available_quantity": "FACT_LEDGER",
+        "collection_completeness": "FACT_LEDGER",
+        "readiness_status": "FACT_LEDGER",
+        "required_quantity": "FACT_LEDGER",
+        "shortage_quantity": "FACT_LEDGER"
+      },
       "overlappingBusinessDomains": [
         "inventory",
         "recipe"

@@ -1,0 +1,74 @@
+{
+  "schemaVersion": "D2_B2_R6_DOMAIN_SEMANTIC_REPAIR_R1",
+  "startHead": "a5c5330ca05001d0bc487a5d3ee416061cedfafa",
+  "preservedC2EvidenceCommit": "ed56109a42859c2c3984f06256c8a3c02d12a00c",
+  "newC2AcceptanceRun": false,
+  "rag01Rerun": false,
+  "domainMembershipChanged": false,
+  "selectedDomainFullExpansionPreserved": true,
+  "moneyGuardWeakened": false,
+  "answerFocusContract": {
+    "principle": "Selected-domain expansion determines investigation coverage, not Owner-facing answer breadth.",
+    "report": "Only facts necessary for the Owner request plus necessary ambiguity, conflict, limitation, or safety context.",
+    "omitUnlessRequested": [
+      "comparisons",
+      "alternative scenarios",
+      "detailed breakdowns",
+      "history",
+      "technical details",
+      "auxiliary findings"
+    ],
+    "explicitRequestsRemainInScope": [
+      "comparison",
+      "scenario analysis",
+      "breakdown",
+      "history",
+      "detail",
+      "explanation"
+    ]
+  },
+  "evidenceAcceptance": {
+    "preferred": "verified Fact Ledger predicate with actual entity/provenance and required completeness qualifiers",
+    "fallback": "predicate-specific extractor that proves the relevant field, scope, identity, and completeness from the actual verified formal payload",
+    "forbidden": "verified capability success implies every advertised predicate was produced"
+  },
+  "adjudications": {
+    "D04": {
+      "classification": "FORMAL_FACTS_OBTAINED_BUT_FINALIZATION_FAILED",
+      "preservedCurrentCost": 224,
+      "currency": "CNY",
+      "claimFactIds": ["F-048", "F-203", "F-204"],
+      "attempt1Failure": "MONEY_CLAIM_BINDING_MISMATCH",
+      "attempt2Failure": "MONEY_CLAIM_UNCLAIMED",
+      "rootCause": "The finalizer added unrequested recipe-comparison and scenario money facts, then repeated the requested current amount outside a structured claim."
+    },
+    "D08": {
+      "classification": "FORMAL_REQUIRED_FACTS_COMPLETE",
+      "basis": "Order-scoped complete shortage collection, shortage quantity, and same-order/same-material procurement state are required; a global purchase collection is not required."
+    },
+    "D09": {
+      "classification": "SAFE_TARGET_BOUND_IDENTITY_CLARIFICATION",
+      "targetEntityType": "customer",
+      "citedResolutionFactIds": ["F-001"]
+    },
+    "D10": {
+      "classification": "SAFE_TARGET_BOUND_IDENTITY_CLARIFICATION",
+      "targetEntityType": "recipe",
+      "citedResolutionFactIds": ["F-085"]
+    },
+    "D11": {
+      "classification": "SAFE_TARGET_BOUND_IDENTITY_CLARIFICATION",
+      "targetEntityType": "recipe",
+      "citedResolutionFactIds": ["F-085", "F-086"]
+    },
+    "D12": {
+      "classification": "FORMAL_REQUIRED_FACTS_COMPLETE_ORIGINAL_ORACLE_TOO_NARROW",
+      "claimFactIds": ["F-002", "F-260", "F-261"]
+    }
+  },
+  "summary": {
+    "trueProductDomainMisses": [],
+    "oracleTooNarrow": ["D04", "D09", "D10", "D11", "D12"],
+    "answerFinalizationFailures": ["D04"]
+  }
+}

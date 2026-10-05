@@ -3,6 +3,7 @@ const fs = require('node:fs');
 const path = require('node:path');
 const { buildApiIndex } = require('../../../api/services/ai-assistant/apiIndex.cjs');
 const { listAiCapabilities } = require('../../../api/capabilities/registry.cjs');
+const { evidenceProducerFor } = require('./d2B2DomainSemanticOracleV2.cjs');
 
 const OLD_FINGERPRINT = '10bee9d8a065ea2322fcaf14bdf21cee949d0f57da8c3d5133448c1ee7d09c61';
 
@@ -25,6 +26,8 @@ function buildAudit() {
             },
             primaryBusinessResponsibility: boundary.primaryBusinessResponsibility,
             formalFactsProduced: boundary.formalFactsProduced,
+            evidenceProducers: Object.fromEntries(boundary.formalFactsProduced
+                .map(predicate => [predicate, evidenceProducerFor(entry.toolName, predicate)])),
             overlappingBusinessDomains: boundary.overlappingBusinessDomains,
             factsItDoesNotEstablish: boundary.factsItDoesNotEstablish,
             aggregateOrDirect: boundary.aggregateOrDirect,
@@ -34,7 +37,7 @@ function buildAudit() {
     });
     const multiDomainCapabilities = rows.filter(item => item.currentDomains.length > 1).map(item => item.toolName);
     return {
-        schemaVersion: 'D2_B2_R6_DOMAIN_BOUNDARY_AUDIT_V1',
+        schemaVersion: 'D2_B2_R6_DOMAIN_BOUNDARY_AUDIT_V2',
         conclusion: 'CONFIRMED_NON_EXCLUSIVE_DOMAIN_OVERLAP',
         oldApiIndexFingerprint: OLD_FINGERPRINT,
         newApiIndexFingerprint: index.fingerprint,
