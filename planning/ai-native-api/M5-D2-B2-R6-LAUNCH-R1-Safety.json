@@ -1,0 +1,19 @@
+{
+  "ticket": "R6-LAUNCH-R1",
+  "businessApiChanged": false,
+  "costEngineChanged": false,
+  "databaseSchemaChanged": false,
+  "writeSafetyChanged": false,
+  "oldC2EvidenceMutated": false,
+  "oldRag01ThirdAttempt": false,
+  "diagnosticDatabaseMutations": 0,
+  "diagnosticCountedAsAcceptance": false,
+  "secretScan": {
+    "status": "PASS",
+    "jsonFilesScanned": 36
+  },
+  "ownerDirtyFilesPreserved": [
+    "docs/README.md",
+    "docs/ai-assistant.md"
+  ]
+}

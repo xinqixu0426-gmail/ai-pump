@@ -1,0 +1,21 @@
+{
+  "ticket": "R6-LAUNCH-R1",
+  "historicalBatch": "r6c2-rag-20261005-01",
+  "historicalCase": "RAG-01",
+  "classification": "EXTERNAL_TERMINATION_UNKNOWN",
+  "classificationDetail": "UNOBSERVABLE_UNSUPERVISED_WORKER",
+  "facts": {
+    "attempt1": "STARTED_ONLY",
+    "attempt2": "STARTED_ONLY",
+    "semanticCheckpoint": false,
+    "javascriptErrorReceipt": false,
+    "providerErrorReceipt": false,
+    "parentSupervisorPresent": false,
+    "thirdAttemptPerformed": false
+  },
+  "conclusion": "The historical process had no catch-to-terminal receipt and no supervising parent, so the retained evidence cannot distinguish a catchable failure from a host or shell termination. Provider failure is not proven.",
+  "retainedEvidenceHashes": {
+    "RAG-01-attempt-1.started.json": "7602510fd99b9d18890535c0699fc90c7e491211e653cc4e04a8a7210189cd0b",
+    "RAG-01-attempt-2.started.json": "4ad54cfca29f4822c0c99d33fd420011e4dc785f3da0ceb45c06c887821c9e86"
+  }
+}

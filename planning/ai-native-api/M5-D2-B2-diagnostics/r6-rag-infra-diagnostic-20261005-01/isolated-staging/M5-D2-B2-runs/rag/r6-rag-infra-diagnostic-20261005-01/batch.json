@@ -1,0 +1,22 @@
+{
+  "suite": "rag",
+  "batchRunId": "r6-rag-infra-diagnostic-20261005-01",
+  "productFreezeCommit": "65f5cf5380bc460a032b904bb032c4bf18a1ca76",
+  "harnessFreezeCommit": "c7991f3146b412c4c1acc5927cee04f23b94c675",
+  "apiIndexFingerprint": "fd1047c4a2dc8ed8b9faa691676e2c2cfd652e74224c6fcda6747cf28b6b16e2",
+  "authoritativeManifest": "/Users/dan/Documents/ai-native-pump-system/pump-cost-accounting-system/planning/ai-native-api/M5-D2-B2-R6-LAUNCH-R1-Freeze-Proposal.json",
+  "expectedCaseKeys": [
+    "RAG-01",
+    "RAG-02",
+    "RAG-03",
+    "RAG-04"
+  ],
+  "expectedCaseCount": 4,
+  "caseInputHashes": {
+    "RAG-01": "6b217d04fa3eac1413af9c7cf58f87086f47ac37ece7a73c93397bbd92b2c099",
+    "RAG-02": "6c52dd0344532836fb537991dd67824d7f9190d6c532653359d0e271a0efc6d1",
+    "RAG-03": "1c0d29c227ebc05b40dc12d0e92dafa41e58f7e0179f9eff4770c7313afefb31",
+    "RAG-04": "7834e706ed79b8a378a42fe07599dd73d8f273e9a27a938a86bf3a6d76ed0939"
+  },
+  "createdAt": "2026-10-05T03:17:14.967Z"
+}

@@ -1,0 +1,23 @@
+{
+  "productFreezeCommit": "65f5cf5380bc460a032b904bb032c4bf18a1ca76",
+  "harnessFreezeCommit": "39d0f3a2cc862ac632f901c5c2b24982d2610dc7",
+  "apiIndexFingerprint": "fd1047c4a2dc8ed8b9faa691676e2c2cfd652e74224c6fcda6747cf28b6b16e2",
+  "hashes": {
+    "candidateSource": "345a9c19ce5fed36fdd0944b31ed80b80a1e5465cfdf8ae36afc02c1ebbd79d3",
+    "factLedger": "620c95b51ecb5c4f8dad22091f86f208faa5672a553b1d80e59f9ac706e62bda",
+    "answerValidator": "84994949efd1349a885aefef3d206c85f8e19fe6d6cb3464b700a4396337b904",
+    "domainCorpus": "ab8f268b2934e5ad0d28a69579a5738d46d229d2867428279f95971b5931a937",
+    "ragHarness": "52b6ee2c6851972431b0dda92175adeea04283d6bcd970514f390b1bad0cac0b",
+    "ragFixtureAdapter": "4a33d9f873c8c521e6d5903ca5f782f8d2c461b0b2edc1d7271e38764a1828d0",
+    "answerRelevanceScorer": "f020e00d8856a1f23af8a7994bb335092d8c9b3294c4f9984ef99075b4a1d0d4",
+    "assembler": "6530eb162774906f6d1af71a2e2f7fb7f50694ba1b51082a6342349c97b932de",
+    "freshRunners": "ff39ec4040ed4b19cdde6a7e85878d49b45de99f21f5aef706270efc16b8a6ba",
+    "acceptanceEnvironment": "c6b991285b5d503715aadeb042b2d491d435fa07efbe08873599d58edd1b20f4",
+    "durableFreshRunner": "3c55862e8959b013062b180ad87e31908d42a24b3be2f0edda2a9548b9575e6d",
+    "durableCaseExecutor": "f76c94e7c485b0cb622a895f88419888951986f05ca918dc7050630f61a3811d",
+    "durableCli": "cb2bf9fb4169650e9057cf93027499b59e8e6bfaa2b6a4d9d2e66fd9e970550b",
+    "processSupervisor": "82dc0dbd2cf10ff06a85db3041cb725f732a15932f967fa37eb2adef0ed5467f",
+    "ragInfrastructureDiagnostic": "ea25beff724c1e8516901a7300905a7da7a907f59736bfc811a396244fffed68",
+    "freezeVerifier": "93ad1bba21526d3afdc9f7a68bbe4a4fc643d1c0b7bd0875fb961b48ff4f80d4"
+  }
+}

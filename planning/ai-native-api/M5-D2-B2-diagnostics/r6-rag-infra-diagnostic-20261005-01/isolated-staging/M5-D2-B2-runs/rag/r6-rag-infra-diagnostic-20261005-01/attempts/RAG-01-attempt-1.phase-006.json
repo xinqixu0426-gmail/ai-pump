@@ -1,0 +1,12 @@
+{
+  "suite": "rag",
+  "batchRunId": "r6-rag-infra-diagnostic-20261005-01",
+  "caseKey": "RAG-01",
+  "attemptNumber": 1,
+  "status": "PHASE",
+  "productFreezeCommit": "65f5cf5380bc460a032b904bb032c4bf18a1ca76",
+  "harnessFreezeCommit": "c7991f3146b412c4c1acc5927cee04f23b94c675",
+  "startedAt": "2026-10-05T03:17:15.055Z",
+  "phase": "RAG_FIXTURE_ADAPTER_READY",
+  "observedAt": "2026-10-05T03:17:15.714Z"
+}

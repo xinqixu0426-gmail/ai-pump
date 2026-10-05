@@ -1,0 +1,28 @@
+{
+  "ticket": "R6-LAUNCH-R1",
+  "productFreezeCandidate": "65f5cf5380bc460a032b904bb032c4bf18a1ca76",
+  "harnessFreezeCandidate": "39d0f3a2cc862ac632f901c5c2b24982d2610dc7",
+  "apiIndexFingerprint": "fd1047c4a2dc8ed8b9faa691676e2c2cfd652e74224c6fcda6747cf28b6b16e2",
+  "lifecycle": {
+    "catchableJavaScriptFailure": "FAILED_INFRA",
+    "providerFailure": "FAILED_INFRA",
+    "timeoutAbort": "FAILED_INFRA",
+    "childNonZeroExit": "PARENT_LAUNCH_RECEIPT",
+    "childSignal": "PARENT_LAUNCH_RECEIPT",
+    "externalTerminationUnknown": "PARENT_LAUNCH_RECEIPT_WITH_LAST_PERSISTED_PHASE",
+    "semanticFailure": "IMMUTABLE_SEMANTIC_CHECKPOINT"
+  },
+  "failureClassifications": [
+    "SEMANTIC_FAIL",
+    "PROVIDER_ERROR",
+    "JS_ERROR",
+    "TIMEOUT_ABORT",
+    "CHILD_SIGNAL",
+    "EXTERNAL_TERMINATION_UNKNOWN"
+  ],
+  "maxInfrastructureAttemptsPerCase": 2,
+  "semanticFailureRetryAllowed": false,
+  "boundedOutput": true,
+  "secretRedaction": true,
+  "productRuntimeChanged": false
+}

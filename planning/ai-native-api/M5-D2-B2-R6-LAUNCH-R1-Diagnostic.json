@@ -1,0 +1,23 @@
+{
+  "ticket": "R6-LAUNCH-R1",
+  "runId": "r6-rag-infra-diagnostic-20261005-02",
+  "evidencePurpose": "NON_ACCEPTANCE_DIAGNOSTIC",
+  "countedAsAcceptance": false,
+  "caseKey": "RAG-01",
+  "result": "INFRASTRUCTURE_PASS",
+  "semanticPass": false,
+  "semanticResultPolicy": "PRESERVED_WITHOUT_RERUN; OUTSIDE THIS INFRASTRUCTURE TICKET",
+  "providerRequestEmitted": true,
+  "providerRequestCompleted": true,
+  "childExitCode": 0,
+  "childSignal": null,
+  "outerTimeoutObserved": false,
+  "lastPhaseObserved": "CHECKPOINT_WRITTEN",
+  "fixtureOpened": true,
+  "fixtureCleanupCompleted": true,
+  "checkpointWritten": true,
+  "databaseMutations": 0,
+  "durationMs": 110640,
+  "secretScan": "PASS",
+  "artifact": "planning/ai-native-api/M5-D2-B2-diagnostics/r6-rag-infra-diagnostic-20261005-02/diagnostic.json"
+}
