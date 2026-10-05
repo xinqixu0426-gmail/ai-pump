@@ -58,6 +58,33 @@ function loadBatch(outputDirectory, { suite, batchRunId, manifestPath }) {
 }
 function checkpointPath(state, caseKey) { return path.join(state.directory, 'cases', `${caseKey}.json`); }
 function attemptPaths(state, caseKey) { const prefix = `${caseKey}-attempt-`; return fs.readdirSync(path.join(state.directory, 'attempts')).filter(name => name.startsWith(prefix) && name.endsWith('.started.json')).sort().map(name => path.join(state.directory, 'attempts', name)); }
+function attemptFile(state, caseKey, attemptNumber, suffix) { return path.join(state.directory, 'attempts', `${caseKey}-attempt-${attemptNumber}.${suffix}.json`); }
+function boundedText(value, limit = 600) { return String(value || '').replace(/Bearer\s+\S+/gi, 'Bearer [REDACTED]').slice(0, limit); }
+function classifyInfrastructureError(error) {
+    const code = boundedText(error?.code || error?.name || 'R6_DURABLE_JS_ERROR', 120);
+    const message = boundedText(error?.message || error, 600);
+    if (/abort|timeout|timedout|etimedout/i.test(`${code} ${message}`)) return Object.freeze({ classification: 'TIMEOUT_ABORT', code, message });
+    if (/provider|deepseek|model_response|econn|enotfound|fetch/i.test(`${code} ${message}`)) return Object.freeze({ classification: 'PROVIDER_ERROR', code, message });
+    return Object.freeze({ classification: 'JS_ERROR', code, message });
+}
+function lifecyclePhases(state, caseKey, attemptNumber) {
+    const prefix = `${caseKey}-attempt-${attemptNumber}.phase-`;
+    return fs.readdirSync(path.join(state.directory, 'attempts')).filter(name => name.startsWith(prefix) && name.endsWith('.json')).sort()
+        .map(name => readJson(path.join(state.directory, 'attempts', name), 'R6_DURABLE_PHASE_RECEIPT_MISSING'));
+}
+function launcherReceipts(state, caseKey) {
+    const prefix = `${caseKey}-launch-`;
+    return fs.readdirSync(path.join(state.directory, 'attempts')).filter(name => name.startsWith(prefix) && name.endsWith('.json')).sort()
+        .map(name => readJson(path.join(state.directory, 'attempts', name), 'R6_DURABLE_LAUNCH_RECEIPT_MISSING'));
+}
+function recordLauncherReceipt(outputDirectory, options, value) {
+    const state = loadBatch(outputDirectory, options);
+    const sequence = launcherReceipts(state, options.caseKey).length + 1;
+    const target = path.join(state.directory, 'attempts', `${options.caseKey}-launch-${sequence}.json`);
+    return atomicExclusive(target, { suite: options.suite, batchRunId: options.batchRunId, caseKey: options.caseKey,
+        productFreezeCommit: state.freeze.productFreezeCommit, harnessFreezeCommit: state.freeze.harnessFreezeCommit,
+        ...value, recordedAt: new Date().toISOString(), secretScan: 'PASS' });
+}
 function inspectFreshBatch(outputDirectory, options) {
     const state = loadBatch(outputDirectory, options); const completedCases = []; const interruptedCases = []; const blockedCases = []; const pendingCases = [];
     for (const slot of state.slots) {
@@ -72,13 +99,30 @@ async function runFreshCase(outputDirectory, { suite, batchRunId, caseKey, manif
     if (fs.existsSync(checkpointPath(state, caseKey))) throw new Error('R6_DURABLE_CASE_ALREADY_COMPLETED');
     const attempts = attemptPaths(state, caseKey).length; if (attempts >= MAX_INFRA_ATTEMPTS) throw new Error('R6_DURABLE_CASE_BLOCKED');
     const attempt = Object.freeze({ suite, batchRunId, caseKey, attemptNumber: attempts + 1, status: 'STARTED', productFreezeCommit: state.freeze.productFreezeCommit, harnessFreezeCommit: state.freeze.harnessFreezeCommit, startedAt: new Date().toISOString() });
-    atomicExclusive(path.join(state.directory, 'attempts', `${caseKey}-attempt-${attempt.attemptNumber}.started.json`), attempt);
-    const started = Date.now(); const execution = await executeCase(slot, state.freeze); const database = execution?.database;
-    if (!database || typeof database.beforeHash !== 'string' || typeof database.afterHash !== 'string' || !Array.isArray(database.changedTables) || !Number.isInteger(database.mutations)) throw new Error('R6_DURABLE_DATABASE_RECEIPT_REQUIRED');
-    const checkpoint = Object.freeze({ suite, batchRunId, caseKey, caseId: slot.caseId, runNumber: slot.runNumber || null, ownerInputHash: sha(slot.ownerInput), productFreezeCommit: state.freeze.productFreezeCommit, harnessFreezeCommit: state.freeze.harnessFreezeCommit, result: execution.result, semanticPass: execution.result?.semanticPass === true, database, durationMs: execution.durationMs ?? Date.now() - started, completedAt: new Date().toISOString(), secretScan: 'PASS' });
-    atomicExclusive(checkpointPath(state, caseKey), checkpoint);
-    atomicExclusive(path.join(state.directory, 'attempts', `${caseKey}-attempt-${attempt.attemptNumber}.completed.json`), { ...attempt, status: 'COMPLETED', completedAt: checkpoint.completedAt });
-    return checkpoint;
+    atomicExclusive(attemptFile(state, caseKey, attempt.attemptNumber, 'started'), attempt);
+    let phaseSequence = 0; let lastPhase = 'STARTED';
+    const phase = name => {
+        lastPhase = String(name || 'UNKNOWN'); phaseSequence += 1;
+        atomicExclusive(attemptFile(state, caseKey, attempt.attemptNumber, `phase-${String(phaseSequence).padStart(3, '0')}`),
+            { ...attempt, status: 'PHASE', phase: lastPhase, observedAt: new Date().toISOString() });
+    };
+    const started = Date.now();
+    try {
+        phase('CASE_EXECUTION_START');
+        const execution = await executeCase(slot, state.freeze, Object.freeze({ phase })); const database = execution?.database;
+        if (!database || typeof database.beforeHash !== 'string' || typeof database.afterHash !== 'string' || !Array.isArray(database.changedTables) || !Number.isInteger(database.mutations)) throw new Error('R6_DURABLE_DATABASE_RECEIPT_REQUIRED');
+        phase('CHECKPOINT_WRITE_START');
+        const checkpoint = Object.freeze({ suite, batchRunId, caseKey, caseId: slot.caseId, runNumber: slot.runNumber || null, ownerInputHash: sha(slot.ownerInput), productFreezeCommit: state.freeze.productFreezeCommit, harnessFreezeCommit: state.freeze.harnessFreezeCommit, result: execution.result, semanticPass: execution.result?.semanticPass === true, database, durationMs: execution.durationMs ?? Date.now() - started, completedAt: new Date().toISOString(), secretScan: 'PASS' });
+        atomicExclusive(checkpointPath(state, caseKey), checkpoint);
+        phase('CHECKPOINT_WRITTEN');
+        atomicExclusive(attemptFile(state, caseKey, attempt.attemptNumber, 'completed'), { ...attempt, status: 'COMPLETED', completedAt: checkpoint.completedAt });
+        return checkpoint;
+    } catch (error) {
+        const failure = classifyInfrastructureError(error);
+        atomicExclusive(attemptFile(state, caseKey, attempt.attemptNumber, 'failed-infra'), { ...attempt, status: 'FAILED_INFRA',
+            failurePhase: lastPhase, ...failure, failedAt: new Date().toISOString(), secretScan: 'PASS' });
+        throw error;
+    }
 }
 function finalizeFreshSuite(outputDirectory, { suite, batchRunId, manifestPath }) {
     const state = loadBatch(outputDirectory, { suite, batchRunId, manifestPath }); const inspection = inspectFreshBatch(outputDirectory, { suite, batchRunId, manifestPath }); if (!inspection.complete) throw new Error('R6_DURABLE_SUITE_INCOMPLETE');
@@ -88,4 +132,5 @@ function finalizeFreshSuite(outputDirectory, { suite, batchRunId, manifestPath }
 }
 function preflightDurableBatch(outputDirectory, { suite, batchRunId, manifestPath }) { const batch = createFreshBatch(outputDirectory, { suite, batchRunId, manifestPath }); return Object.freeze({ suite, batchRunId, expectedCases: batch.expectedCaseCount, modelCalls: 0, businessExecutions: 0, databaseMutations: 0, checkpointContract: 'PASS' }); }
 
-module.exports = { MAX_INFRA_ATTEMPTS, SUITES, caseInputHash, createFreshBatch, finalizeFreshSuite, inspectFreshBatch, preflightDurableBatch, runFreshCase, slotsFor };
+module.exports = { MAX_INFRA_ATTEMPTS, SUITES, attemptPaths, batchPath, caseInputHash, classifyInfrastructureError, createFreshBatch,
+    finalizeFreshSuite, inspectFreshBatch, launcherReceipts, lifecyclePhases, loadBatch, preflightDurableBatch, recordLauncherReceipt, runFreshCase, slotsFor };

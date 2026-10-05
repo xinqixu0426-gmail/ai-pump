@@ -43,72 +43,95 @@ function defaultDependencies() {
     };
 }
 function dependenciesFor(overrides = {}) { return { ...defaultDependencies(), ...overrides }; }
-async function withFixture(startFixture, dependencies, execute) {
+function observe(lifecycle, phase) { if (typeof lifecycle?.phase === 'function') lifecycle.phase(phase); }
+async function withFixture(startFixture, dependencies, execute, lifecycle) {
+    observe(lifecycle, 'FIXTURE_OPEN_START');
     const fixture = await startFixture();
+    observe(lifecycle, 'FIXTURE_OPENED');
     try {
+        observe(lifecycle, 'DATABASE_SNAPSHOT_BEFORE');
         const before = dependencies.databaseSnapshot(fixture.db);
         const started = Date.now();
+        observe(lifecycle, 'SEMANTIC_EXECUTION_START');
         const result = await execute(fixture);
+        observe(lifecycle, 'SCORING_COMPLETED');
+        observe(lifecycle, 'DATABASE_SNAPSHOT_AFTER');
         const database = dependencies.compareDatabaseSnapshots(before, dependencies.databaseSnapshot(fixture.db));
         if (!database || typeof database.beforeHash !== 'string' || typeof database.afterHash !== 'string' || !Array.isArray(database.changedTables) || !Number.isInteger(database.mutations)) throw new Error('R6_DURABLE_DATABASE_RECEIPT_REQUIRED');
+        observe(lifecycle, 'DATABASE_RECEIPT_READY');
         return Object.freeze({ result, database, durationMs: Date.now() - started });
-    } finally { await fixture.close(); }
+    } finally {
+        observe(lifecycle, 'FIXTURE_CLEANUP_START');
+        await fixture.close();
+        observe(lifecycle, 'FIXTURE_CLEANUP_COMPLETED');
+    }
 }
-async function executeDomain(slot, dependencies) {
+async function executeDomain(slot, dependencies, lifecycle) {
     const testCase = DOMAIN_CORPUS.find(item => item.id === slot.caseId);
     if (!testCase) throw new Error('R6_DURABLE_DOMAIN_CASE_UNKNOWN');
     return withFixture(dependencies.startD2B2ControlledFixture, dependencies, async _fixture => {
         const env = dependencies.finalAcceptanceEnvironment();
+        observe(lifecycle, 'MEMO_REQUESTS_EMITTED');
         const memos = await dependencies.freshMemos(testCase.ownerInput, env);
+        observe(lifecycle, 'MEMO_REQUESTS_COMPLETED');
         // expectedDomains stays in the acceptance oracle and is not given to the candidate.
+        observe(lifecycle, 'PROVIDER_REQUEST_EMITTED');
         const candidate = await dependencies.runApiNativeAgentCandidate({
             rawOwnerInput: testCase.ownerInput,
             businessMemo: memos.businessMemo,
             policyMemo: memos.policyMemo,
             env,
         }, { executeToolCall: dependencies.executeToolCall });
+        observe(lifecycle, 'PROVIDER_REQUEST_COMPLETED');
         return dependencies.scoreDomainCorpusResult(testCase, candidate);
-    });
+    }, lifecycle);
 }
 async function d2Oracles(fixture, dependencies) { return dependencies.buildD2Oracles(dependencies.executeToolCall, fixture.ids); }
-async function executeTargeted(slot, dependencies) {
+async function executeTargeted(slot, dependencies, lifecycle) {
     const oracleId = TARGETED_ORACLE_BY_CASE[slot.caseId];
     if (!oracleId) throw new Error('R6_DURABLE_TARGETED_CASE_UNKNOWN');
     return withFixture(dependencies.startD2B2ControlledFixture, dependencies, async fixture => {
         const env = dependencies.finalAcceptanceEnvironment(); const oracles = await d2Oracles(fixture, dependencies);
+        observe(lifecycle, 'PROVIDER_REQUEST_EMITTED');
         const item = await dependencies.runD2CandidateCase({ id: oracleId, rawOwnerInput: slot.ownerInput, oracle: oracles[oracleId] }, env, dependencies.executeToolCall);
+        observe(lifecycle, 'PROVIDER_REQUEST_COMPLETED');
         return dependencies.scoredResult({ ...slot, candidate: item.candidate, outcome: item.outcome, safety: item.safety });
-    });
+    }, lifecycle);
 }
-async function executeRag(slot, dependencies) {
+async function executeRag(slot, dependencies, lifecycle) {
     const ragFixture = RAG_FIXTURES.find(item => item.id === slot.ragFixtureId);
     if (!ragFixture) throw new Error('R6_DURABLE_RAG_CASE_UNKNOWN');
     return withFixture(dependencies.startD2B2ControlledFixture, dependencies, async fixture => {
         const env = dependencies.finalAcceptanceEnvironment(); const oracles = await d2Oracles(fixture, dependencies);
         // The adapter is frozen here.  No caller-supplied wrapper is accepted.
         const executeToolCall = dependencies.createFrozenRagFixtureExecutor(dependencies.executeToolCall, ragFixture.id);
+        observe(lifecycle, 'RAG_FIXTURE_ADAPTER_READY');
+        observe(lifecycle, 'PROVIDER_REQUEST_EMITTED');
         const item = await dependencies.runD2CandidateCase({ id: ragFixture.id, rawOwnerInput: slot.ownerInput, oracle: oracles['W1-06'] }, env, executeToolCall);
+        observe(lifecycle, 'PROVIDER_REQUEST_COMPLETED');
         return dependencies.scoredResult({ caseId: ragFixture.id, ownerInput: slot.ownerInput, caseKind: 'SHORTAGE_PROCUREMENT', candidate: item.candidate, outcome: item.outcome, safety: item.safety, ragFixture });
-    });
+    }, lifecycle);
 }
-async function executeD1(slot, dependencies) {
+async function executeD1(slot, dependencies, lifecycle) {
     if (!D1_CASE_IDS.includes(slot.caseId)) throw new Error('R6_DURABLE_D1_CASE_UNKNOWN');
     return withFixture(dependencies.startD1R1ControlledFixture, dependencies, async fixture => {
         const env = dependencies.finalAcceptanceEnvironment();
         const oracles = await dependencies.buildD1Oracles(dependencies.executeToolCall, fixture.ids);
+        observe(lifecycle, 'PROVIDER_REQUEST_EMITTED');
         const item = await dependencies.runD1CandidateCase({ id: slot.caseId, rawOwnerInput: slot.ownerInput, oracle: oracles[slot.caseId] }, env, dependencies.executeToolCall);
+        observe(lifecycle, 'PROVIDER_REQUEST_COMPLETED');
         return dependencies.scoredResult({ caseId: slot.caseId, ownerInput: slot.ownerInput, candidate: item.candidate, outcome: item.outcome, safety: item.safety });
-    });
+    }, lifecycle);
 }
-async function executeDurableCase({ suite, caseKey, slot, freeze }, testDependencies = null) {
+async function executeDurableCase({ suite, caseKey, slot, freeze, lifecycle = null }, testDependencies = null) {
     fresh.requireModelOptIn();
     if (!freeze?.productFreezeCommit || !freeze?.harnessFreezeCommit) throw new Error('R6_DURABLE_FREEZE_RECEIPT_REQUIRED');
     const frozenSlot = requireSlot(suite, caseKey, slot);
     const dependencies = dependenciesFor(testDependencies || {});
-    if (suite === 'domain-corpus') return executeDomain(frozenSlot, dependencies);
-    if (suite === 'targeted') return executeTargeted(frozenSlot, dependencies);
-    if (suite === 'rag') return executeRag(frozenSlot, dependencies);
-    if (suite === 'd1-protection') return executeD1(frozenSlot, dependencies);
+    if (suite === 'domain-corpus') return executeDomain(frozenSlot, dependencies, lifecycle);
+    if (suite === 'targeted') return executeTargeted(frozenSlot, dependencies, lifecycle);
+    if (suite === 'rag') return executeRag(frozenSlot, dependencies, lifecycle);
+    if (suite === 'd1-protection') return executeD1(frozenSlot, dependencies, lifecycle);
     throw new Error('R6_DURABLE_SUITE_INVALID');
 }
 

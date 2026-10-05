@@ -6,7 +6,7 @@ const path = require('node:path');
 const { buildApiIndex, apiIndexFingerprint } = require('../../../api/services/ai-assistant/apiIndex.cjs');
 
 const ROOT = path.resolve(__dirname, '../../..');
-const PRODUCT_FREEZE_COMMIT = 'cdebfb5ef6f83a4c8b39e93f3f0dcc39077e2251';
+const PRODUCT_FREEZE_COMMIT = '65f5cf5380bc460a032b904bb032c4bf18a1ca76';
 const DEFAULT_MANIFEST = path.join(ROOT, 'planning/ai-native-api/M5-D2-B2-R6H4C01-Freeze-Manifest.json');
 const HASHED_FILES = Object.freeze({
     candidateSource: 'scripts/ai-experiments/api-native-agent/apiNativeAgentCandidate.cjs',
@@ -21,6 +21,8 @@ const HASHED_FILES = Object.freeze({
     durableFreshRunner: 'scripts/ai-experiments/api-native-agent/d2B2R6DurableFreshRunner.cjs',
     durableCaseExecutor: 'scripts/ai-experiments/api-native-agent/d2B2R6DurableCaseExecutor.cjs',
     durableCli: 'scripts/ai-experiments/api-native-agent/run-d2-b2-r6-durable.cjs',
+    processSupervisor: 'scripts/ai-experiments/api-native-agent/d2B2R6ProcessSupervisor.cjs',
+    ragInfrastructureDiagnostic: 'scripts/ai-experiments/api-native-agent/run-d2-b2-r6-rag-infra-diagnostic.cjs',
     freezeVerifier: 'scripts/ai-experiments/api-native-agent/d2B2R6FreezeVerifier.cjs',
 });
 function sha(file) { return crypto.createHash('sha256').update(fs.readFileSync(path.join(ROOT, file))).digest('hex'); }

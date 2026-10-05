@@ -5,6 +5,7 @@
 const path = require('node:path');
 const durable = require('./d2B2R6DurableFreshRunner.cjs');
 const { executeDurableCase } = require('./d2B2R6DurableCaseExecutor.cjs');
+const { superviseDurableCase } = require('./d2B2R6ProcessSupervisor.cjs');
 
 const ACTIONS = Object.freeze(['CREATE', 'CASE', 'INSPECT', 'FINALIZE']);
 function required(environment, key) {
@@ -36,8 +37,14 @@ async function run(environment = process.env, testDependencies = null) {
     if (options.action === 'INSPECT') return durable.inspectFreshBatch(options.outputDirectory, common);
     if (options.action === 'FINALIZE') return durable.finalizeFreshSuite(options.outputDirectory, common);
     const checkpoint = await durable.runFreshCase(options.outputDirectory, { ...common, caseKey: options.caseKey,
-        executeCase: (slot, freeze) => executeDurableCase({ suite: options.suite, caseKey: options.caseKey, slot, freeze }, testDependencies?.caseExecutorDependencies || null) });
+        executeCase: (slot, freeze, lifecycle) => executeDurableCase({ suite: options.suite, caseKey: options.caseKey, slot, freeze, lifecycle }, testDependencies?.caseExecutorDependencies || null) });
     return receipt(options.action, options, checkpoint);
 }
-if (require.main === module) run().then(value => console.log(JSON.stringify(value, null, 2))).catch(error => { console.error(error?.stack || error?.message || String(error)); process.exitCode = 1; });
-module.exports = { ACTIONS, receipt, run, settings };
+async function main(environment = process.env) {
+    const options = settings(environment);
+    if (options.action !== 'CASE' || environment.R6_DURABLE_CASE_WORKER === '1') return run(environment);
+    return superviseDurableCase({ cliPath: __filename, outputDirectory: options.outputDirectory, suite: options.suite,
+        batchRunId: options.batchRunId, caseKey: options.caseKey, manifestPath: options.manifestPath, environment });
+}
+if (require.main === module) main().then(value => console.log(JSON.stringify(value, null, 2))).catch(error => { console.error(error?.stack || error?.message || String(error)); process.exitCode = 1; });
+module.exports = { ACTIONS, main, receipt, run, settings };
