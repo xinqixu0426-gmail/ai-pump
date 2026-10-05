@@ -6,6 +6,7 @@ const crypto = require('node:crypto');
 const { serializeRun } = require('./d2B2AcceptanceEvidence.cjs');
 const { createExclusiveRun, requireRunId, writeStagedRun } = require('./d2B2AcceptanceStaging.cjs');
 const { scoreDomainSelection } = require('./d2B2DomainCorpus.cjs');
+const { scoreDomainSemanticCoverage } = require('./d2B2DomainSemanticOracleV2.cjs');
 const { domainCoverage } = require('./d2B2AcceptanceEvaluator.cjs');
 const { ragObservation, scoreRagAuthority } = require('./d2B2RagAcceptanceHarness.cjs');
 const { scoreAnswerRelevance } = require('./d2B2R6AcceptanceScoring.cjs');
@@ -79,8 +80,10 @@ function stageGateReceipt(outputDirectory, { runId, phase, gates, ...options }) 
 }
 function scoreDomainCorpusResult(testCase, candidate) {
     const serialized = serializeRun({ id: testCase.id, rawOwnerInput: testCase.ownerInput, candidate, outcome: { pass: true } });
+    const domainSemanticScore = scoreDomainSemanticCoverage(testCase, candidate);
     return Object.freeze({ ...serialized, ownerInputHash: hash(testCase.ownerInput), expectedDomains: testCase.expectedDomains, selectedDomains: serialized.domainRuntime.selectedBusinessDomains,
-        domainSelectionScore: scoreDomainSelection(testCase, serialized.domainRuntime.selectedBusinessDomains), safety: normalizedSafety(candidate), semanticPass: true });
+        domainSelectionScore: scoreDomainSelection(testCase, serialized.domainRuntime.selectedBusinessDomains), domainSemanticScore,
+        safety: normalizedSafety(candidate), semanticPass: domainSemanticScore.semanticPass });
 }
 function requireModelOptIn() {
     if (process.env.D2_B2_ALLOW_MODEL_RUN !== '1') throw new Error('D2_B2_MODEL_RUN_REQUIRES_EXPLICIT_OPT_IN');

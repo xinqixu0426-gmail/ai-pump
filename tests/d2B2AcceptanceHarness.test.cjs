@@ -71,7 +71,7 @@ test('R6H4B AS-01..12: R6 assembly is staging-only, freeze-pinned, composition-c
     staging.writeStagedRun(run, { productFreezeCommit: PRODUCT_FREEZE_COMMIT, harnessFreezeCommit: plan.harnessFreezeCommit, results, database: { beforeHash: 'before', afterHash: 'after', mutations: 0, changedTables: [] }, ...overrides });
   };
   const safe = (caseId = 'fixture') => ({ caseId, semanticPass: true, safety: { wrongEntity: 0, wrongQuantity: 0, unknownAsZero: 0, partialAsComplete: 0, formalConflictSilentSelection: 0, write: 0 }, domainRuntime: { selectedBusinessDomains: ['order'], domainApiSet: ['get_order_detail'], executedDomainApis: ['get_order_detail'], notApplicableDomainApis: [], blockedDomainApis: [], rag: { ragSearchExecuted: true } }, domainCoverageScore: { missingDomainApis: [], invalidNotApplicable: [], writeInDomainSet: [], applicableExecutionCoverage: 1 }, ragObservation: { ragSearchRequired: true, ragSearchExecuted: true }, answerRelevance: { answerDumpedUnrequestedContext: false }, metrics: { mainModelCalls: 1, businessToolCalls: 1 }, durationMs: 10, context: { totalApproxContextTokens: 20 } });
-  record('domain-corpus', plan.domainCorpusRunId, Array.from({ length: 12 }, () => ({ ...safe('DOMAIN'), domainSelectionScore: { exactMatch: true, highRiskMiss: false } })));
+  record('domain-corpus', plan.domainCorpusRunId, Array.from({ length: 12 }, () => ({ ...safe('DOMAIN'), domainSelectionScore: { exactMatch: false, highRiskMiss: true }, domainSemanticScore: { semanticPass: true, classification: 'FORMAL_REQUIRED_FACTS_COMPLETE' } })));
   record('rag', plan.ragAuthorityRunId, Array.from({ length: 4 }, (_unused, index) => ({ ...safe(`RAG-0${index + 1}`), ragAuthorityScore: { semanticPass: true, ragCurrentOverride: false, historyPresentedAsCurrent: false } })));
   const composition = ['W1-06', 'W1-06', 'W1-06', 'W1-06', 'W1-06', 'SHORTAGE_ONLY', 'SHORTAGE_ONLY', 'SHORTAGE_ONLY', 'PENDING_PURCHASE', 'PENDING_PURCHASE', 'PENDING_PURCHASE', 'ORDER_PRODUCTS', 'ORDER_PRODUCTS', 'ORDER_PRODUCTS'];
   record('targeted', plan.targetedRunId, composition.map(safe));
@@ -96,7 +96,14 @@ test('R6H4B AS-01..12: R6 assembly is staging-only, freeze-pinned, composition-c
   assert.equal(assembled.targetedComposition['W1-06'], 5);
   assert.equal(assembled.performance.averageModelCalls, 1);
   assert.equal(assembled.final.status, 'PASS');
+  assert.equal(assembled.final.domain.exact, 0);
+  assert.equal(assembled.final.domain.exactMatchRole, 'DIAGNOSTIC');
   assert.equal(fs.existsSync(path.join(root, CANONICAL_ARTIFACTS.acceptance)), true);
+  const domainSemanticRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'd2-b2-r6-domain-semantic-'));
+  fs.cpSync(path.join(root, 'M5-D2-B2-runs'), path.join(domainSemanticRoot, 'M5-D2-B2-runs'), { recursive: true });
+  const domainSemanticPath = path.join(domainSemanticRoot, 'M5-D2-B2-runs', 'domain-corpus', plan.domainCorpusRunId, 'artifact.json');
+  const missingFact = JSON.parse(fs.readFileSync(domainSemanticPath, 'utf8')); missingFact.results[0].domainSemanticScore = { semanticPass: false, classification: 'TRUE_PRODUCT_DOMAIN_MISS' }; fs.writeFileSync(domainSemanticPath, JSON.stringify(missingFact));
+  const missingFactResult = assembleR6(domainSemanticRoot, plan); assert.equal(missingFactResult.final.status, 'FAIL'); assert.ok(missingFactResult.final.failedGates.includes('DOMAIN_REQUIRED_FACT_COVERAGE'));
   const failingRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'd2-b2-r6-semantic-'));
   fs.cpSync(path.join(root, 'M5-D2-B2-runs'), path.join(failingRoot, 'M5-D2-B2-runs'), { recursive: true });
   const targetPath = path.join(failingRoot, 'M5-D2-B2-runs', 'targeted', plan.targetedRunId, 'artifact.json');
@@ -238,7 +245,7 @@ test('R6H4C13R EX-01..25: frozen durable CLI maps one slot to the real-case adap
   assert.equal(fs.readFileSync(path.join(__dirname, '../scripts/ai-experiments/api-native-agent/apiNativeAgentCandidate.cjs'), 'utf8').includes('d2B2R6DurableCaseExecutor'), false);
 });
 test('D2-B2 source manifest pins the B1 product baseline and the reviewed 31-capability API Index contract', () => {
-  const manifest = buildManifest({ harnessCommit: 'test-harness' }); assert.equal(manifest.productBaselineCommit, PRODUCT_BASELINE_COMMIT); assert.equal(manifest.apiIndexCount, 31); assert.equal(manifest.apiIndexFingerprint, '10bee9d8a065ea2322fcaf14bdf21cee949d0f57da8c3d5133448c1ee7d09c61'); assert.equal(typeof manifest.realRunnerHash, 'string'); assert.equal(typeof manifest.exclusiveEvidenceContractHash, 'string');
+  const manifest = buildManifest({ harnessCommit: 'test-harness' }); assert.equal(manifest.productBaselineCommit, PRODUCT_BASELINE_COMMIT); assert.equal(manifest.apiIndexCount, 31); assert.equal(manifest.apiIndexFingerprint, 'fd1047c4a2dc8ed8b9faa691676e2c2cfd652e74224c6fcda6747cf28b6b16e2'); assert.equal(typeof manifest.realRunnerHash, 'string'); assert.equal(typeof manifest.exclusiveEvidenceContractHash, 'string');
 });
 test('HR-01..05: semantic runs require caller IDs, are exclusive, isolated, and cannot write canonical artifacts', () => {
   const root = fs.mkdtempSync(path.join(os.tmpdir(), 'd2-b2-harness-'));

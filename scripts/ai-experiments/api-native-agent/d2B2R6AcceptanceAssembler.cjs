@@ -68,6 +68,9 @@ function scoreAcceptance({ domain, rag, targeted, d1, preGates, postGates, all }
     const domainScores = domain.results.map(item => item.domainSelectionScore || {});
     const domainExact = domainScores.filter(item => item.exactMatch === true).length;
     const highRiskDomainMiss = domainScores.filter(item => item.highRiskMiss === true).length;
+    const domainSemanticScores = domain.results.map(item => item.domainSemanticScore || {});
+    const domainSemanticPassed = domainSemanticScores.filter(item => item.semanticPass === true).length;
+    const trueProductDomainMisses = domainSemanticScores.filter(item => item.classification === 'TRUE_PRODUCT_DOMAIN_MISS').length;
     const ragPassed = ragResults.filter(item => item.ragAuthorityScore?.semanticPass === true).length;
     const targetedPassed = targetedResults.filter(item => item.semanticPass === true).length;
     const d1Passed = d1.results.filter(item => item.semanticPass === true).length;
@@ -92,13 +95,15 @@ function scoreAcceptance({ domain, rag, targeted, d1, preGates, postGates, all }
     });
     const gatesPass = preGates.allPass === true && postGates.allPass === true;
     const failedGates = [
-        domainExact >= 11 && highRiskDomainMiss === 0 || 'DOMAIN_CORPUS',
+        domainSemanticPassed === 12 && trueProductDomainMisses === 0 || 'DOMAIN_REQUIRED_FACT_COVERAGE',
         ragPassed === 4 && ragResults.every(item => !item.ragAuthorityScore?.ragCurrentOverride && !item.ragAuthorityScore?.historyPresentedAsCurrent) || 'RAG_AUTHORITY',
         targetedPassed === 14 || 'TARGETED_SEMANTIC', coveragePass || 'DOMAIN_COVERAGE', ragSearchPass || 'RAG_SEARCH', relevancePass || 'ANSWER_RELEVANCE',
         d1Passed === 4 || 'D1_PROTECTION', allZero(safety) || 'SAFETY', gatesPass || 'REPOSITORY_GATES',
     ].filter(item => typeof item === 'string');
     return Object.freeze({ status: failedGates.length ? 'FAIL' : 'PASS', readyForD2B2FullRerun: failedGates.length === 0, failedGates,
-        domain: { total: domainScores.length, exact: domainExact, highRiskMiss: highRiskDomainMiss }, rag: { total: ragResults.length, pass: ragPassed },
+        domain: { total: domainScores.length, exact: domainExact, highRiskMiss: highRiskDomainMiss,
+            semanticPass: domainSemanticPassed, trueProductDomainMisses, exactMatchRole: 'DIAGNOSTIC' },
+        rag: { total: ragResults.length, pass: ragPassed },
         targeted: { total: targetedResults.length, pass: targetedPassed }, d1: { total: d1.results.length, pass: d1Passed },
         coveragePass, ragSearchPass, relevancePass, safety, preModelGates: preGates.allPass === true, postModelGates: postGates.allPass === true });
 }
@@ -146,7 +151,7 @@ function publishR6(outputDirectory, plan) {
     atomicWrite(target('d1'), output.d1);
     atomicWrite(target('safety'), output.final.safety);
     atomicWrite(target('performance'), output.performance);
-    atomicWrite(target('acceptance'), `# D2-B2 R6 Acceptance\n\n- Product: ${output.productFreezeCommit}\n- Harness: ${output.harnessFreezeCommit}\n- Domain exact: ${output.final.domain.exact}/${output.final.domain.total}\n- RAG authority: ${output.final.rag.pass}/${output.final.rag.total}\n- Targeted: ${output.final.targeted.pass}/${output.final.targeted.total}\n- D1: ${output.final.d1.pass}/${output.final.d1.total}\n- Final status: ${output.final.status}\n`);
+    atomicWrite(target('acceptance'), `# D2-B2 R6 Acceptance\n\n- Product: ${output.productFreezeCommit}\n- Harness: ${output.harnessFreezeCommit}\n- Required fact/authority coverage: ${output.final.domain.semanticPass}/${output.final.domain.total}\n- Domain exact (diagnostic): ${output.final.domain.exact}/${output.final.domain.total}\n- True product domain misses: ${output.final.domain.trueProductDomainMisses}\n- RAG authority: ${output.final.rag.pass}/${output.final.rag.total}\n- Targeted: ${output.final.targeted.pass}/${output.final.targeted.total}\n- D1: ${output.final.d1.pass}/${output.final.d1.total}\n- Final status: ${output.final.status}\n`);
     return output;
 }
 

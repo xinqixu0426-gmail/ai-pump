@@ -1,0 +1,1163 @@
+{
+  "schemaVersion": "D2_B2_R6_DOMAIN_BOUNDARY_AUDIT_V1",
+  "conclusion": "CONFIRMED_NON_EXCLUSIVE_DOMAIN_OVERLAP",
+  "oldApiIndexFingerprint": "10bee9d8a065ea2322fcaf14bdf21cee949d0f57da8c3d5133448c1ee7d09c61",
+  "newApiIndexFingerprint": "fd1047c4a2dc8ed8b9faa691676e2c2cfd652e74224c6fcda6747cf28b6b16e2",
+  "fullInventoryCount": 84,
+  "exposedReadPreviewCount": 31,
+  "uniqueCapabilities": 31,
+  "totalDomainMemberships": 43,
+  "multiDomainCapabilityCount": 10,
+  "multiDomainCapabilities": [
+    "calculate_coil_cost",
+    "get_copper_price",
+    "search_factory_knowledge",
+    "get_order_knowledge_package",
+    "check_order_readiness",
+    "explain_cost_change",
+    "compare_recipe_scenarios",
+    "compare_recipes",
+    "preview_profitability",
+    "preview_virtual_readiness"
+  ],
+  "businessApiChanged": false,
+  "domainMembershipChanged": false,
+  "capabilities": [
+    {
+      "toolName": "search_business_changes",
+      "capabilityId": "ai.search_business_changes",
+      "currentDomains": [
+        "business_history"
+      ],
+      "operation": "query",
+      "access": "read",
+      "sourceOfTruthAuthority": {
+        "capability": "formalApi",
+        "formalAuthorities": [
+          "business_change_events+business_change_event_entities"
+        ],
+        "factAuthorities": {
+          "business_change_event": "formalApi"
+        }
+      },
+      "primaryBusinessResponsibility": "committed business-change history",
+      "formalFactsProduced": [
+        "business_change_event"
+      ],
+      "overlappingBusinessDomains": [
+        "business_history"
+      ],
+      "factsItDoesNotEstablish": [
+        "current order/readiness state"
+      ],
+      "aggregateOrDirect": "aggregate",
+      "currentMetadataIssue": "V1 exposed navigation domains and a short summary but omitted explicit fact authority, overlap, and negative boundary.",
+      "proposedCorrection": "Expose the derived semantic boundary in the model API Index while preserving registered domains, execution, schemas, and business logic."
+    },
+    {
+      "toolName": "search_parts",
+      "capabilityId": "ai.search_parts",
+      "currentDomains": [
+        "catalog"
+      ],
+      "operation": "query",
+      "access": "read",
+      "sourceOfTruthAuthority": {
+        "capability": "partsService",
+        "formalAuthorities": [
+          "parts"
+        ],
+        "factAuthorities": {
+          "part_identity": "partsService",
+          "part_catalog_attribute": "partsService"
+        }
+      },
+      "primaryBusinessResponsibility": "catalog part discovery",
+      "formalFactsProduced": [
+        "part_catalog_attribute",
+        "part_identity"
+      ],
+      "overlappingBusinessDomains": [
+        "catalog"
+      ],
+      "factsItDoesNotEstablish": [
+        "purchase status",
+        "recipe cost"
+      ],
+      "aggregateOrDirect": "direct",
+      "currentMetadataIssue": "V1 exposed navigation domains and a short summary but omitted explicit fact authority, overlap, and negative boundary.",
+      "proposedCorrection": "Expose the derived semantic boundary in the model API Index while preserving registered domains, execution, schemas, and business logic."
+    },
+    {
+      "toolName": "get_coil_specs",
+      "capabilityId": "ai.get_coil_specs",
+      "currentDomains": [
+        "coil"
+      ],
+      "operation": "query",
+      "access": "read",
+      "sourceOfTruthAuthority": {
+        "capability": "coilService",
+        "formalAuthorities": [
+          "coils+stator_variants"
+        ],
+        "factAuthorities": {
+          "coil_identity": "coilService",
+          "coil_specification": "coilService"
+        }
+      },
+      "primaryBusinessResponsibility": "coil specification options",
+      "formalFactsProduced": [
+        "coil_identity",
+        "coil_specification"
+      ],
+      "overlappingBusinessDomains": [
+        "coil"
+      ],
+      "factsItDoesNotEstablish": [
+        "current inventory sufficiency",
+        "full recipe cost"
+      ],
+      "aggregateOrDirect": "direct",
+      "currentMetadataIssue": "V1 exposed navigation domains and a short summary but omitted explicit fact authority, overlap, and negative boundary.",
+      "proposedCorrection": "Expose the derived semantic boundary in the model API Index while preserving registered domains, execution, schemas, and business logic."
+    },
+    {
+      "toolName": "search_coils",
+      "capabilityId": "ai.search_coils",
+      "currentDomains": [
+        "coil"
+      ],
+      "operation": "query",
+      "access": "read",
+      "sourceOfTruthAuthority": {
+        "capability": "coilService",
+        "formalAuthorities": [
+          "coils+stator_variants"
+        ],
+        "factAuthorities": {
+          "coil_identity": "coilService",
+          "coil_directory_cost": "coilService"
+        }
+      },
+      "primaryBusinessResponsibility": "coil catalog discovery",
+      "formalFactsProduced": [
+        "coil_directory_cost",
+        "coil_identity"
+      ],
+      "overlappingBusinessDomains": [
+        "coil",
+        "cost"
+      ],
+      "factsItDoesNotEstablish": [
+        "full recipe cost",
+        "purchase status"
+      ],
+      "aggregateOrDirect": "aggregate",
+      "currentMetadataIssue": "V1 exposed navigation domains and a short summary but omitted explicit fact authority, overlap, and negative boundary.",
+      "proposedCorrection": "Expose the derived semantic boundary in the model API Index while preserving registered domains, execution, schemas, and business logic."
+    },
+    {
+      "toolName": "calculate_coil_cost",
+      "capabilityId": "ai.calculate_coil_cost",
+      "currentDomains": [
+        "cost",
+        "coil"
+      ],
+      "operation": "preview",
+      "access": "read",
+      "sourceOfTruthAuthority": {
+        "capability": "costEngine",
+        "formalAuthorities": [
+          "coils+stator_variants",
+          "coils+stator_variants+coilCost"
+        ],
+        "factAuthorities": {
+          "current_cost": "costEngine"
+        }
+      },
+      "primaryBusinessResponsibility": "formal coil cost preview",
+      "formalFactsProduced": [
+        "current_cost"
+      ],
+      "overlappingBusinessDomains": [
+        "coil",
+        "cost"
+      ],
+      "factsItDoesNotEstablish": [
+        "full recipe cost",
+        "inventory balance",
+        "purchase status"
+      ],
+      "aggregateOrDirect": "direct",
+      "currentMetadataIssue": "V1 exposed navigation domains and a short summary but omitted explicit fact authority, overlap, and negative boundary.",
+      "proposedCorrection": "Expose the derived semantic boundary in the model API Index while preserving registered domains, execution, schemas, and business logic."
+    },
+    {
+      "toolName": "get_copper_price",
+      "capabilityId": "ai.get_copper_price",
+      "currentDomains": [
+        "cost",
+        "coil"
+      ],
+      "operation": "query",
+      "access": "read",
+      "sourceOfTruthAuthority": {
+        "capability": "costEngine",
+        "formalAuthorities": [
+          "dailyMarketSnapshot+coils.copper_base"
+        ],
+        "factAuthorities": {
+          "copper_price": "costEngine"
+        }
+      },
+      "primaryBusinessResponsibility": "current copper-price reference",
+      "formalFactsProduced": [
+        "copper_price"
+      ],
+      "overlappingBusinessDomains": [
+        "coil",
+        "cost"
+      ],
+      "factsItDoesNotEstablish": [
+        "full recipe cost",
+        "purchase status"
+      ],
+      "aggregateOrDirect": "direct",
+      "currentMetadataIssue": "V1 exposed navigation domains and a short summary but omitted explicit fact authority, overlap, and negative boundary.",
+      "proposedCorrection": "Expose the derived semantic boundary in the model API Index while preserving registered domains, execution, schemas, and business logic."
+    },
+    {
+      "toolName": "get_factory_knowledge_detail",
+      "capabilityId": "ai.get_factory_knowledge_detail",
+      "currentDomains": [
+        "knowledge"
+      ],
+      "operation": "query",
+      "access": "read",
+      "sourceOfTruthAuthority": {
+        "capability": "knowledgeIndex",
+        "formalAuthorities": [
+          "knowledgeIndex"
+        ],
+        "factAuthorities": {
+          "knowledge_record": "knowledgeIndex"
+        }
+      },
+      "primaryBusinessResponsibility": "confirmed knowledge-record detail",
+      "formalFactsProduced": [
+        "knowledge_record"
+      ],
+      "overlappingBusinessDomains": [
+        "knowledge"
+      ],
+      "factsItDoesNotEstablish": [
+        "current formal business state unless separately confirmed"
+      ],
+      "aggregateOrDirect": "direct",
+      "currentMetadataIssue": "V1 exposed navigation domains and a short summary but omitted explicit fact authority, overlap, and negative boundary.",
+      "proposedCorrection": "Expose the derived semantic boundary in the model API Index while preserving registered domains, execution, schemas, and business logic."
+    },
+    {
+      "toolName": "search_factory_knowledge",
+      "capabilityId": "ai.search_factory_knowledge",
+      "currentDomains": [
+        "knowledge",
+        "coil",
+        "catalog"
+      ],
+      "operation": "query",
+      "access": "read",
+      "sourceOfTruthAuthority": {
+        "capability": "knowledgeIndex",
+        "formalAuthorities": [
+          "knowledgeIndex"
+        ],
+        "factAuthorities": {
+          "auxiliary_knowledge_retrieval": "knowledgeIndex"
+        }
+      },
+      "primaryBusinessResponsibility": "auxiliary knowledge retrieval",
+      "formalFactsProduced": [
+        "auxiliary_knowledge_retrieval"
+      ],
+      "overlappingBusinessDomains": [
+        "catalog",
+        "coil",
+        "knowledge"
+      ],
+      "factsItDoesNotEstablish": [
+        "current cost",
+        "current inventory",
+        "current order or procurement status"
+      ],
+      "aggregateOrDirect": "aggregate",
+      "currentMetadataIssue": "V1 exposed navigation domains and a short summary but omitted explicit fact authority, overlap, and negative boundary.",
+      "proposedCorrection": "Expose the derived semantic boundary in the model API Index while preserving registered domains, execution, schemas, and business logic."
+    },
+    {
+      "toolName": "get_order_knowledge_package",
+      "capabilityId": "ai.get_order_knowledge_package",
+      "currentDomains": [
+        "knowledge",
+        "order",
+        "file"
+      ],
+      "operation": "query",
+      "access": "read",
+      "sourceOfTruthAuthority": {
+        "capability": "orderService",
+        "formalAuthorities": [
+          "orders+currentPurchasePlan+activeOrderReadiness+orderRequirements+orderExecutionRecords+factory_file_links"
+        ],
+        "factAuthorities": {
+          "order_status": "orderService",
+          "order_snapshot_recipe": "orderService",
+          "order_line_quantity": "orderService",
+          "readiness_status": "activeOrderReadiness",
+          "shortage_quantity": "orderService",
+          "purchase_status": "currentPurchasePlan",
+          "source_file": "factory_file_links"
+        }
+      },
+      "primaryBusinessResponsibility": "order detail, confirmed knowledge, readiness, and linked source files",
+      "formalFactsProduced": [
+        "order_line_quantity",
+        "order_snapshot_recipe",
+        "order_status",
+        "purchase_status",
+        "readiness_status",
+        "shortage_quantity",
+        "source_file"
+      ],
+      "overlappingBusinessDomains": [
+        "file",
+        "knowledge",
+        "order",
+        "procurement"
+      ],
+      "factsItDoesNotEstablish": [
+        "global purchase overview outside the returned order scope",
+        "unlinked file content"
+      ],
+      "aggregateOrDirect": "aggregate",
+      "currentMetadataIssue": "V1 exposed navigation domains and a short summary but omitted explicit fact authority, overlap, and negative boundary.",
+      "proposedCorrection": "Expose the derived semantic boundary in the model API Index while preserving registered domains, execution, schemas, and business logic."
+    },
+    {
+      "toolName": "check_order_readiness",
+      "capabilityId": "ai.check_order_readiness",
+      "currentDomains": [
+        "management",
+        "order"
+      ],
+      "operation": "query",
+      "access": "read",
+      "sourceOfTruthAuthority": {
+        "capability": "orderService",
+        "formalAuthorities": [
+          "orders+active_orders+parts+coils+recipes+currentPurchasePlan+orderPlanning+orderReadiness"
+        ],
+        "factAuthorities": {
+          "readiness_status": "activeOrderReadiness",
+          "shortage_line_count": "activeOrderReadiness",
+          "required_quantity": "activeOrderReadiness",
+          "available_quantity": "parts+coils inventory",
+          "shortage_quantity": "activeOrderReadiness+parts+coils inventory",
+          "purchase_status": "currentPurchasePlan",
+          "purchase_quantity": "currentPurchasePlan"
+        }
+      },
+      "primaryBusinessResponsibility": "current order readiness and shortage/procurement state",
+      "formalFactsProduced": [
+        "available_quantity",
+        "purchase_quantity",
+        "purchase_status",
+        "readiness_status",
+        "required_quantity",
+        "shortage_line_count",
+        "shortage_quantity"
+      ],
+      "overlappingBusinessDomains": [
+        "inventory",
+        "management",
+        "order",
+        "procurement"
+      ],
+      "factsItDoesNotEstablish": [
+        "global purchase collection",
+        "unrelated order detail"
+      ],
+      "aggregateOrDirect": "aggregate",
+      "currentMetadataIssue": "V1 exposed navigation domains and a short summary but omitted explicit fact authority, overlap, and negative boundary.",
+      "proposedCorrection": "Expose the derived semantic boundary in the model API Index while preserving registered domains, execution, schemas, and business logic."
+    },
+    {
+      "toolName": "get_order_detail",
+      "capabilityId": "ai.get_order_detail",
+      "currentDomains": [
+        "order"
+      ],
+      "operation": "query",
+      "access": "read",
+      "sourceOfTruthAuthority": {
+        "capability": "orderService",
+        "formalAuthorities": [
+          "orderService"
+        ],
+        "factAuthorities": {
+          "order_status": "orderService",
+          "order_customer_attribute": "orderService",
+          "order_contract_number": "orderService",
+          "order_snapshot_recipe": "orderService",
+          "order_line_quantity": "orderService"
+        }
+      },
+      "primaryBusinessResponsibility": "current formal order detail",
+      "formalFactsProduced": [
+        "order_contract_number",
+        "order_customer_attribute",
+        "order_line_quantity",
+        "order_snapshot_recipe",
+        "order_status"
+      ],
+      "overlappingBusinessDomains": [
+        "order"
+      ],
+      "factsItDoesNotEstablish": [
+        "current readiness or procurement state unless separately returned"
+      ],
+      "aggregateOrDirect": "direct",
+      "currentMetadataIssue": "V1 exposed navigation domains and a short summary but omitted explicit fact authority, overlap, and negative boundary.",
+      "proposedCorrection": "Expose the derived semantic boundary in the model API Index while preserving registered domains, execution, schemas, and business logic."
+    },
+    {
+      "toolName": "get_recent_orders",
+      "capabilityId": "ai.get_recent_orders",
+      "currentDomains": [
+        "order"
+      ],
+      "operation": "query",
+      "access": "read",
+      "sourceOfTruthAuthority": {
+        "capability": "orderService",
+        "formalAuthorities": [
+          "orders.saved_ids+currentPurchasePlan+historicalPurchaseNames+parts.model+parts.price+coils.cost"
+        ],
+        "factAuthorities": {
+          "order_status": "orderService",
+          "order_collection": "orderService"
+        }
+      },
+      "primaryBusinessResponsibility": "recent formal order collection",
+      "formalFactsProduced": [
+        "order_collection",
+        "order_status"
+      ],
+      "overlappingBusinessDomains": [
+        "order",
+        "procurement"
+      ],
+      "factsItDoesNotEstablish": [
+        "current order readiness",
+        "customer-complete history"
+      ],
+      "aggregateOrDirect": "aggregate",
+      "currentMetadataIssue": "V1 exposed navigation domains and a short summary but omitted explicit fact authority, overlap, and negative boundary.",
+      "proposedCorrection": "Expose the derived semantic boundary in the model API Index while preserving registered domains, execution, schemas, and business logic."
+    },
+    {
+      "toolName": "get_purchase_overview",
+      "capabilityId": "ai.get_purchase_overview",
+      "currentDomains": [
+        "procurement"
+      ],
+      "operation": "query",
+      "access": "read",
+      "sourceOfTruthAuthority": {
+        "capability": "formalApi",
+        "formalAuthorities": [
+          "orders.saved_ids+currentPurchasePlan+parts.model+coils.scheme_name"
+        ],
+        "factAuthorities": {
+          "purchase_status": "currentPurchasePlan",
+          "purchase_quantity": "currentPurchasePlan",
+          "purchase_quantity_ordered": "currentPurchasePlan",
+          "purchase_quantity_received": "currentPurchasePlan",
+          "purchase_quantity_stocked": "currentPurchasePlan",
+          "purchase_pending_quantity": "currentPurchasePlan",
+          "collection_completeness": "purchasing.overview"
+        }
+      },
+      "primaryBusinessResponsibility": "formal purchase-task overview",
+      "formalFactsProduced": [
+        "collection_completeness",
+        "purchase_pending_quantity",
+        "purchase_quantity",
+        "purchase_quantity_ordered",
+        "purchase_quantity_received",
+        "purchase_quantity_stocked",
+        "purchase_status"
+      ],
+      "overlappingBusinessDomains": [
+        "order",
+        "procurement"
+      ],
+      "factsItDoesNotEstablish": [
+        "order-specific shortage unless scope is formally bound",
+        "recipe cost"
+      ],
+      "aggregateOrDirect": "aggregate",
+      "currentMetadataIssue": "V1 exposed navigation domains and a short summary but omitted explicit fact authority, overlap, and negative boundary.",
+      "proposedCorrection": "Expose the derived semantic boundary in the model API Index while preserving registered domains, execution, schemas, and business logic."
+    },
+    {
+      "toolName": "get_quotation_detail",
+      "capabilityId": "ai.get_quotation_detail",
+      "currentDomains": [
+        "quotation"
+      ],
+      "operation": "query",
+      "access": "read",
+      "sourceOfTruthAuthority": {
+        "capability": "quotationService",
+        "formalAuthorities": [
+          "customers+quotations"
+        ],
+        "factAuthorities": {
+          "quotation_status": "quotationService",
+          "quotation_amount": "quotationService",
+          "quotation_customer": "quotationService"
+        }
+      },
+      "primaryBusinessResponsibility": "formal quotation detail",
+      "formalFactsProduced": [
+        "quotation_amount",
+        "quotation_customer",
+        "quotation_status"
+      ],
+      "overlappingBusinessDomains": [
+        "customer",
+        "quotation"
+      ],
+      "factsItDoesNotEstablish": [
+        "current production readiness",
+        "customer-complete order history"
+      ],
+      "aggregateOrDirect": "direct",
+      "currentMetadataIssue": "V1 exposed navigation domains and a short summary but omitted explicit fact authority, overlap, and negative boundary.",
+      "proposedCorrection": "Expose the derived semantic boundary in the model API Index while preserving registered domains, execution, schemas, and business logic."
+    },
+    {
+      "toolName": "search_customer_history",
+      "capabilityId": "ai.search_customer_history",
+      "currentDomains": [
+        "quotation"
+      ],
+      "operation": "query",
+      "access": "read",
+      "sourceOfTruthAuthority": {
+        "capability": "quotationService",
+        "formalAuthorities": [
+          "customers",
+          "customers+quotations+orders"
+        ],
+        "factAuthorities": {
+          "customer_identity": "customers",
+          "quotation_history": "quotations",
+          "order_history": "orders",
+          "collection_completeness": "customers+quotations+orders"
+        }
+      },
+      "primaryBusinessResponsibility": "formal customer quotation and order history",
+      "formalFactsProduced": [
+        "collection_completeness",
+        "customer_identity",
+        "order_history",
+        "quotation_history"
+      ],
+      "overlappingBusinessDomains": [
+        "business_history",
+        "customer",
+        "order",
+        "quotation"
+      ],
+      "factsItDoesNotEstablish": [
+        "current order readiness",
+        "unbound customer history"
+      ],
+      "aggregateOrDirect": "aggregate",
+      "currentMetadataIssue": "V1 exposed navigation domains and a short summary but omitted explicit fact authority, overlap, and negative boundary.",
+      "proposedCorrection": "Expose the derived semantic boundary in the model API Index while preserving registered domains, execution, schemas, and business logic."
+    },
+    {
+      "toolName": "search_customers",
+      "capabilityId": "ai.search_customers",
+      "currentDomains": [
+        "quotation"
+      ],
+      "operation": "query",
+      "access": "read",
+      "sourceOfTruthAuthority": {
+        "capability": "quotationService",
+        "formalAuthorities": [
+          "customers"
+        ],
+        "factAuthorities": {
+          "customer_identity": "quotationService",
+          "customer_collection": "quotationService"
+        }
+      },
+      "primaryBusinessResponsibility": "formal customer discovery",
+      "formalFactsProduced": [
+        "customer_collection",
+        "customer_identity"
+      ],
+      "overlappingBusinessDomains": [
+        "customer",
+        "quotation"
+      ],
+      "factsItDoesNotEstablish": [
+        "customer quotation/order history without a history query"
+      ],
+      "aggregateOrDirect": "aggregate",
+      "currentMetadataIssue": "V1 exposed navigation domains and a short summary but omitted explicit fact authority, overlap, and negative boundary.",
+      "proposedCorrection": "Expose the derived semantic boundary in the model API Index while preserving registered domains, execution, schemas, and business logic."
+    },
+    {
+      "toolName": "search_quotations",
+      "capabilityId": "ai.search_quotations",
+      "currentDomains": [
+        "quotation"
+      ],
+      "operation": "query",
+      "access": "read",
+      "sourceOfTruthAuthority": {
+        "capability": "quotationService",
+        "formalAuthorities": [
+          "customers+quotations"
+        ],
+        "factAuthorities": {
+          "quotation_status": "quotationService",
+          "quotation_collection": "quotationService"
+        }
+      },
+      "primaryBusinessResponsibility": "formal quotation collection",
+      "formalFactsProduced": [
+        "quotation_collection",
+        "quotation_status"
+      ],
+      "overlappingBusinessDomains": [
+        "customer",
+        "quotation"
+      ],
+      "factsItDoesNotEstablish": [
+        "current cost",
+        "customer-complete order history"
+      ],
+      "aggregateOrDirect": "aggregate",
+      "currentMetadataIssue": "V1 exposed navigation domains and a short summary but omitted explicit fact authority, overlap, and negative boundary.",
+      "proposedCorrection": "Expose the derived semantic boundary in the model API Index while preserving registered domains, execution, schemas, and business logic."
+    },
+    {
+      "toolName": "explain_cost_change",
+      "capabilityId": "ai.explain_cost_change",
+      "currentDomains": [
+        "quotation",
+        "cost"
+      ],
+      "operation": "preview",
+      "access": "read",
+      "sourceOfTruthAuthority": {
+        "capability": "costEngine",
+        "formalAuthorities": [
+          "saved_recipe_ids+current_template_ids+costEngine"
+        ],
+        "factAuthorities": {
+          "recipe_cost_difference": "costEngine"
+        }
+      },
+      "primaryBusinessResponsibility": "formal recipe cost difference",
+      "formalFactsProduced": [
+        "recipe_cost_difference"
+      ],
+      "overlappingBusinessDomains": [
+        "cost",
+        "quotation",
+        "recipe"
+      ],
+      "factsItDoesNotEstablish": [
+        "current inventory",
+        "purchase status"
+      ],
+      "aggregateOrDirect": "direct",
+      "currentMetadataIssue": "V1 exposed navigation domains and a short summary but omitted explicit fact authority, overlap, and negative boundary.",
+      "proposedCorrection": "Expose the derived semantic boundary in the model API Index while preserving registered domains, execution, schemas, and business logic."
+    },
+    {
+      "toolName": "get_all_recipes",
+      "capabilityId": "ai.get_all_recipes",
+      "currentDomains": [
+        "recipe"
+      ],
+      "operation": "query",
+      "access": "read",
+      "sourceOfTruthAuthority": {
+        "capability": "recipeService",
+        "formalAuthorities": [
+          "recipes+recipe_technical_files"
+        ],
+        "factAuthorities": {
+          "recipe_identity": "recipeService",
+          "recipe_collection": "recipeService"
+        }
+      },
+      "primaryBusinessResponsibility": "formal recipe collection",
+      "formalFactsProduced": [
+        "recipe_collection",
+        "recipe_identity"
+      ],
+      "overlappingBusinessDomains": [
+        "catalog",
+        "recipe"
+      ],
+      "factsItDoesNotEstablish": [
+        "current cost or current inventory without a dedicated returned fact"
+      ],
+      "aggregateOrDirect": "aggregate",
+      "currentMetadataIssue": "V1 exposed navigation domains and a short summary but omitted explicit fact authority, overlap, and negative boundary.",
+      "proposedCorrection": "Expose the derived semantic boundary in the model API Index while preserving registered domains, execution, schemas, and business logic."
+    },
+    {
+      "toolName": "get_recipe_detail",
+      "capabilityId": "ai.get_recipe_detail",
+      "currentDomains": [
+        "recipe"
+      ],
+      "operation": "query",
+      "access": "read",
+      "sourceOfTruthAuthority": {
+        "capability": "recipeServiceAndCostEngine",
+        "formalAuthorities": [
+          "recipeServiceAndCostEngine"
+        ],
+        "factAuthorities": {
+          "recipe_identity": "recipeService",
+          "recipe_bom": "recipeService",
+          "current_cost": "costEngine"
+        }
+      },
+      "primaryBusinessResponsibility": "formal recipe detail with optional complete current cost",
+      "formalFactsProduced": [
+        "current_cost",
+        "recipe_bom",
+        "recipe_identity"
+      ],
+      "overlappingBusinessDomains": [
+        "catalog",
+        "cost",
+        "recipe"
+      ],
+      "factsItDoesNotEstablish": [
+        "current inventory status unless separately returned"
+      ],
+      "aggregateOrDirect": "direct",
+      "currentMetadataIssue": "V1 exposed navigation domains and a short summary but omitted explicit fact authority, overlap, and negative boundary.",
+      "proposedCorrection": "Expose the derived semantic boundary in the model API Index while preserving registered domains, execution, schemas, and business logic."
+    },
+    {
+      "toolName": "get_recipe_parts",
+      "capabilityId": "ai.get_recipe_parts",
+      "currentDomains": [
+        "recipe"
+      ],
+      "operation": "query",
+      "access": "read",
+      "sourceOfTruthAuthority": {
+        "capability": "recipeService",
+        "formalAuthorities": [
+          "OntologyV1 registered relations over canonical business IDs and saved canonical references"
+        ],
+        "factAuthorities": {
+          "recipe_bom": "recipeService",
+          "part_identity": "recipeService",
+          "coil_identity": "recipeService"
+        }
+      },
+      "primaryBusinessResponsibility": "formal recipe-to-material relations",
+      "formalFactsProduced": [
+        "coil_identity",
+        "part_identity",
+        "recipe_bom"
+      ],
+      "overlappingBusinessDomains": [
+        "catalog",
+        "coil",
+        "recipe"
+      ],
+      "factsItDoesNotEstablish": [
+        "current cost",
+        "current inventory sufficiency"
+      ],
+      "aggregateOrDirect": "aggregate",
+      "currentMetadataIssue": "V1 exposed navigation domains and a short summary but omitted explicit fact authority, overlap, and negative boundary.",
+      "proposedCorrection": "Expose the derived semantic boundary in the model API Index while preserving registered domains, execution, schemas, and business logic."
+    },
+    {
+      "toolName": "get_recipe_technical_files",
+      "capabilityId": "ai.get_recipe_technical_files",
+      "currentDomains": [
+        "recipe"
+      ],
+      "operation": "query",
+      "access": "read",
+      "sourceOfTruthAuthority": {
+        "capability": "recipeService",
+        "formalAuthorities": [
+          "recipes+recipe_technical_files",
+          "recipes+recipe_technical_files+factory_files"
+        ],
+        "factAuthorities": {
+          "recipe_identity": "recipeService",
+          "source_file": "recipeService"
+        }
+      },
+      "primaryBusinessResponsibility": "formal recipe technical-file links",
+      "formalFactsProduced": [
+        "recipe_identity",
+        "source_file"
+      ],
+      "overlappingBusinessDomains": [
+        "file",
+        "recipe"
+      ],
+      "factsItDoesNotEstablish": [
+        "current cost",
+        "inventory sufficiency"
+      ],
+      "aggregateOrDirect": "aggregate",
+      "currentMetadataIssue": "V1 exposed navigation domains and a short summary but omitted explicit fact authority, overlap, and negative boundary.",
+      "proposedCorrection": "Expose the derived semantic boundary in the model API Index while preserving registered domains, execution, schemas, and business logic."
+    },
+    {
+      "toolName": "get_recipe_technical_profile",
+      "capabilityId": "ai.get_recipe_technical_profile",
+      "currentDomains": [
+        "recipe"
+      ],
+      "operation": "query",
+      "access": "read",
+      "sourceOfTruthAuthority": {
+        "capability": "recipes.technical_profile.get",
+        "formalAuthorities": [
+          "recipe_functional_technical_profiles+recipe_technical_knowledge+recipes+pump_shell_templates+catalog_template_shell_bindings+parts"
+        ],
+        "factAuthorities": {
+          "recipe_technical_profile": "recipes.technical_profile.get"
+        }
+      },
+      "primaryBusinessResponsibility": "formal recipe technical profile",
+      "formalFactsProduced": [
+        "recipe_technical_profile"
+      ],
+      "overlappingBusinessDomains": [
+        "catalog",
+        "recipe"
+      ],
+      "factsItDoesNotEstablish": [
+        "current cost",
+        "inventory sufficiency"
+      ],
+      "aggregateOrDirect": "direct",
+      "currentMetadataIssue": "V1 exposed navigation domains and a short summary but omitted explicit fact authority, overlap, and negative boundary.",
+      "proposedCorrection": "Expose the derived semantic boundary in the model API Index while preserving registered domains, execution, schemas, and business logic."
+    },
+    {
+      "toolName": "get_recipes_by_coil",
+      "capabilityId": "ai.get_recipes_by_coil",
+      "currentDomains": [
+        "recipe"
+      ],
+      "operation": "query",
+      "access": "read",
+      "sourceOfTruthAuthority": {
+        "capability": "recipeService",
+        "formalAuthorities": [
+          "recipes.coil_id current canonical references (not the whole recipe aggregate)"
+        ],
+        "factAuthorities": {
+          "recipe_collection": "recipeService",
+          "coil_identity": "recipeService"
+        }
+      },
+      "primaryBusinessResponsibility": "formal recipes related to one coil",
+      "formalFactsProduced": [
+        "coil_identity",
+        "recipe_collection"
+      ],
+      "overlappingBusinessDomains": [
+        "coil",
+        "recipe"
+      ],
+      "factsItDoesNotEstablish": [
+        "current cost",
+        "inventory sufficiency"
+      ],
+      "aggregateOrDirect": "aggregate",
+      "currentMetadataIssue": "V1 exposed navigation domains and a short summary but omitted explicit fact authority, overlap, and negative boundary.",
+      "proposedCorrection": "Expose the derived semantic boundary in the model API Index while preserving registered domains, execution, schemas, and business logic."
+    },
+    {
+      "toolName": "get_recipes_by_part",
+      "capabilityId": "ai.get_recipes_by_part",
+      "currentDomains": [
+        "recipe"
+      ],
+      "operation": "query",
+      "access": "read",
+      "sourceOfTruthAuthority": {
+        "capability": "recipeService",
+        "formalAuthorities": [
+          "OntologyV1 registered relations over canonical business IDs and saved canonical references"
+        ],
+        "factAuthorities": {
+          "recipe_collection": "recipeService",
+          "part_identity": "recipeService"
+        }
+      },
+      "primaryBusinessResponsibility": "formal recipes related to one part",
+      "formalFactsProduced": [
+        "part_identity",
+        "recipe_collection"
+      ],
+      "overlappingBusinessDomains": [
+        "catalog",
+        "recipe"
+      ],
+      "factsItDoesNotEstablish": [
+        "current cost",
+        "inventory sufficiency"
+      ],
+      "aggregateOrDirect": "aggregate",
+      "currentMetadataIssue": "V1 exposed navigation domains and a short summary but omitted explicit fact authority, overlap, and negative boundary.",
+      "proposedCorrection": "Expose the derived semantic boundary in the model API Index while preserving registered domains, execution, schemas, and business logic."
+    },
+    {
+      "toolName": "get_template_detail",
+      "capabilityId": "ai.get_template_detail",
+      "currentDomains": [
+        "recipe"
+      ],
+      "operation": "query",
+      "access": "read",
+      "sourceOfTruthAuthority": {
+        "capability": "recipeService",
+        "formalAuthorities": [
+          "pump_shell_templates"
+        ],
+        "factAuthorities": {
+          "template_detail": "recipeService"
+        }
+      },
+      "primaryBusinessResponsibility": "formal pump-shell template detail",
+      "formalFactsProduced": [
+        "template_detail"
+      ],
+      "overlappingBusinessDomains": [
+        "catalog",
+        "recipe"
+      ],
+      "factsItDoesNotEstablish": [
+        "current recipe cost",
+        "inventory sufficiency"
+      ],
+      "aggregateOrDirect": "direct",
+      "currentMetadataIssue": "V1 exposed navigation domains and a short summary but omitted explicit fact authority, overlap, and negative boundary.",
+      "proposedCorrection": "Expose the derived semantic boundary in the model API Index while preserving registered domains, execution, schemas, and business logic."
+    },
+    {
+      "toolName": "search_templates",
+      "capabilityId": "ai.search_templates",
+      "currentDomains": [
+        "recipe"
+      ],
+      "operation": "query",
+      "access": "read",
+      "sourceOfTruthAuthority": {
+        "capability": "recipeService",
+        "formalAuthorities": [
+          "pump_shell_templates"
+        ],
+        "factAuthorities": {
+          "template_collection": "recipeService"
+        }
+      },
+      "primaryBusinessResponsibility": "formal pump-shell template discovery",
+      "formalFactsProduced": [
+        "template_collection"
+      ],
+      "overlappingBusinessDomains": [
+        "catalog",
+        "recipe"
+      ],
+      "factsItDoesNotEstablish": [
+        "current recipe cost",
+        "inventory sufficiency"
+      ],
+      "aggregateOrDirect": "aggregate",
+      "currentMetadataIssue": "V1 exposed navigation domains and a short summary but omitted explicit fact authority, overlap, and negative boundary.",
+      "proposedCorrection": "Expose the derived semantic boundary in the model API Index while preserving registered domains, execution, schemas, and business logic."
+    },
+    {
+      "toolName": "compare_recipe_scenarios",
+      "capabilityId": "ai.compare_recipe_scenarios",
+      "currentDomains": [
+        "recipe",
+        "cost"
+      ],
+      "operation": "preview",
+      "access": "read",
+      "sourceOfTruthAuthority": {
+        "capability": "costEngine",
+        "formalAuthorities": [
+          "costEngine+recipeBomEngine+current_recipe_configuration+current_catalog+system_settings"
+        ],
+        "factAuthorities": {
+          "scenario_cost": "costEngine",
+          "scenario_cost_difference": "costEngine"
+        }
+      },
+      "primaryBusinessResponsibility": "formal scenario cost comparison",
+      "formalFactsProduced": [
+        "scenario_cost",
+        "scenario_cost_difference"
+      ],
+      "overlappingBusinessDomains": [
+        "cost",
+        "recipe"
+      ],
+      "factsItDoesNotEstablish": [
+        "current inventory sufficiency",
+        "purchase status"
+      ],
+      "aggregateOrDirect": "aggregate",
+      "currentMetadataIssue": "V1 exposed navigation domains and a short summary but omitted explicit fact authority, overlap, and negative boundary.",
+      "proposedCorrection": "Expose the derived semantic boundary in the model API Index while preserving registered domains, execution, schemas, and business logic."
+    },
+    {
+      "toolName": "compare_recipes",
+      "capabilityId": "ai.compare_recipes",
+      "currentDomains": [
+        "recipe",
+        "cost"
+      ],
+      "operation": "preview",
+      "access": "read",
+      "sourceOfTruthAuthority": {
+        "capability": "costEngine",
+        "formalAuthorities": [
+          "saved_recipe_ids+current_template_ids+costEngine"
+        ],
+        "factAuthorities": {
+          "recipe_cost_difference": "costEngine"
+        }
+      },
+      "primaryBusinessResponsibility": "formal recipe cost difference",
+      "formalFactsProduced": [
+        "recipe_cost_difference"
+      ],
+      "overlappingBusinessDomains": [
+        "cost",
+        "recipe"
+      ],
+      "factsItDoesNotEstablish": [
+        "current inventory sufficiency",
+        "purchase status"
+      ],
+      "aggregateOrDirect": "direct",
+      "currentMetadataIssue": "V1 exposed navigation domains and a short summary but omitted explicit fact authority, overlap, and negative boundary.",
+      "proposedCorrection": "Expose the derived semantic boundary in the model API Index while preserving registered domains, execution, schemas, and business logic."
+    },
+    {
+      "toolName": "preview_profitability",
+      "capabilityId": "ai.preview_profitability",
+      "currentDomains": [
+        "recipe",
+        "cost"
+      ],
+      "operation": "preview",
+      "access": "read",
+      "sourceOfTruthAuthority": {
+        "capability": "recipes.scenario_compare_preview+formal_profitability_arithmetic",
+        "formalAuthorities": [
+          "recipes.scenario_compare_preview+formal_profitability_arithmetic"
+        ],
+        "factAuthorities": {
+          "current_cost": "recipes.scenario_compare_preview+formal_profitability_arithmetic",
+          "gross_profit_per_unit": "recipes.scenario_compare_preview+formal_profitability_arithmetic",
+          "gross_margin_on_sales": "recipes.scenario_compare_preview+formal_profitability_arithmetic"
+        }
+      },
+      "primaryBusinessResponsibility": "formal profitability preview",
+      "formalFactsProduced": [
+        "current_cost",
+        "gross_margin_on_sales",
+        "gross_profit_per_unit"
+      ],
+      "overlappingBusinessDomains": [
+        "cost",
+        "quotation",
+        "recipe"
+      ],
+      "factsItDoesNotEstablish": [
+        "current inventory sufficiency",
+        "purchase status"
+      ],
+      "aggregateOrDirect": "direct",
+      "currentMetadataIssue": "V1 exposed navigation domains and a short summary but omitted explicit fact authority, overlap, and negative boundary.",
+      "proposedCorrection": "Expose the derived semantic boundary in the model API Index while preserving registered domains, execution, schemas, and business logic."
+    },
+    {
+      "toolName": "preview_virtual_readiness",
+      "capabilityId": "ai.preview_virtual_readiness",
+      "currentDomains": [
+        "recipe",
+        "inventory"
+      ],
+      "operation": "preview",
+      "access": "read",
+      "sourceOfTruthAuthority": {
+        "capability": "orderPlanning+activeOrderReadiness+current_recipe_scenario_bom",
+        "formalAuthorities": [
+          "orderPlanning+active_orders+current_recipe_scenario_bom+parts+coils"
+        ],
+        "factAuthorities": {
+          "readiness_status": "orderPlanning+activeOrderReadiness+parts+coils inventory",
+          "required_quantity": "current_recipe_scenario_bom",
+          "available_quantity": "parts+coils inventory",
+          "shortage_quantity": "orderPlanning+parts+coils inventory",
+          "collection_completeness": "inventory.virtual_readiness_preview"
+        }
+      },
+      "primaryBusinessResponsibility": "formal quantity-scoped virtual readiness preview",
+      "formalFactsProduced": [
+        "available_quantity",
+        "collection_completeness",
+        "readiness_status",
+        "required_quantity",
+        "shortage_quantity"
+      ],
+      "overlappingBusinessDomains": [
+        "inventory",
+        "recipe"
+      ],
+      "factsItDoesNotEstablish": [
+        "current order readiness",
+        "inventory sufficiency without an explicit formal scenario quantity"
+      ],
+      "aggregateOrDirect": "aggregate",
+      "currentMetadataIssue": "V1 exposed navigation domains and a short summary but omitted explicit fact authority, overlap, and negative boundary.",
+      "proposedCorrection": "Expose the derived semantic boundary in the model API Index while preserving registered domains, execution, schemas, and business logic."
+    }
+  ]
+}

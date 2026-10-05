@@ -7,6 +7,7 @@ const crypto = require('node:crypto');
 const { AI_TOOLS } = require('../../routes/ai/tools.cjs');
 const { AI_FORMAL_TOOLS } = require('../aiFormalToolDefinitions.cjs');
 const { listAiCapabilities, getBusinessCapability } = require('../../capabilities/registry.cjs');
+const { semanticBoundaryFor } = require('./apiIndexSemanticProjection.cjs');
 
 const API_INDEX_V1_REVIEWED_COMPOSITES = Object.freeze([
     'search_factory_knowledge',
@@ -98,8 +99,13 @@ function buildApiIndex(options = {}) {
         if (!BACKING_TYPES.includes(backingType)) throw new Error(`Unknown API Index backing type: ${backingType}`);
         const formalCapabilityIds = [...capability.formalCapabilityIds];
         const validFormalLinks = formalCapabilityIds.every(capabilityId => Boolean(getBusinessCapability(capabilityId)));
+        const formalSources = formalCapabilityIds.map(capabilityId => getBusinessCapability(capabilityId)?.sourceOfTruth).filter(Boolean);
         const parameters = definition.function.parameters || {};
         const hints = topLevelInputHints(parameters);
+        const modelIndexV1Eligible = capability.access !== 'write'
+            && ['query', 'preview'].includes(capability.operation)
+            && validFormalLinks
+            && (formalCapabilityIds.length > 0 || reviewedComposites.has(capability.toolName));
         const entry = Object.freeze({
             toolName: capability.toolName,
             displayName: capability.displayName,
@@ -113,13 +119,14 @@ function buildApiIndex(options = {}) {
             backingType,
             formalCapabilityIds: Object.freeze(formalCapabilityIds),
             formalLinksValid: validFormalLinks,
+            semanticBoundary: modelIndexV1Eligible ? semanticBoundaryFor({
+                toolName: capability.toolName, domains: capability.domains,
+                sourceOfTruth: capability.sourceOfTruth, formalSources,
+            }) : null,
             dataMode: capability.dataMode,
             riskLevel: capability.riskLevel,
             definitionFound: true,
-            modelIndexV1Eligible: capability.access !== 'write'
-                && ['query', 'preview'].includes(capability.operation)
-                && validFormalLinks
-                && (formalCapabilityIds.length > 0 || reviewedComposites.has(capability.toolName)),
+            modelIndexV1Eligible,
             modelIndexV1Reason: backingType === 'FORMAL_LINKED'
                 ? 'formal_linked_read_or_preview'
                 : backingType === 'REVIEWED_COMPOSITE'
@@ -143,6 +150,7 @@ function buildApiIndex(options = {}) {
             entityScopes: entry.entityScopes,
             backingType: entry.backingType,
             formalCapabilityIds: entry.formalCapabilityIds,
+            semanticBoundary: entry.semanticBoundary,
             dataMode: entry.dataMode,
             riskLevel: entry.riskLevel,
         }));
@@ -158,6 +166,7 @@ function buildApiIndex(options = {}) {
         entityScopes: entry.entityScopes,
         backingType: entry.backingType,
         formalCapabilityIds: entry.formalCapabilityIds,
+        semanticBoundary: entry.semanticBoundary,
         dataMode: entry.dataMode,
         riskLevel: entry.riskLevel,
     }));
@@ -191,6 +200,12 @@ function renderApiIndexForModel(index = buildApiIndex().modelIndexV1) {
             lines.push(`Required one of: ${entry.alternativeRequiredInputGroups.map(group => group.join(', ')).join(' | ')}`);
         }
         if (entry.requiredInputs.length === 0 && entry.alternativeRequiredInputGroups.length === 0) lines.push('Required: none');
+        lines.push(`Establishes: ${entry.semanticBoundary.formalFactsProduced.map(fact => `${fact} (${entry.semanticBoundary.factAuthorities[fact]})`).join(', ')}`);
+        lines.push(`Authority: ${entry.semanticBoundary.sourceOfTruth}`);
+        if (entry.semanticBoundary.overlappingBusinessDomains.length > entry.domains.length) {
+            lines.push(`Overlaps: ${entry.semanticBoundary.overlappingBusinessDomains.join(', ')}`);
+        }
+        lines.push(`Does not establish: ${entry.semanticBoundary.factsItDoesNotEstablish.join(', ')}`);
         return lines.join('\n');
     }).join('\n\n');
 }
