@@ -1,0 +1,176 @@
+{
+  "ticket": "V1-PROD-R1",
+  "status": "REPAIRED_PENDING_FULL_GATES",
+  "productReleaseObserved": "f38426a38312e705293a49303d28bda433a95033",
+  "productionRuntimePathBefore": [
+    "api/routes/ai/chat.cjs",
+    "api/services/ai-assistant/runtime.cjs",
+    "api/services/ai-assistant/mainAgent.cjs",
+    "api/services/ai-assistant/answerValidator.cjs"
+  ],
+  "acceptedRuntimePathBefore": [
+    "scripts/ai-experiments/api-native-agent/apiNativeAgentCandidate.cjs",
+    "API Index",
+    "toolSchemaLoader",
+    "Fact Ledger with Native evidence projections",
+    "Answer Validator with bounded finalization repair"
+  ],
+  "productionReadRuntimePathAfter": [
+    "api/routes/ai/chat.cjs",
+    "api/services/ai-assistant/runtime.cjs",
+    "api/services/ai-assistant/nativeAgentCore.cjs",
+    "api/services/ai-assistant/answerValidator.cjs"
+  ],
+  "acceptanceRuntimePathAfter": [
+    "scripts/ai-experiments/api-native-agent/apiNativeAgentCandidate.cjs",
+    "api/services/ai-assistant/nativeAgentCore.cjs"
+  ],
+  "reproduction": {
+    "environment": "normal Owner-authenticated production route, read-only requests; no business write was requested or observed",
+    "cases": [
+      {
+        "ownerInput": "请只读查询当前订单数量，不要执行任何修改。",
+        "routeClass": "GENERAL",
+        "selectedDomains": ["order"],
+        "selectedCapabilitiesCount": 5,
+        "validatorCode": "CLAIM_UNGROUNDED",
+        "deliveredAnswer": "SAFE_VALIDATION_ANSWER",
+        "writeObserved": false
+      },
+      {
+        "ownerInput": "ORDER-A当前状态？",
+        "routeClass": "SIMPLE_READ",
+        "validatorCode": "CLAIM_UNGROUNDED",
+        "deliveredAnswer": "SAFE_VALIDATION_ANSWER",
+        "writeObserved": false
+      },
+      {
+        "ownerInput": "对一个已存在合同号查询当前状态（生产业务标识未持久化到本审计）",
+        "routeClass": "SIMPLE_READ",
+        "validatorCode": "MAIN_AGENT_MODEL_FAILED",
+        "deliveredAnswer": null,
+        "writeObserved": false
+      }
+    ],
+    "rawEnvelopeObservability": "The historical HTTP SSE surface persisted validation outcome and delivered answer, not the raw provider envelope. Deterministic Native-core tests retain raw envelope/validation coverage without writing production data."
+  },
+  "safeValidationFallback": {
+    "source": "api/services/ai-assistant/answerValidator.cjs:validationFailure() -> SAFE_VALIDATION_ANSWER",
+    "meaning": "The fallback is retained. The repair promotes the accepted bounded answer-finalization loop so repairable envelopes are corrected before this fail-closed fallback is delivered."
+  },
+  "rootCause": "Production read requests used a legacy Main Agent with a default Fact Ledger and one-shot validation, while accepted C2 used a different Native candidate with API-Index domain expansion, enriched formal evidence projections, claimable fact catalog, answer-focus instructions, and bounded Validator-feedback finalization. A repairable initial envelope therefore became the universal SAFE_VALIDATION_ANSWER in production.",
+  "comparison": [
+    {
+      "behavior": "model prompt",
+      "before": "DIFFERENT",
+      "after": "SAME_FOR_READS",
+      "detail": "Production reads and acceptance now execute candidateSystemPrompt from nativeAgentCore; Judge remains a production safety envelope before the shared read investigation."
+    },
+    {
+      "behavior": "domain/capability selection",
+      "before": "SAFETY_CRITICAL_DIFFERENCE",
+      "after": "SAME_FOR_READS",
+      "detail": "Shared Native core requires domain declaration and expands selected read/preview APIs to terminal states."
+    },
+    {
+      "behavior": "tool exposure",
+      "before": "SAFETY_CRITICAL_DIFFERENCE",
+      "after": "SAME_FOR_READS",
+      "detail": "Shared API Index plus request-scoped schema loading controls exposure; write tools remain absent from the read path."
+    },
+    {
+      "behavior": "selected-domain full expansion",
+      "before": "DIFFERENT",
+      "after": "SAME_FOR_READS",
+      "detail": "Native relevantApiCoverage is the source for production read metrics and terminal-state completeness."
+    },
+    {
+      "behavior": "API schema loading",
+      "before": "DIFFERENT",
+      "after": "SAME_FOR_READS",
+      "detail": "createToolSchemaSession is owned by nativeAgentCore."
+    },
+    {
+      "behavior": "Fact Ledger options",
+      "before": "SAFETY_CRITICAL_DIFFERENCE",
+      "after": "SAME_FOR_READS",
+      "detail": "NATIVE_FACT_LEDGER_OPTIONS enables recipe comparison, scenario comparison, coil directory cost, recipe-detail current cost, and operational evidence projections from verified formal results only."
+    },
+    {
+      "behavior": "structured money facts",
+      "before": "DIFFERENT",
+      "after": "SAME_FOR_READS",
+      "detail": "The shared ledger and Claimable Fact Catalog preserve money roles, entities, basis, and provenance."
+    },
+    {
+      "behavior": "operational facts and collection completeness",
+      "before": "DIFFERENT",
+      "after": "SAME_FOR_READS",
+      "detail": "Verified formal operational evidence and completeness qualifiers flow through the shared ledger."
+    },
+    {
+      "behavior": "conflict handling",
+      "before": "SAME",
+      "after": "SAME",
+      "detail": "Answer Validator remains authoritative and rejects silent formal conflict selection."
+    },
+    {
+      "behavior": "RAG handling",
+      "before": "DIFFERENT",
+      "after": "SAME_FOR_READS",
+      "detail": "Native core requires one auxiliary knowledge search without allowing it to overwrite current formal facts."
+    },
+    {
+      "behavior": "answer-focus contract",
+      "before": "DIFFERENT",
+      "after": "SAME_FOR_READS",
+      "detail": "Shared prompt distinguishes investigation breadth from Owner-answer breadth."
+    },
+    {
+      "behavior": "finalization and Validator repair",
+      "before": "SAFETY_CRITICAL_DIFFERENCE",
+      "after": "SAME_FOR_READS",
+      "detail": "The shared core performs at most two finalization attempts using Validator feedback, then remains fail closed."
+    },
+    {
+      "behavior": "fallback behavior",
+      "before": "DIFFERENT",
+      "after": "SAME_FOR_READS",
+      "detail": "SAFE_VALIDATION_ANSWER is preserved only after bounded finalization cannot produce a valid envelope."
+    },
+    {
+      "behavior": "max tool/model calls and context limits",
+      "before": "DIFFERENT",
+      "after": "SAME_FOR_READS",
+      "detail": "Read runtime adopts the Native bounded limits: 40 model calls, 32 business calls, 4 schema loads, 6 identity resolutions, and 300 seconds."
+    },
+    {
+      "behavior": "protected write confirmation",
+      "before": "PRODUCTION_ONLY",
+      "after": "PRODUCTION_ONLY",
+      "detail": "Persistent mutation stays on the existing protected proposal/confirmation path; this repair does not alter write safety."
+    }
+  ],
+  "paritySuite": {
+    "sharedCoreIdentity": "apiNativeAgentCandidate exports nativeAgentCore.runNativeAgentCore by identity; production read runtime invokes the same function.",
+    "cases": [
+      { "name": "current_cost", "formalTools": ["get_recipe_detail", "preview_recipe_cost"], "requiredEvidence": ["current_cost", "money role", "cost basis"] },
+      { "name": "order_shortage", "formalTools": ["check_order_readiness", "get_order_detail"], "requiredEvidence": ["readiness_status", "shortage_quantity", "collection_completeness"] },
+      { "name": "procurement_overview", "formalTools": ["get_purchase_overview"], "requiredEvidence": ["purchase_status", "purchase_quantity", "collection_completeness"] },
+      { "name": "recipe_ambiguity", "formalTools": ["resolve_entity"], "requiredEvidence": ["identity_ambiguous or identity_not_found"] },
+      { "name": "temporary_scenario_preview", "formalTools": ["compare_recipe_scenarios", "preview_virtual_readiness"], "requiredEvidence": ["scenario_cost", "scenario_cost_difference", "formal outcome receipt"] },
+      { "name": "rag_current_vs_history", "formalTools": ["search_factory_knowledge", "current formal business capability"], "requiredEvidence": ["auxiliary_knowledge_retrieval", "current formal fact", "authority separation"] }
+    ],
+    "deterministicProof": "tests/aiNativeProductionParity.test.cjs proves the exact function identity, production read invocation, full domain/API expansion, verified ledger output, finalization, Validator classification, safe unsupported outcome, and absence of write exposure. Existing focused ledger/candidate/RAG/operational tests exercise the listed fact projections against the same core."
+  },
+  "prohibitedChanges": {
+    "productionImportsExperimentScript": false,
+    "answerValidatorWeakened": false,
+    "moneyGuardWeakened": false,
+    "businessApiChanged": false,
+    "costEngineChanged": false,
+    "databaseSchemaChanged": false,
+    "writeSafetyChanged": false,
+    "businessDatabaseMutation": false
+  }
+}

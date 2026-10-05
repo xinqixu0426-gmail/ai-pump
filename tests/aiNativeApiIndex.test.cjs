@@ -1,6 +1,5 @@
 'use strict';
 
-const childProcess = require('node:child_process');
 const fs = require('node:fs');
 const path = require('node:path');
 const test = require('node:test');
@@ -18,7 +17,6 @@ const {
     renderApiIndexForModel,
 } = require('../api/services/ai-assistant/apiIndex.cjs');
 
-const START_HEAD = '5e0503ebb97468e1246ab2dc275e6b5e54cb5870';
 const PRIVATE_TOOL_NAMES = [
     'get_recipe_technical_profile',
     'compare_recipe_scenarios',
@@ -98,9 +96,8 @@ test('IDX-16..20: ordering, fingerprint, definitions and discovery remain determ
     assert.notEqual(first.fingerprint, changed.fingerprint);
 });
 
-test('API Index remains isolated from runtime, Main Agent, and Capability Broker', () => {
+test('API Index is owned by the shared Native read core, while the legacy Main Agent and broker remain direct-index free', () => {
     const runtimePaths = [
-        'api/services/ai-assistant/runtime.cjs',
         'api/services/ai-assistant/mainAgent.cjs',
         'api/services/ai-assistant/capabilityBroker.cjs',
     ];
@@ -108,8 +105,9 @@ test('API Index remains isolated from runtime, Main Agent, and Capability Broker
         const source = fs.readFileSync(path.join(__dirname, '..', relativePath), 'utf8');
         assert.equal(source.includes("require('./apiIndex.cjs')"), false, relativePath);
     }
-    const changed = childProcess.execFileSync('git', ['diff', '--name-only', START_HEAD, '--', ...runtimePaths], {
-        cwd: path.join(__dirname, '..'), encoding: 'utf8',
-    }).trim();
-    assert.equal(changed, '', `Phase B must not integrate runtime: ${changed}`);
+    const runtime = fs.readFileSync(path.join(__dirname, '..', 'api/services/ai-assistant/runtime.cjs'), 'utf8');
+    const core = fs.readFileSync(path.join(__dirname, '..', 'api/services/ai-assistant/nativeAgentCore.cjs'), 'utf8');
+    assert.match(runtime, /nativeAgentCore\.cjs/);
+    assert.match(core, /require\('\.\/apiIndex\.cjs'\)/);
+    assert.equal(runtime.includes('scripts/ai-experiments'), false);
 });

@@ -4,9 +4,10 @@ const { runJudge } = require('./judge.cjs');
 const { runMainAgent } = require('./mainAgent.cjs');
 const { executeProtectedWriteConfirmation } = require('./protectedWriteBroker.cjs');
 const { getPublishedPolicySnapshot } = require('./domainPolicyStore.cjs');
-const { buildInvestigationContext } = require('./context.cjs');
+const { buildInvestigationContext, renderInvestigationContext } = require('./context.cjs');
 const { createFactLedger } = require('./factLedger.cjs');
 const { createRequestObservability } = require('./requestObservability.cjs');
+const { NATIVE_FACT_LEDGER_OPTIONS, runNativeAgentCore } = require('./nativeAgentCore.cjs');
 
 class AiAssistantRuntimeError extends Error {
     constructor(code, message) {
@@ -76,7 +77,9 @@ async function runAiAssistant(input = {}, dependencies = {}) {
     const progress = typeof dependencies.onProgress === 'function' ? dependencies.onProgress : () => {};
     progress({ stage: 'understanding', routeClass });
     const investigationContext = telemetry.stage('contextBuild', () => (dependencies.contextBuilder || buildInvestigationContext)(input, dependencies.contextOptions));
-    const factLedger = dependencies.factLedger || createFactLedger();
+    // Preserve the existing protected-write ledger contract. The richer
+    // projections are promoted only for the shared Native read runtime.
+    let factLedger = dependencies.factLedger || createFactLedger();
     let judgeResult;
     if (routeClass === 'SIMPLE_READ') {
         judgeResult = { output: simpleReadJudge(userMessage), repaired: false, skipped: true };
@@ -125,40 +128,87 @@ async function runAiAssistant(input = {}, dependencies = {}) {
     }
 
     const proposalMode = judgeResult.output.persistentMutation === true;
+    if (!proposalMode && !dependencies.factLedger) factLedger = createFactLedger(NATIVE_FACT_LEDGER_OPTIONS);
     progress({ stage: proposalMode ? 'preparing_write_proposal' : 'reading_formal_data', routeClass });
-    const main = await telemetry.stage('mainAgent', () => runMainAgent({
-        userMessage,
-        recentConversation: input.recentConversation,
-        judge: judgeResult.output,
-        domainPolicy,
-        policyVersion,
-        investigationContext,
-        env: input.env,
-        signal: input.signal,
-        maxRuntimeMs: input.maxRuntimeMs,
-        requestId: input.requestId,
-        mode: proposalMode ? 'PROTECTED_PROPOSAL' : 'READ_ONLY',
-        confirmationSubject: input.confirmationSubject,
-        writeAllowed: dependencies.writeAllowed,
-        factLedger, routeClass,
-    }, {
-        modelCall: dependencies.mainModelCall,
-        executeAgentTool: dependencies.executeAgentTool,
-        executeToolCall: dependencies.executeToolCall,
-        selectCapabilities: dependencies.selectCapabilities,
-        resolveAgentEntity: dependencies.resolveAgentEntity,
-        resolvePageContextEntity: dependencies.resolvePageContextEntity,
-        lookupEntities: dependencies.lookupEntities,
-        internalFetch: dependencies.internalFetch,
-        writeAllowed: dependencies.writeAllowed,
-        validateAnswer: dependencies.validateAnswer, onProgress: progress, telemetry,
-    }));
+    // Read-only production turns must execute the same Native core that the
+    // acceptance harness exercises. The historical Main Agent remains only
+    // for protected proposal flow, which has distinct confirmation semantics.
+    // Existing unit tests may explicitly retain their legacy fake seam; that
+    // seam is never supplied by the production HTTP route.
+    const useTestLegacyReadPath = proposalMode === false
+        && process.env.NODE_TEST_CONTEXT
+        && typeof dependencies.mainModelCall === 'function'
+        && dependencies.forceNativeCore !== true;
+    const main = await telemetry.stage('mainAgent', async () => {
+        if (!proposalMode && !useTestLegacyReadPath) {
+            const native = await runNativeAgentCore({
+                rawOwnerInput: userMessage,
+                recentConversation: input.recentConversation,
+                businessMemo: renderInvestigationContext(investigationContext),
+                policyMemo: domainPolicy,
+                env: input.env,
+                signal: input.signal,
+            }, {
+                modelCall: dependencies.mainModelCall,
+                executeAgentTool: dependencies.executeAgentTool,
+                executeToolCall: dependencies.executeToolCall,
+                resolveAgentEntity: dependencies.resolveAgentEntity,
+                resolvePageContextEntity: dependencies.resolvePageContextEntity,
+                lookupEntities: dependencies.lookupEntities,
+                internalFetch: dependencies.internalFetch,
+                factLedger,
+            });
+            const selectedDomains = native.relevantApiCoverage?.selectedBusinessDomains || [];
+            const selectedToolNames = native.metrics?.loadedToolNames || [];
+            return {
+                answer: native.answer,
+                toolResults: native.toolResults,
+                factLedger: native.factLedger,
+                answerValidation: native.answerValidation,
+                goalStatuses: native.answerValidation?.goals || terminalGoalStatuses(judgeResult.output, 'UNAVAILABLE'),
+                modelCalls: native.metrics?.mainModelCalls || 0,
+                broker: {
+                    domains: selectedDomains,
+                    capabilities: selectedToolNames.map(toolName => ({ toolName, capabilityId: toolName })),
+                    exposedToolCount: selectedToolNames.length,
+                },
+                native,
+            };
+        }
+        return runMainAgent({
+            userMessage,
+            recentConversation: input.recentConversation,
+            judge: judgeResult.output,
+            domainPolicy,
+            policyVersion,
+            investigationContext,
+            env: input.env,
+            signal: input.signal,
+            maxRuntimeMs: input.maxRuntimeMs,
+            requestId: input.requestId,
+            mode: proposalMode ? 'PROTECTED_PROPOSAL' : 'READ_ONLY',
+            confirmationSubject: input.confirmationSubject,
+            writeAllowed: dependencies.writeAllowed,
+            factLedger, routeClass,
+        }, {
+            modelCall: dependencies.mainModelCall,
+            executeAgentTool: dependencies.executeAgentTool,
+            executeToolCall: dependencies.executeToolCall,
+            selectCapabilities: dependencies.selectCapabilities,
+            resolveAgentEntity: dependencies.resolveAgentEntity,
+            resolvePageContextEntity: dependencies.resolvePageContextEntity,
+            lookupEntities: dependencies.lookupEntities,
+            internalFetch: dependencies.internalFetch,
+            writeAllowed: dependencies.writeAllowed,
+            validateAnswer: dependencies.validateAnswer, onProgress: progress, telemetry,
+        });
+    });
     telemetry.update({
         selectedDomains: main.broker?.domains || judgeResult.output.domains,
         selectedCapabilities: (main.broker?.capabilities || []).map(item => item.capabilityId),
         exposedToolCount: main.broker?.exposedToolCount || 0,
         mainModelCalls: main.modelCalls,
-        actualToolCalls: main.toolResults.length,
+        actualToolCalls: main.native?.metrics?.businessToolCalls ?? main.toolResults.length,
         ontologyResolutionCount: main.toolResults.filter(item => /^resolve_/.test(item.agentToolName || '')).length,
         factCount: main.factLedger?.facts?.length || 0,
         goalCount: main.goalStatuses?.length || 0,

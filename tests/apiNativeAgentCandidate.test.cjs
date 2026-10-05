@@ -284,7 +284,7 @@ test('R1-06..16: candidate-only scenario facts retain entity, basis and candidat
 });
 
 test('R6: finalization instructions keep current, scenario and difference money assertions atomic', () => {
-    const source = require('node:fs').readFileSync(require.resolve('../scripts/ai-experiments/api-native-agent/apiNativeAgentCandidate.cjs'), 'utf8');
+    const source = require('node:fs').readFileSync(require.resolve('../api/services/ai-assistant/nativeAgentCore.cjs'), 'utf8');
     assert.match(source, /Each monetary factual sentence\/claim may assert only one money role/);
     const facts = renderClaimableFactsForModel({ facts: [
         { factId: 'F-1', verified: true, entity: { type: 'recipe', id: 1, canonicalName: 'V750-通用款' }, predicate: 'scenario_cost', value: 224, unit: 'CNY', basis: 'CURRENT_REBUILT_BASE', qualifiers: { moneyRole: 'CURRENT_BASE', scenarioKey: 'base', role: 'BASE', label: '当前' }, source: { tool: 'compare_recipe_scenarios' } },
@@ -307,7 +307,7 @@ test('R6: finalization instructions keep current, scenario and difference money 
     assert.match(source, /delete unsupported narrative sentences instead of keeping them with empty factIds/);
 });
 
-test('candidate implementation remains isolated from current production runtime and broker selection', () => {
+test('acceptance entrypoint does not import production runtime or broker-selection internals directly', () => {
     const source = require('node:fs').readFileSync(require.resolve('../scripts/ai-experiments/api-native-agent/apiNativeAgentCandidate.cjs'), 'utf8');
     for (const forbidden of ['selectCapabilities', 'DOMAIN_TOOL_NAMES', 'runJudge', 'runtime.cjs']) assert.equal(source.includes(forbidden), false, forbidden);
     assert.equal(AI_TOOLS.some(item => item.function.name === 'load_tools'), false);
