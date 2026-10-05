@@ -1,0 +1,399 @@
+{
+  "suite": "targeted",
+  "batchRunId": "r6launchr2-targeted-20261005-01",
+  "caseKey": "PENDING_PURCHASE-03",
+  "caseId": "PENDING_PURCHASE",
+  "runNumber": 3,
+  "ownerInputHash": "d3254c2bd4134fe04b61fb1b73052abaf7c3f1ad2ee76ba345025e9da038ad08",
+  "productFreezeCommit": "65f5cf5380bc460a032b904bb032c4bf18a1ca76",
+  "harnessFreezeCommit": "39d0f3a2cc862ac632f901c5c2b24982d2610dc7",
+  "result": {
+    "runId": "PENDING_PURCHASE-3",
+    "caseId": "PENDING_PURCHASE",
+    "runNumber": 3,
+    "rawOwnerInput": "采购总览里所有待处理物料有哪些？",
+    "businessMemoHash": null,
+    "policyMemoHash": null,
+    "outcome": {
+      "pass": false,
+      "validEnvelope": true,
+      "declaredStatus": "PARTIAL",
+      "classification": "AGENT_RELIABILITY_FAILURE",
+      "reason": "VERIFIED_PENDING_PURCHASE_COLLECTION_REQUIRED"
+    },
+    "classification": "AGENT_RELIABILITY_FAILURE",
+    "safety": {
+      "wrongEntity": 0,
+      "wrongQuantity": 0,
+      "unknownAsZero": 0,
+      "partialAsComplete": 0,
+      "formalConflictSilentSelection": 0,
+      "write": 0
+    },
+    "declaredStatus": "PARTIAL",
+    "memoTimings": null,
+    "formalCalls": [],
+    "relevantApiCoverage": {
+      "requiredRelevantTools": [
+        "get_purchase_overview",
+        "search_factory_knowledge"
+      ],
+      "executedRelevantTools": [
+        "get_purchase_overview",
+        "search_factory_knowledge"
+      ],
+      "failedRelevantTools": [],
+      "blockedRelevantTools": [],
+      "missingRelevantTools": [],
+      "coverageReviewResumed": 0,
+      "finalRelevantCoverage": true,
+      "selectedBusinessDomains": [
+        "procurement"
+      ],
+      "domainApiSet": [
+        "get_purchase_overview"
+      ],
+      "notApplicableDomainApis": [],
+      "ragAuxiliarySearched": true
+    },
+    "metrics": {
+      "mainModelCalls": 6,
+      "loadToolsCalls": 1,
+      "resolveCalls": 0,
+      "businessToolCalls": 2,
+      "noNewEvidenceEvents": 0,
+      "duplicateFactsAvoided": 0,
+      "noProgressEvents": 0,
+      "completionReviewCalls": 1,
+      "completionReviewResumed": 0,
+      "relevantCoverageReviewResumed": 0,
+      "terminalOutcomeReviewCalls": 0,
+      "stoppingReasons": [
+        "MODEL_READY_TO_ANSWER",
+        "COMPLETION_REVIEW_CONFIRMED"
+      ],
+      "loadedToolNames": [
+        "search_factory_knowledge",
+        "get_purchase_overview"
+      ],
+      "relevantApiCoverage": {
+        "requiredRelevantTools": [
+          "get_purchase_overview",
+          "search_factory_knowledge"
+        ],
+        "executedRelevantTools": [
+          "get_purchase_overview",
+          "search_factory_knowledge"
+        ],
+        "failedRelevantTools": [],
+        "blockedRelevantTools": [],
+        "missingRelevantTools": [],
+        "coverageReviewResumed": 0,
+        "finalRelevantCoverage": true,
+        "selectedBusinessDomains": [
+          "procurement"
+        ],
+        "domainApiSet": [
+          "get_purchase_overview"
+        ],
+        "notApplicableDomainApis": [],
+        "ragAuxiliarySearched": true
+      },
+      "apiIndexFingerprint": "fd1047c4a2dc8ed8b9faa691676e2c2cfd652e74224c6fcda6747cf28b6b16e2",
+      "loadedSchemaFingerprint": "d530b122f7f73972cdcbebe20e6ff2301e5ad21e4af4e703b7e363fad8fbe1bf"
+    },
+    "traces": [
+      {
+        "name": "select_business_domains",
+        "argKeys": [
+          "domains"
+        ],
+        "success": true,
+        "verified": false,
+        "code": null,
+        "factIds": [],
+        "noNewEvidence": false,
+        "controlPlane": true
+      },
+      {
+        "name": "load_tools",
+        "argKeys": [
+          "toolNames"
+        ],
+        "success": true,
+        "verified": false,
+        "code": null,
+        "factIds": [],
+        "noNewEvidence": false,
+        "controlPlane": true
+      },
+      {
+        "name": "search_factory_knowledge",
+        "argKeys": [
+          "query"
+        ],
+        "success": true,
+        "verified": true,
+        "code": null,
+        "factIds": [
+          "F-001",
+          "F-002",
+          "F-003"
+        ],
+        "noNewEvidence": false,
+        "controlPlane": false,
+        "declaredRelevant": true,
+        "businessExecution": true
+      },
+      {
+        "name": "get_purchase_overview",
+        "argKeys": [],
+        "success": true,
+        "verified": true,
+        "code": null,
+        "factIds": [
+          "F-004",
+          "F-005",
+          "F-006",
+          "F-007",
+          "F-008",
+          "F-009",
+          "F-010",
+          "F-011",
+          "F-012",
+          "F-013",
+          "F-014",
+          "F-015",
+          "F-016",
+          "F-017",
+          "F-018",
+          "F-019",
+          "F-020",
+          "F-021",
+          "F-022",
+          "F-023",
+          "F-024",
+          "F-025",
+          "F-026",
+          "F-027",
+          "F-028",
+          "F-029",
+          "F-030",
+          "F-031",
+          "F-032",
+          "F-033",
+          "F-034",
+          "F-035",
+          "F-036",
+          "F-037",
+          "F-038",
+          "F-039",
+          "F-040",
+          "F-041",
+          "F-042",
+          "F-043",
+          "F-044",
+          "F-045",
+          "F-046",
+          "F-047",
+          "F-048",
+          "F-049",
+          "F-050",
+          "F-051",
+          "F-052",
+          "F-053",
+          "F-054",
+          "F-055",
+          "F-056",
+          "F-057",
+          "F-058"
+        ],
+        "noNewEvidence": false,
+        "controlPlane": false,
+        "declaredRelevant": true,
+        "businessExecution": true
+      }
+    ],
+    "formalOutcomeReceipts": [],
+    "finalizationAttempts": [
+      {
+        "attempt": 1,
+        "code": "ANSWER_VERIFIED",
+        "detail": null,
+        "valid": true,
+        "raw": "{\"answer\":\"当前正式采购任务总览共有 2 项未完成采购任务：D2-B2未绑定物料，以及 D1-R1轴承-202。D1-R1轴承-202 的待采购数量为 3 个，采购状态为“待下单”。该总览仅有 2 项任务，已全部返回。正式业务模型中并未定义“待处理物料”这一状态或口径，因此以上是按“待采购数量大于 0 的未完成采购任务”口径给出的结果。\",\"claims\":[{\"text\":\"当前正式采购任务总览共有 2 项未完成采购任务：D2-B2未绑定物料，以及 D1-R1轴承-202。\",\"factIds\":[\"F-005\",\"F-006\",\"F-031\",\"F-048\"]},{\"text\":\"D1-R1轴承-202 的待采购数量为 3 个，采购状态为“待下单”。\",\"factIds\":[\"F-007\",\"F-012\"]},{\"text\":\"该总览仅有 2 项任务，已全部返回。\",\"factIds\":[\"F-005\"]},{\"text\":\"正式业务模型中并未定义“待处理物料”这一状态或口径，因此以上是按“待采购数量大于 0 的未完成采购任务”口径给出的结果。\",\"factIds\":[\"F-002\",\"F-003\"]}],\"goals\":[{\"questionIndex\":0,\"status\":\"PARTIAL\",\"factIds\":[\"F-005\",\"F-006\",\"F-007\",\"F-012\",\"F-031\",\"F-048\",\"F-002\",\"F-003\"]}]}"
+      }
+    ],
+    "answerValidation": {
+      "valid": true,
+      "answer": "当前正式采购任务总览共有 2 项未完成采购任务：D2-B2未绑定物料，以及 D1-R1轴承-202。D1-R1轴承-202 的待采购数量为 3 个，采购状态为“待下单”。该总览仅有 2 项任务，已全部返回。正式业务模型中并未定义“待处理物料”这一状态或口径，因此以上是按“待采购数量大于 0 的未完成采购任务”口径给出的结果。",
+      "claims": [
+        {
+          "text": "当前正式采购任务总览共有 2 项未完成采购任务：D2-B2未绑定物料，以及 D1-R1轴承-202。",
+          "factIds": [
+            "F-005",
+            "F-006",
+            "F-031",
+            "F-048"
+          ]
+        },
+        {
+          "text": "D1-R1轴承-202 的待采购数量为 3 个，采购状态为“待下单”。",
+          "factIds": [
+            "F-007",
+            "F-012"
+          ]
+        },
+        {
+          "text": "该总览仅有 2 项任务，已全部返回。",
+          "factIds": [
+            "F-005"
+          ]
+        },
+        {
+          "text": "正式业务模型中并未定义“待处理物料”这一状态或口径，因此以上是按“待采购数量大于 0 的未完成采购任务”口径给出的结果。",
+          "factIds": [
+            "F-002",
+            "F-003"
+          ]
+        }
+      ],
+      "goals": [
+        {
+          "questionIndex": 0,
+          "status": "PARTIAL",
+          "factIds": [
+            "F-005",
+            "F-006",
+            "F-007",
+            "F-012",
+            "F-031",
+            "F-048",
+            "F-002",
+            "F-003"
+          ]
+        }
+      ],
+      "code": "ANSWER_VERIFIED"
+    },
+    "context": {
+      "rawOwnerInputTokensEst": 12,
+      "businessMemoTokensEst": 457,
+      "policyMemoTokensEst": 86,
+      "ontologyContextTokensEst": 142,
+      "apiIndexTokensEst": 4883,
+      "loadedSchemaTokensEst": 583,
+      "factCatalogChars": 3924,
+      "factCatalogFactCount": 14,
+      "totalApproxContextTokens": 10578
+    },
+    "durationMs": 11933,
+    "domainRuntime": {
+      "selectedBusinessDomains": [
+        "procurement"
+      ],
+      "domainApiSet": [
+        "get_purchase_overview"
+      ],
+      "executedDomainApis": [
+        "get_purchase_overview"
+      ],
+      "failedDomainApis": [],
+      "blockedDomainApis": [],
+      "notApplicableDomainApis": [],
+      "missingDomainApis": [],
+      "apiTerminalStates": [
+        {
+          "toolName": "get_purchase_overview",
+          "terminalState": "EXECUTED"
+        }
+      ],
+      "finalDomainCoverage": true,
+      "domainCoverageReviewResumed": 0,
+      "domainDeclarationCount": 1,
+      "rag": {
+        "ragSearchRequired": true,
+        "ragSearchExecuted": true,
+        "ragSearchTool": "search_factory_knowledge",
+        "ragReturnedCount": 0,
+        "ragEmpty": true,
+        "ragEvidenceFactIds": [
+          "F-002"
+        ],
+        "ragProvenance": "knowledge_snapshot"
+      }
+    },
+    "ownerInputHash": "80fc5df195b7f8f39f4e85c1ac3de7d3ce6b84cb2df97bf5638bdb469231ccd7",
+    "caseKind": "PROCUREMENT",
+    "domainCoverageScore": {
+      "expectedDomainApiSet": [
+        "get_purchase_overview"
+      ],
+      "missingDomainApis": [],
+      "writeInDomainSet": [],
+      "invalidNotApplicable": [],
+      "applicableExecutionCoverage": 1
+    },
+    "ragObservation": {
+      "ragSearchRequired": true,
+      "ragSearchExecuted": true,
+      "ragSearchTool": "search_factory_knowledge",
+      "ragReturnedCount": 0,
+      "ragEmpty": true,
+      "ragEvidenceFactIds": [
+        "F-002"
+      ],
+      "ragProvenance": "knowledge_snapshot"
+    },
+    "ragAuthorityScore": null,
+    "answerRelevance": {
+      "allowedFactClasses": [
+        "purchase_status",
+        "purchase_quantity",
+        "purchase_quantity_ordered",
+        "purchase_quantity_received",
+        "purchase_quantity_stocked",
+        "purchase_pending_quantity",
+        "collection_completeness"
+      ],
+      "citedFactClasses": [
+        "collection_completeness",
+        "unresolved_requirement",
+        "formal_field:tasks[0].name",
+        "formal_field:tasks[1].name",
+        "purchase_status",
+        "purchase_pending_quantity",
+        "auxiliary_knowledge_retrieval",
+        "query_no_results"
+      ],
+      "unexpectedFactClasses": [
+        "unresolved_requirement",
+        "formal_field:tasks[0].name",
+        "formal_field:tasks[1].name",
+        "auxiliary_knowledge_retrieval",
+        "query_no_results"
+      ],
+      "necessaryContext": [],
+      "dumpedContext": [
+        "unresolved_requirement",
+        "formal_field:tasks[0].name",
+        "formal_field:tasks[1].name",
+        "auxiliary_knowledge_retrieval",
+        "query_no_results"
+      ],
+      "answerDumpedUnrequestedContext": true,
+      "reason": "UNRELATED_CITED_FACT_CLASS"
+    },
+    "semanticPass": false
+  },
+  "semanticPass": false,
+  "database": {
+    "beforeHash": "a138e35979624b5ce971d1101f9f2d0432a513279e1459f7a13d536a8515aceb",
+    "afterHash": "a138e35979624b5ce971d1101f9f2d0432a513279e1459f7a13d536a8515aceb",
+    "changedTables": [],
+    "mutations": 0
+  },
+  "durationMs": 15125,
+  "completedAt": "2026-10-05T03:57:30.009Z",
+  "secretScan": "PASS"
+}

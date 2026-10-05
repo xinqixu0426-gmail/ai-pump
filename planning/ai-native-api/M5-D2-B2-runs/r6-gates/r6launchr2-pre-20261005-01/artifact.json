@@ -1,0 +1,22 @@
+{
+  "productFreezeCommit": "65f5cf5380bc460a032b904bb032c4bf18a1ca76",
+  "harnessFreezeCommit": "39d0f3a2cc862ac632f901c5c2b24982d2610dc7",
+  "apiIndexFingerprint": "fd1047c4a2dc8ed8b9faa691676e2c2cfd652e74224c6fcda6747cf28b6b16e2",
+  "manifestPath": "planning/ai-native-api/M5-D2-B2-R6-LAUNCH-R2-Freeze-Manifest.json",
+  "suite": "r6-gates",
+  "runId": "r6launchr2-pre-20261005-01",
+  "phase": "PRE_MODEL",
+  "gates": {
+    "npmTest": "PASS",
+    "verifyApiContract": "PASS",
+    "testDeepApi": "PASS",
+    "lint": "PASS",
+    "build": "PASS",
+    "testAiArchitecture": "PASS",
+    "verifyAiAssistantRelease": "PASS"
+  },
+  "allPass": true,
+  "results": [],
+  "modelCallsEnabled": false,
+  "secretScan": "PASS"
+}

@@ -1,0 +1,1572 @@
+{
+  "suite": "d1-protection",
+  "batchRunId": "r6launchr2-d1-20261005-01",
+  "caseKey": "D1-03",
+  "caseId": "D1-03",
+  "runNumber": null,
+  "ownerInputHash": "f6fdbbd0979a5088389d165ad08c7d396c0be29e1f7b39c0b54896a4f971498e",
+  "productFreezeCommit": "65f5cf5380bc460a032b904bb032c4bf18a1ca76",
+  "harnessFreezeCommit": "39d0f3a2cc862ac632f901c5c2b24982d2610dc7",
+  "result": {
+    "runId": "D1-03-1",
+    "caseId": "D1-03",
+    "runNumber": 1,
+    "rawOwnerInput": "V750通用款和V110成本差多少？",
+    "businessMemoHash": null,
+    "policyMemoHash": null,
+    "outcome": {
+      "pass": true,
+      "validEnvelope": true,
+      "declaredStatus": "COMPLETED",
+      "classification": "PASS",
+      "reason": "FORMAL_RECIPE_DIFFERENCE_REQUIRED",
+      "citedFactIds": [
+        "F-129",
+        "F-327",
+        "F-163",
+        "F-245"
+      ]
+    },
+    "classification": "PASS",
+    "safety": {
+      "wrongEntity": 0,
+      "wrongQuantity": 0,
+      "unknownAsZero": 0,
+      "partialAsComplete": 0,
+      "formalConflictSilentSelection": 0,
+      "write": 0
+    },
+    "declaredStatus": "COMPLETED",
+    "memoTimings": null,
+    "formalCalls": [],
+    "relevantApiCoverage": {
+      "requiredRelevantTools": [
+        "calculate_coil_cost",
+        "compare_recipe_scenarios",
+        "compare_recipes",
+        "explain_cost_change",
+        "get_all_recipes",
+        "get_copper_price",
+        "get_recipe_detail",
+        "get_recipe_parts",
+        "get_recipe_technical_files",
+        "get_recipe_technical_profile",
+        "get_recipes_by_coil",
+        "get_recipes_by_part",
+        "get_template_detail",
+        "preview_profitability",
+        "preview_virtual_readiness",
+        "search_factory_knowledge",
+        "search_templates"
+      ],
+      "executedRelevantTools": [
+        "compare_recipes",
+        "explain_cost_change",
+        "get_all_recipes",
+        "get_recipe_detail",
+        "get_recipe_technical_files",
+        "get_recipe_technical_profile",
+        "get_recipes_by_coil",
+        "get_template_detail",
+        "search_factory_knowledge",
+        "search_templates"
+      ],
+      "failedRelevantTools": [
+        "get_copper_price",
+        "get_recipe_parts",
+        "get_recipes_by_coil",
+        "get_template_detail"
+      ],
+      "blockedRelevantTools": [],
+      "missingRelevantTools": [],
+      "missingRelevantToolsAtFirstStop": [
+        "calculate_coil_cost",
+        "compare_recipe_scenarios",
+        "explain_cost_change",
+        "get_copper_price",
+        "get_recipe_parts",
+        "get_recipe_technical_files",
+        "get_recipe_technical_profile",
+        "get_recipes_by_coil",
+        "get_recipes_by_part",
+        "get_template_detail",
+        "preview_profitability",
+        "preview_virtual_readiness",
+        "search_templates"
+      ],
+      "coverageReviewResumed": 1,
+      "finalRelevantCoverage": true,
+      "selectedBusinessDomains": [
+        "cost",
+        "recipe"
+      ],
+      "domainApiSet": [
+        "calculate_coil_cost",
+        "compare_recipe_scenarios",
+        "compare_recipes",
+        "explain_cost_change",
+        "get_all_recipes",
+        "get_copper_price",
+        "get_recipe_detail",
+        "get_recipe_parts",
+        "get_recipe_technical_files",
+        "get_recipe_technical_profile",
+        "get_recipes_by_coil",
+        "get_recipes_by_part",
+        "get_template_detail",
+        "preview_profitability",
+        "preview_virtual_readiness",
+        "search_templates"
+      ],
+      "notApplicableDomainApis": [
+        {
+          "toolName": "calculate_coil_cost",
+          "reason": "MISSING_SAFE_INPUT",
+          "missingInput": "owner 明确指定的单一线圈方案与片数（本轮 owner 仅问两型号成本差，未要求对某个具体线圈按自定义线重或插值试算）",
+          "source": "owner request 未指定具体线圈方案或片数/线重试算参数"
+        },
+        {
+          "toolName": "compare_recipe_scenarios",
+          "reason": "MISSING_SAFE_INPUT",
+          "missingInput": "各候选配置的覆盖参数（线圈片数、电缆、包装零件身份、表面处理、转子工艺等）以及要比较的配方基础",
+          "source": "owner 未提出任何配置变更方案，仅做当前成本对比"
+        },
+        {
+          "toolName": "get_recipes_by_part",
+          "reason": "MISSING_SAFE_INPUT",
+          "missingInput": "确认的正式零件ID（本轮未解析任何具体零件的 canonical partId，且 owner 请求不涉及按零件反查配方）",
+          "source": "owner request 仅比较 V750通用款 与 V110 成本，未提及任何零件"
+        },
+        {
+          "toolName": "preview_profitability",
+          "reason": "MISSING_SAFE_INPUT",
+          "missingInput": "试算售价（unitPrice）与数量（quantity）",
+          "source": "owner 仅问成本差额，未提供任何售价或毛利试算输入"
+        },
+        {
+          "toolName": "preview_virtual_readiness",
+          "reason": "MISSING_SAFE_INPUT",
+          "missingInput": "要预览的生产数量（quantity）",
+          "source": "owner 请求为成本对比，未提出任何库存齐料或生产数量"
+        }
+      ],
+      "ragAuxiliarySearched": true
+    },
+    "metrics": {
+      "mainModelCalls": 12,
+      "loadToolsCalls": 0,
+      "resolveCalls": 5,
+      "businessToolCalls": 21,
+      "noNewEvidenceEvents": 0,
+      "duplicateFactsAvoided": 0,
+      "noProgressEvents": 0,
+      "completionReviewCalls": 1,
+      "completionReviewResumed": 0,
+      "relevantCoverageReviewResumed": 1,
+      "terminalOutcomeReviewCalls": 0,
+      "stoppingReasons": [
+        "RELEVANT_API_COVERAGE_INCOMPLETE",
+        "MODEL_READY_TO_ANSWER",
+        "COMPLETION_REVIEW_CONFIRMED"
+      ],
+      "loadedToolNames": [
+        "calculate_coil_cost",
+        "get_copper_price",
+        "search_factory_knowledge",
+        "explain_cost_change",
+        "get_all_recipes",
+        "get_recipe_detail",
+        "get_recipe_parts",
+        "get_recipe_technical_files",
+        "get_recipe_technical_profile",
+        "get_recipes_by_coil",
+        "get_recipes_by_part",
+        "get_template_detail",
+        "search_templates",
+        "compare_recipe_scenarios",
+        "compare_recipes",
+        "preview_profitability",
+        "preview_virtual_readiness"
+      ],
+      "relevantApiCoverage": {
+        "requiredRelevantTools": [
+          "calculate_coil_cost",
+          "compare_recipe_scenarios",
+          "compare_recipes",
+          "explain_cost_change",
+          "get_all_recipes",
+          "get_copper_price",
+          "get_recipe_detail",
+          "get_recipe_parts",
+          "get_recipe_technical_files",
+          "get_recipe_technical_profile",
+          "get_recipes_by_coil",
+          "get_recipes_by_part",
+          "get_template_detail",
+          "preview_profitability",
+          "preview_virtual_readiness",
+          "search_factory_knowledge",
+          "search_templates"
+        ],
+        "executedRelevantTools": [
+          "compare_recipes",
+          "explain_cost_change",
+          "get_all_recipes",
+          "get_recipe_detail",
+          "get_recipe_technical_files",
+          "get_recipe_technical_profile",
+          "get_recipes_by_coil",
+          "get_template_detail",
+          "search_factory_knowledge",
+          "search_templates"
+        ],
+        "failedRelevantTools": [
+          "get_copper_price",
+          "get_recipe_parts",
+          "get_recipes_by_coil",
+          "get_template_detail"
+        ],
+        "blockedRelevantTools": [],
+        "missingRelevantTools": [],
+        "missingRelevantToolsAtFirstStop": [
+          "calculate_coil_cost",
+          "compare_recipe_scenarios",
+          "explain_cost_change",
+          "get_copper_price",
+          "get_recipe_parts",
+          "get_recipe_technical_files",
+          "get_recipe_technical_profile",
+          "get_recipes_by_coil",
+          "get_recipes_by_part",
+          "get_template_detail",
+          "preview_profitability",
+          "preview_virtual_readiness",
+          "search_templates"
+        ],
+        "coverageReviewResumed": 1,
+        "finalRelevantCoverage": true,
+        "selectedBusinessDomains": [
+          "cost",
+          "recipe"
+        ],
+        "domainApiSet": [
+          "calculate_coil_cost",
+          "compare_recipe_scenarios",
+          "compare_recipes",
+          "explain_cost_change",
+          "get_all_recipes",
+          "get_copper_price",
+          "get_recipe_detail",
+          "get_recipe_parts",
+          "get_recipe_technical_files",
+          "get_recipe_technical_profile",
+          "get_recipes_by_coil",
+          "get_recipes_by_part",
+          "get_template_detail",
+          "preview_profitability",
+          "preview_virtual_readiness",
+          "search_templates"
+        ],
+        "notApplicableDomainApis": [
+          {
+            "toolName": "calculate_coil_cost",
+            "reason": "MISSING_SAFE_INPUT",
+            "missingInput": "owner 明确指定的单一线圈方案与片数（本轮 owner 仅问两型号成本差，未要求对某个具体线圈按自定义线重或插值试算）",
+            "source": "owner request 未指定具体线圈方案或片数/线重试算参数"
+          },
+          {
+            "toolName": "compare_recipe_scenarios",
+            "reason": "MISSING_SAFE_INPUT",
+            "missingInput": "各候选配置的覆盖参数（线圈片数、电缆、包装零件身份、表面处理、转子工艺等）以及要比较的配方基础",
+            "source": "owner 未提出任何配置变更方案，仅做当前成本对比"
+          },
+          {
+            "toolName": "get_recipes_by_part",
+            "reason": "MISSING_SAFE_INPUT",
+            "missingInput": "确认的正式零件ID（本轮未解析任何具体零件的 canonical partId，且 owner 请求不涉及按零件反查配方）",
+            "source": "owner request 仅比较 V750通用款 与 V110 成本，未提及任何零件"
+          },
+          {
+            "toolName": "preview_profitability",
+            "reason": "MISSING_SAFE_INPUT",
+            "missingInput": "试算售价（unitPrice）与数量（quantity）",
+            "source": "owner 仅问成本差额，未提供任何售价或毛利试算输入"
+          },
+          {
+            "toolName": "preview_virtual_readiness",
+            "reason": "MISSING_SAFE_INPUT",
+            "missingInput": "要预览的生产数量（quantity）",
+            "source": "owner 请求为成本对比，未提出任何库存齐料或生产数量"
+          }
+        ],
+        "ragAuxiliarySearched": true
+      },
+      "apiIndexFingerprint": "fd1047c4a2dc8ed8b9faa691676e2c2cfd652e74224c6fcda6747cf28b6b16e2",
+      "loadedSchemaFingerprint": "3015b885b29fe22766f7fed072e6ddfe0c51071bd8b70166ce7ca3e4922195a9"
+    },
+    "traces": [
+      {
+        "name": "select_business_domains",
+        "argKeys": [
+          "domains"
+        ],
+        "success": true,
+        "verified": false,
+        "code": null,
+        "factIds": [],
+        "noNewEvidence": false,
+        "controlPlane": true
+      },
+      {
+        "name": "resolve_entity",
+        "argKeys": [
+          "entityType",
+          "mention"
+        ],
+        "success": true,
+        "verified": true,
+        "code": null,
+        "factIds": [
+          "F-001"
+        ],
+        "noNewEvidence": false,
+        "controlPlane": false,
+        "businessExecution": true
+      },
+      {
+        "name": "resolve_entity",
+        "argKeys": [
+          "entityType",
+          "mention"
+        ],
+        "success": true,
+        "verified": true,
+        "code": null,
+        "factIds": [
+          "F-002"
+        ],
+        "noNewEvidence": false,
+        "controlPlane": false,
+        "businessExecution": true
+      },
+      {
+        "name": "get_all_recipes",
+        "argKeys": [
+          "keyword"
+        ],
+        "success": true,
+        "verified": true,
+        "code": null,
+        "factIds": [
+          "F-003",
+          "F-004",
+          "F-005",
+          "F-006",
+          "F-007",
+          "F-008",
+          "F-009",
+          "F-010",
+          "F-011",
+          "F-012",
+          "F-013",
+          "F-014",
+          "F-015",
+          "F-016",
+          "F-017",
+          "F-018",
+          "F-019",
+          "F-020",
+          "F-021",
+          "F-022",
+          "F-023",
+          "F-024",
+          "F-025",
+          "F-026",
+          "F-027",
+          "F-028",
+          "F-029",
+          "F-030",
+          "F-031",
+          "F-032",
+          "F-033",
+          "F-034",
+          "F-035",
+          "F-036",
+          "F-037",
+          "F-038",
+          "F-039",
+          "F-040",
+          "F-041",
+          "F-042",
+          "F-043",
+          "F-044",
+          "F-045",
+          "F-046",
+          "F-047",
+          "F-048",
+          "F-049",
+          "F-050",
+          "F-051",
+          "F-052",
+          "F-053",
+          "F-054",
+          "F-055",
+          "F-056",
+          "F-057",
+          "F-058",
+          "F-059",
+          "F-060",
+          "F-061",
+          "F-062",
+          "F-063",
+          "F-064",
+          "F-065",
+          "F-066",
+          "F-067",
+          "F-068",
+          "F-069",
+          "F-070",
+          "F-071",
+          "F-072",
+          "F-073",
+          "F-074",
+          "F-075",
+          "F-076",
+          "F-077",
+          "F-078",
+          "F-079",
+          "F-080",
+          "F-081",
+          "F-082",
+          "F-083"
+        ],
+        "noNewEvidence": false,
+        "controlPlane": false,
+        "declaredRelevant": true,
+        "businessExecution": true
+      },
+      {
+        "name": "get_all_recipes",
+        "argKeys": [
+          "keyword"
+        ],
+        "success": true,
+        "verified": true,
+        "code": null,
+        "factIds": [
+          "F-084",
+          "F-085",
+          "F-086",
+          "F-087",
+          "F-088",
+          "F-089",
+          "F-090",
+          "F-091",
+          "F-092",
+          "F-093",
+          "F-094",
+          "F-095",
+          "F-096",
+          "F-097",
+          "F-098",
+          "F-099",
+          "F-100",
+          "F-101",
+          "F-102",
+          "F-103",
+          "F-104",
+          "F-105",
+          "F-106",
+          "F-107",
+          "F-108",
+          "F-109",
+          "F-110",
+          "F-111",
+          "F-112",
+          "F-113",
+          "F-114",
+          "F-115",
+          "F-116",
+          "F-117",
+          "F-118",
+          "F-119",
+          "F-120",
+          "F-121",
+          "F-122",
+          "F-123",
+          "F-124"
+        ],
+        "noNewEvidence": false,
+        "controlPlane": false,
+        "declaredRelevant": true,
+        "businessExecution": true
+      },
+      {
+        "name": "search_factory_knowledge",
+        "argKeys": [
+          "query"
+        ],
+        "success": true,
+        "verified": true,
+        "code": null,
+        "factIds": [
+          "F-125",
+          "F-126",
+          "F-127"
+        ],
+        "noNewEvidence": false,
+        "controlPlane": false,
+        "declaredRelevant": true,
+        "businessExecution": true
+      },
+      {
+        "name": "compare_recipes",
+        "argKeys": [
+          "recipe1",
+          "recipe2"
+        ],
+        "success": true,
+        "verified": true,
+        "code": null,
+        "factIds": [
+          "F-128",
+          "F-129",
+          "F-130",
+          "F-131",
+          "F-132",
+          "F-133",
+          "F-134",
+          "F-135",
+          "F-136",
+          "F-137",
+          "F-138",
+          "F-139",
+          "F-140",
+          "F-141",
+          "F-142",
+          "F-143",
+          "F-144",
+          "F-145",
+          "F-146",
+          "F-147",
+          "F-148",
+          "F-149",
+          "F-150",
+          "F-151",
+          "F-152",
+          "F-153",
+          "F-154",
+          "F-155",
+          "F-156",
+          "F-157",
+          "F-158",
+          "F-159",
+          "F-160",
+          "F-161"
+        ],
+        "noNewEvidence": false,
+        "controlPlane": false,
+        "declaredRelevant": true,
+        "businessExecution": true
+      },
+      {
+        "name": "get_recipe_detail",
+        "argKeys": [
+          "includeCurrentCost",
+          "recipeId"
+        ],
+        "success": true,
+        "verified": true,
+        "code": null,
+        "factIds": [
+          "F-162",
+          "F-163",
+          "F-164",
+          "F-165",
+          "F-166",
+          "F-167",
+          "F-168",
+          "F-169",
+          "F-170",
+          "F-171",
+          "F-172",
+          "F-173",
+          "F-174",
+          "F-175",
+          "F-176",
+          "F-177",
+          "F-178",
+          "F-179",
+          "F-180",
+          "F-181",
+          "F-182",
+          "F-183",
+          "F-184",
+          "F-185",
+          "F-186",
+          "F-187",
+          "F-188",
+          "F-189",
+          "F-190",
+          "F-191",
+          "F-192",
+          "F-193",
+          "F-194",
+          "F-195",
+          "F-196",
+          "F-197",
+          "F-198",
+          "F-199",
+          "F-200",
+          "F-201",
+          "F-202",
+          "F-203",
+          "F-204",
+          "F-205",
+          "F-206",
+          "F-207",
+          "F-208",
+          "F-209",
+          "F-210",
+          "F-211",
+          "F-212",
+          "F-213",
+          "F-214",
+          "F-215",
+          "F-216",
+          "F-217",
+          "F-218",
+          "F-219",
+          "F-220",
+          "F-221",
+          "F-222",
+          "F-223",
+          "F-224",
+          "F-225",
+          "F-226",
+          "F-227",
+          "F-228",
+          "F-229",
+          "F-230",
+          "F-231",
+          "F-232",
+          "F-233",
+          "F-234",
+          "F-235",
+          "F-236",
+          "F-237",
+          "F-238",
+          "F-239",
+          "F-240",
+          "F-241",
+          "F-242",
+          "F-243"
+        ],
+        "noNewEvidence": false,
+        "controlPlane": false,
+        "declaredRelevant": true,
+        "businessExecution": true
+      },
+      {
+        "name": "get_recipe_detail",
+        "argKeys": [
+          "includeCurrentCost",
+          "recipeId"
+        ],
+        "success": true,
+        "verified": true,
+        "code": null,
+        "factIds": [
+          "F-244",
+          "F-245",
+          "F-246",
+          "F-247",
+          "F-248",
+          "F-249",
+          "F-250",
+          "F-251",
+          "F-252",
+          "F-253",
+          "F-254",
+          "F-255",
+          "F-256",
+          "F-257",
+          "F-258",
+          "F-259",
+          "F-260",
+          "F-261",
+          "F-262",
+          "F-263",
+          "F-264",
+          "F-265",
+          "F-266",
+          "F-267",
+          "F-268",
+          "F-269",
+          "F-270",
+          "F-271",
+          "F-272",
+          "F-273",
+          "F-274",
+          "F-275",
+          "F-276",
+          "F-277",
+          "F-278",
+          "F-279",
+          "F-280",
+          "F-281",
+          "F-282",
+          "F-283",
+          "F-284",
+          "F-285",
+          "F-286",
+          "F-287",
+          "F-288",
+          "F-289",
+          "F-290",
+          "F-291",
+          "F-292",
+          "F-293",
+          "F-294",
+          "F-295",
+          "F-296",
+          "F-297",
+          "F-298",
+          "F-299",
+          "F-300",
+          "F-301",
+          "F-302",
+          "F-303",
+          "F-304",
+          "F-305",
+          "F-306",
+          "F-307",
+          "F-308",
+          "F-309",
+          "F-310",
+          "F-311",
+          "F-312",
+          "F-313",
+          "F-314",
+          "F-315",
+          "F-316",
+          "F-317",
+          "F-318",
+          "F-319",
+          "F-320",
+          "F-321",
+          "F-322",
+          "F-323",
+          "F-324",
+          "F-325"
+        ],
+        "noNewEvidence": false,
+        "controlPlane": false,
+        "declaredRelevant": true,
+        "businessExecution": true
+      },
+      {
+        "name": "explain_cost_change",
+        "argKeys": [
+          "leftRecipeId",
+          "rightRecipeId"
+        ],
+        "success": true,
+        "verified": true,
+        "code": null,
+        "factIds": [
+          "F-326",
+          "F-327",
+          "F-328",
+          "F-329",
+          "F-330",
+          "F-331",
+          "F-332",
+          "F-333",
+          "F-334",
+          "F-335",
+          "F-336",
+          "F-337",
+          "F-338",
+          "F-339",
+          "F-340",
+          "F-341",
+          "F-342",
+          "F-343",
+          "F-344",
+          "F-345",
+          "F-346",
+          "F-347",
+          "F-348",
+          "F-349",
+          "F-350",
+          "F-351",
+          "F-352",
+          "F-353",
+          "F-354",
+          "F-355",
+          "F-356",
+          "F-357"
+        ],
+        "noNewEvidence": false,
+        "controlPlane": false,
+        "declaredRelevant": true,
+        "businessExecution": true
+      },
+      {
+        "name": "get_recipe_parts",
+        "argKeys": [
+          "recipeId"
+        ],
+        "success": false,
+        "verified": false,
+        "code": "CONTROLLED_READ_ONLY",
+        "factIds": [],
+        "noNewEvidence": false,
+        "controlPlane": false,
+        "declaredRelevant": true,
+        "businessExecution": false
+      },
+      {
+        "name": "get_recipe_parts",
+        "argKeys": [
+          "recipeId"
+        ],
+        "success": false,
+        "verified": false,
+        "code": "CONTROLLED_READ_ONLY",
+        "factIds": [],
+        "noNewEvidence": false,
+        "controlPlane": false,
+        "declaredRelevant": true,
+        "businessExecution": false
+      },
+      {
+        "name": "get_copper_price",
+        "argKeys": [],
+        "success": false,
+        "verified": false,
+        "code": "market_snapshot_unavailable",
+        "factIds": [],
+        "noNewEvidence": false,
+        "controlPlane": false,
+        "declaredRelevant": true,
+        "businessExecution": false
+      },
+      {
+        "name": "get_recipe_technical_profile",
+        "argKeys": [
+          "recipeId"
+        ],
+        "success": true,
+        "verified": true,
+        "code": null,
+        "factIds": [
+          "F-358",
+          "F-359",
+          "F-360",
+          "F-361",
+          "F-362",
+          "F-363",
+          "F-364",
+          "F-365",
+          "F-366",
+          "F-367",
+          "F-368",
+          "F-369",
+          "F-370",
+          "F-371",
+          "F-372",
+          "F-373",
+          "F-374",
+          "F-375"
+        ],
+        "noNewEvidence": false,
+        "controlPlane": false,
+        "declaredRelevant": true,
+        "businessExecution": true
+      },
+      {
+        "name": "get_recipe_technical_profile",
+        "argKeys": [
+          "recipeId"
+        ],
+        "success": true,
+        "verified": true,
+        "code": null,
+        "factIds": [
+          "F-376",
+          "F-377",
+          "F-378",
+          "F-379",
+          "F-380",
+          "F-381",
+          "F-382",
+          "F-383",
+          "F-384",
+          "F-385",
+          "F-386",
+          "F-387",
+          "F-388",
+          "F-389",
+          "F-390",
+          "F-391",
+          "F-392",
+          "F-393"
+        ],
+        "noNewEvidence": false,
+        "controlPlane": false,
+        "declaredRelevant": true,
+        "businessExecution": true
+      },
+      {
+        "name": "get_recipe_technical_files",
+        "argKeys": [
+          "recipeId"
+        ],
+        "success": true,
+        "verified": true,
+        "code": null,
+        "factIds": [
+          "F-394",
+          "F-395",
+          "F-396",
+          "F-397",
+          "F-398",
+          "F-399",
+          "F-400",
+          "F-401",
+          "F-402",
+          "F-403",
+          "F-404"
+        ],
+        "noNewEvidence": false,
+        "controlPlane": false,
+        "declaredRelevant": true,
+        "businessExecution": true
+      },
+      {
+        "name": "get_recipe_technical_files",
+        "argKeys": [
+          "recipeId"
+        ],
+        "success": true,
+        "verified": true,
+        "code": null,
+        "factIds": [
+          "F-405",
+          "F-406",
+          "F-407",
+          "F-408",
+          "F-409",
+          "F-410",
+          "F-411",
+          "F-412",
+          "F-413",
+          "F-414",
+          "F-415"
+        ],
+        "noNewEvidence": false,
+        "controlPlane": false,
+        "declaredRelevant": true,
+        "businessExecution": true
+      },
+      {
+        "name": "search_templates",
+        "argKeys": [
+          "shellModel"
+        ],
+        "success": true,
+        "verified": true,
+        "code": null,
+        "factIds": [
+          "F-416",
+          "F-417",
+          "F-418",
+          "F-419",
+          "F-420",
+          "F-421",
+          "F-422",
+          "F-423",
+          "F-424",
+          "F-425",
+          "F-426",
+          "F-427",
+          "F-428",
+          "F-429",
+          "F-430",
+          "F-431",
+          "F-432",
+          "F-433",
+          "F-434",
+          "F-435",
+          "F-436",
+          "F-437",
+          "F-438",
+          "F-439",
+          "F-440",
+          "F-441",
+          "F-442"
+        ],
+        "noNewEvidence": false,
+        "controlPlane": false,
+        "declaredRelevant": true,
+        "businessExecution": true
+      },
+      {
+        "name": "get_template_detail",
+        "argKeys": [
+          "templateId"
+        ],
+        "success": false,
+        "verified": false,
+        "code": "AGENT_TOOL_IDENTITY_UNVERIFIED",
+        "factIds": [],
+        "noNewEvidence": false,
+        "controlPlane": false,
+        "declaredRelevant": true,
+        "businessExecution": false
+      },
+      {
+        "name": "get_recipes_by_coil",
+        "argKeys": [
+          "coilId"
+        ],
+        "success": false,
+        "verified": false,
+        "code": "AGENT_TOOL_IDENTITY_UNVERIFIED",
+        "factIds": [],
+        "noNewEvidence": false,
+        "controlPlane": false,
+        "declaredRelevant": true,
+        "businessExecution": false
+      },
+      {
+        "name": "get_recipes_by_coil",
+        "argKeys": [
+          "coilId"
+        ],
+        "success": false,
+        "verified": false,
+        "code": "AGENT_TOOL_IDENTITY_UNVERIFIED",
+        "factIds": [],
+        "noNewEvidence": false,
+        "controlPlane": false,
+        "declaredRelevant": true,
+        "businessExecution": false
+      },
+      {
+        "name": "mark_domain_api_not_applicable",
+        "argKeys": [
+          "missingInput",
+          "reason",
+          "source",
+          "toolName"
+        ],
+        "success": true,
+        "verified": false,
+        "code": null,
+        "factIds": [],
+        "noNewEvidence": false,
+        "controlPlane": true
+      },
+      {
+        "name": "mark_domain_api_not_applicable",
+        "argKeys": [
+          "missingInput",
+          "reason",
+          "source",
+          "toolName"
+        ],
+        "success": true,
+        "verified": false,
+        "code": null,
+        "factIds": [],
+        "noNewEvidence": false,
+        "controlPlane": true
+      },
+      {
+        "name": "mark_domain_api_not_applicable",
+        "argKeys": [
+          "missingInput",
+          "reason",
+          "source",
+          "toolName"
+        ],
+        "success": true,
+        "verified": false,
+        "code": null,
+        "factIds": [],
+        "noNewEvidence": false,
+        "controlPlane": true
+      },
+      {
+        "name": "mark_domain_api_not_applicable",
+        "argKeys": [
+          "missingInput",
+          "reason",
+          "source",
+          "toolName"
+        ],
+        "success": true,
+        "verified": false,
+        "code": null,
+        "factIds": [],
+        "noNewEvidence": false,
+        "controlPlane": true
+      },
+      {
+        "name": "mark_domain_api_not_applicable",
+        "argKeys": [
+          "missingInput",
+          "reason",
+          "source",
+          "toolName"
+        ],
+        "success": true,
+        "verified": false,
+        "code": null,
+        "factIds": [],
+        "noNewEvidence": false,
+        "controlPlane": true
+      },
+      {
+        "name": "resolve_entity",
+        "argKeys": [
+          "entityType",
+          "mention"
+        ],
+        "success": true,
+        "verified": true,
+        "code": null,
+        "factIds": [
+          "F-443"
+        ],
+        "noNewEvidence": false,
+        "controlPlane": false,
+        "businessExecution": true
+      },
+      {
+        "name": "resolve_entity",
+        "argKeys": [
+          "entityType",
+          "mention"
+        ],
+        "success": true,
+        "verified": true,
+        "code": null,
+        "factIds": [
+          "F-444"
+        ],
+        "noNewEvidence": false,
+        "controlPlane": false,
+        "businessExecution": true
+      },
+      {
+        "name": "resolve_entity",
+        "argKeys": [
+          "entityType",
+          "mention"
+        ],
+        "success": true,
+        "verified": true,
+        "code": null,
+        "factIds": [
+          "F-445"
+        ],
+        "noNewEvidence": false,
+        "controlPlane": false,
+        "businessExecution": true
+      },
+      {
+        "name": "get_template_detail",
+        "argKeys": [
+          "templateId"
+        ],
+        "success": true,
+        "verified": true,
+        "code": null,
+        "factIds": [
+          "F-446",
+          "F-447",
+          "F-448",
+          "F-449",
+          "F-450",
+          "F-451",
+          "F-452",
+          "F-453",
+          "F-454",
+          "F-455",
+          "F-456",
+          "F-457",
+          "F-458",
+          "F-459",
+          "F-460",
+          "F-461",
+          "F-462",
+          "F-463",
+          "F-464",
+          "F-465",
+          "F-466",
+          "F-467",
+          "F-468",
+          "F-469",
+          "F-470",
+          "F-471",
+          "F-472",
+          "F-473",
+          "F-474",
+          "F-475",
+          "F-476",
+          "F-477",
+          "F-478",
+          "F-479"
+        ],
+        "noNewEvidence": false,
+        "controlPlane": false,
+        "declaredRelevant": true,
+        "businessExecution": true
+      },
+      {
+        "name": "get_recipes_by_coil",
+        "argKeys": [
+          "coilId"
+        ],
+        "success": true,
+        "verified": true,
+        "code": null,
+        "factIds": [
+          "F-480",
+          "F-481",
+          "F-482"
+        ],
+        "noNewEvidence": false,
+        "controlPlane": false,
+        "declaredRelevant": true,
+        "businessExecution": true
+      },
+      {
+        "name": "get_recipes_by_coil",
+        "argKeys": [
+          "coilId"
+        ],
+        "success": true,
+        "verified": true,
+        "code": null,
+        "factIds": [
+          "F-483",
+          "F-484",
+          "F-485"
+        ],
+        "noNewEvidence": false,
+        "controlPlane": false,
+        "declaredRelevant": true,
+        "businessExecution": true
+      }
+    ],
+    "formalOutcomeReceipts": [],
+    "finalizationAttempts": [
+      {
+        "attempt": 1,
+        "code": "MONEY_CLAIM_BINDING_MISMATCH",
+        "detail": {
+          "claimText": "差额来自线圈转子一项：V750-通用款 使用 12-120-A 线圈，V110-通用款 使用 12-130-A 线圈，其余两项成本一致，因此差额为 10.00 元。",
+          "amount": 10,
+          "detectedClaimType": "DIFFERENCE_AMOUNT",
+          "citedFactIds": [
+            "F-149",
+            "F-373",
+            "F-391"
+          ],
+          "compatibleFactIds": [
+            "F-129",
+            "F-327"
+          ],
+          "reason": "MISSING_DIFFERENCE_FACT"
+        },
+        "valid": false,
+        "raw": "{\"answer\":\"按当前正式成本口径（当日完整成本），V110-通用款 比 V750-通用款 贵 10.00 元/台（差额以 V110 减 V750 计）。\\n\\nV750-通用款 的当前成本为 224 元/台。\\nV110-通用款 的当前成本为 234 元/台。\\n\\n差额来自线圈转子一项：V750-通用款 使用 12-120-A 线圈，V110-通用款 使用 12-130-A 线圈，其余两项成本一致，因此差额为 10.00 元。\",\"claims\":[{\"text\":\"按当前正式成本口径（当日完整成本），V110-通用款 比 V750-通用款 贵 10.00 元/台（差额以 V110 减 V750 计）。\",\"factIds\":[\"F-129\",\"F-327\",\"F-143\"]},{\"text\":\"V750-通用款 的当前成本为 224 元/台。\",\"factIds\":[\"F-163\"]},{\"text\":\"V110-通用款 的当前成本为 234 元/台。\",\"factIds\":[\"F-245\"]},{\"text\":\"差额来自线圈转子一项：V750-通用款 使用 12-120-A 线圈，V110-通用款 使用 12-130-A 线圈，其余两项成本一致，因此差额为 10.00 元。\",\"factIds\":[\"F-149\",\"F-373\",\"F-391\"]}],\"goals\":[{\"questionIndex\":0,\"status\":\"COMPLETED\",\"factIds\":[\"F-129\",\"F-143\",\"F-163\",\"F-245\",\"F-327\"]}]}"
+      },
+      {
+        "attempt": 2,
+        "code": "ANSWER_VERIFIED",
+        "detail": null,
+        "valid": true,
+        "raw": "{\"answer\":\"按当前正式成本口径，V110-通用款 比 V750-通用款 贵 10.00 元/台。\\nV750-通用款 的当前成本为 224 元/台。\\nV110-通用款 的当前成本为 234 元/台。\",\"claims\":[{\"text\":\"按当前正式成本口径，V110-通用款 比 V750-通用款 贵 10.00 元/台。\",\"factIds\":[\"F-129\",\"F-327\"]},{\"text\":\"V750-通用款 的当前成本为 224 元/台。\",\"factIds\":[\"F-163\"]},{\"text\":\"V110-通用款 的当前成本为 234 元/台。\",\"factIds\":[\"F-245\"]}],\"goals\":[{\"questionIndex\":0,\"status\":\"COMPLETED\",\"factIds\":[\"F-129\",\"F-163\",\"F-245\",\"F-327\"]}]}"
+      }
+    ],
+    "answerValidation": {
+      "valid": true,
+      "answer": "按当前正式成本口径，V110-通用款 比 V750-通用款 贵 10.00 元/台。\nV750-通用款 的当前成本为 224 元/台。\nV110-通用款 的当前成本为 234 元/台。",
+      "claims": [
+        {
+          "text": "按当前正式成本口径，V110-通用款 比 V750-通用款 贵 10.00 元/台。",
+          "factIds": [
+            "F-129",
+            "F-327"
+          ]
+        },
+        {
+          "text": "V750-通用款 的当前成本为 224 元/台。",
+          "factIds": [
+            "F-163"
+          ]
+        },
+        {
+          "text": "V110-通用款 的当前成本为 234 元/台。",
+          "factIds": [
+            "F-245"
+          ]
+        }
+      ],
+      "goals": [
+        {
+          "questionIndex": 0,
+          "status": "COMPLETED",
+          "factIds": [
+            "F-129",
+            "F-163",
+            "F-245",
+            "F-327"
+          ]
+        }
+      ],
+      "code": "ANSWER_VERIFIED"
+    },
+    "context": {
+      "rawOwnerInputTokensEst": 10,
+      "businessMemoTokensEst": 617,
+      "policyMemoTokensEst": 277,
+      "ontologyContextTokensEst": 142,
+      "apiIndexTokensEst": 4883,
+      "loadedSchemaTokensEst": 4714,
+      "factCatalogChars": 11292,
+      "factCatalogFactCount": 64,
+      "totalApproxContextTokens": 26469
+    },
+    "durationMs": 27718,
+    "domainRuntime": {
+      "selectedBusinessDomains": [
+        "cost",
+        "recipe"
+      ],
+      "domainApiSet": [
+        "calculate_coil_cost",
+        "compare_recipe_scenarios",
+        "compare_recipes",
+        "explain_cost_change",
+        "get_all_recipes",
+        "get_copper_price",
+        "get_recipe_detail",
+        "get_recipe_parts",
+        "get_recipe_technical_files",
+        "get_recipe_technical_profile",
+        "get_recipes_by_coil",
+        "get_recipes_by_part",
+        "get_template_detail",
+        "preview_profitability",
+        "preview_virtual_readiness",
+        "search_templates"
+      ],
+      "executedDomainApis": [
+        "compare_recipes",
+        "explain_cost_change",
+        "get_all_recipes",
+        "get_recipe_detail",
+        "get_recipe_technical_files",
+        "get_recipe_technical_profile",
+        "get_recipes_by_coil",
+        "get_template_detail",
+        "search_templates"
+      ],
+      "failedDomainApis": [
+        "get_copper_price",
+        "get_recipe_parts"
+      ],
+      "blockedDomainApis": [],
+      "notApplicableDomainApis": [
+        {
+          "toolName": "calculate_coil_cost",
+          "terminalState": "NOT_APPLICABLE",
+          "reason": "MISSING_SAFE_INPUT",
+          "missingInput": "owner 明确指定的单一线圈方案与片数（本轮 owner 仅问两型号成本差，未要求对某个具体线圈按自定义线重或插值试算）",
+          "source": "owner request 未指定具体线圈方案或片数/线重试算参数"
+        },
+        {
+          "toolName": "compare_recipe_scenarios",
+          "terminalState": "NOT_APPLICABLE",
+          "reason": "MISSING_SAFE_INPUT",
+          "missingInput": "各候选配置的覆盖参数（线圈片数、电缆、包装零件身份、表面处理、转子工艺等）以及要比较的配方基础",
+          "source": "owner 未提出任何配置变更方案，仅做当前成本对比"
+        },
+        {
+          "toolName": "get_recipes_by_part",
+          "terminalState": "NOT_APPLICABLE",
+          "reason": "MISSING_SAFE_INPUT",
+          "missingInput": "确认的正式零件ID（本轮未解析任何具体零件的 canonical partId，且 owner 请求不涉及按零件反查配方）",
+          "source": "owner request 仅比较 V750通用款 与 V110 成本，未提及任何零件"
+        },
+        {
+          "toolName": "preview_profitability",
+          "terminalState": "NOT_APPLICABLE",
+          "reason": "MISSING_SAFE_INPUT",
+          "missingInput": "试算售价（unitPrice）与数量（quantity）",
+          "source": "owner 仅问成本差额，未提供任何售价或毛利试算输入"
+        },
+        {
+          "toolName": "preview_virtual_readiness",
+          "terminalState": "NOT_APPLICABLE",
+          "reason": "MISSING_SAFE_INPUT",
+          "missingInput": "要预览的生产数量（quantity）",
+          "source": "owner 请求为成本对比，未提出任何库存齐料或生产数量"
+        }
+      ],
+      "missingDomainApis": [],
+      "apiTerminalStates": [
+        {
+          "toolName": "calculate_coil_cost",
+          "terminalState": "NOT_APPLICABLE",
+          "reason": "MISSING_SAFE_INPUT",
+          "missingInput": "owner 明确指定的单一线圈方案与片数（本轮 owner 仅问两型号成本差，未要求对某个具体线圈按自定义线重或插值试算）",
+          "source": "owner request 未指定具体线圈方案或片数/线重试算参数"
+        },
+        {
+          "toolName": "compare_recipe_scenarios",
+          "terminalState": "NOT_APPLICABLE",
+          "reason": "MISSING_SAFE_INPUT",
+          "missingInput": "各候选配置的覆盖参数（线圈片数、电缆、包装零件身份、表面处理、转子工艺等）以及要比较的配方基础",
+          "source": "owner 未提出任何配置变更方案，仅做当前成本对比"
+        },
+        {
+          "toolName": "compare_recipes",
+          "terminalState": "EXECUTED"
+        },
+        {
+          "toolName": "explain_cost_change",
+          "terminalState": "EXECUTED"
+        },
+        {
+          "toolName": "get_all_recipes",
+          "terminalState": "EXECUTED"
+        },
+        {
+          "toolName": "get_copper_price",
+          "terminalState": "FAILED"
+        },
+        {
+          "toolName": "get_recipe_detail",
+          "terminalState": "EXECUTED"
+        },
+        {
+          "toolName": "get_recipe_parts",
+          "terminalState": "FAILED"
+        },
+        {
+          "toolName": "get_recipe_technical_files",
+          "terminalState": "EXECUTED"
+        },
+        {
+          "toolName": "get_recipe_technical_profile",
+          "terminalState": "EXECUTED"
+        },
+        {
+          "toolName": "get_recipes_by_coil",
+          "terminalState": "EXECUTED"
+        },
+        {
+          "toolName": "get_recipes_by_part",
+          "terminalState": "NOT_APPLICABLE",
+          "reason": "MISSING_SAFE_INPUT",
+          "missingInput": "确认的正式零件ID（本轮未解析任何具体零件的 canonical partId，且 owner 请求不涉及按零件反查配方）",
+          "source": "owner request 仅比较 V750通用款 与 V110 成本，未提及任何零件"
+        },
+        {
+          "toolName": "get_template_detail",
+          "terminalState": "EXECUTED"
+        },
+        {
+          "toolName": "preview_profitability",
+          "terminalState": "NOT_APPLICABLE",
+          "reason": "MISSING_SAFE_INPUT",
+          "missingInput": "试算售价（unitPrice）与数量（quantity）",
+          "source": "owner 仅问成本差额，未提供任何售价或毛利试算输入"
+        },
+        {
+          "toolName": "preview_virtual_readiness",
+          "terminalState": "NOT_APPLICABLE",
+          "reason": "MISSING_SAFE_INPUT",
+          "missingInput": "要预览的生产数量（quantity）",
+          "source": "owner 请求为成本对比，未提出任何库存齐料或生产数量"
+        },
+        {
+          "toolName": "search_templates",
+          "terminalState": "EXECUTED"
+        }
+      ],
+      "finalDomainCoverage": true,
+      "domainCoverageReviewResumed": 1,
+      "domainDeclarationCount": 1,
+      "rag": {
+        "ragSearchRequired": true,
+        "ragSearchExecuted": true,
+        "ragSearchTool": "search_factory_knowledge",
+        "ragReturnedCount": 0,
+        "ragEmpty": true,
+        "ragEvidenceFactIds": [
+          "F-126"
+        ],
+        "ragProvenance": "knowledge_snapshot"
+      }
+    },
+    "ownerInputHash": "25ce686937f46c14b93334de8a19036faf5fd87b2e75a15c92d1e63b5d105c6f",
+    "caseKind": null,
+    "domainCoverageScore": {
+      "expectedDomainApiSet": [
+        "calculate_coil_cost",
+        "compare_recipe_scenarios",
+        "compare_recipes",
+        "explain_cost_change",
+        "get_all_recipes",
+        "get_copper_price",
+        "get_recipe_detail",
+        "get_recipe_parts",
+        "get_recipe_technical_files",
+        "get_recipe_technical_profile",
+        "get_recipes_by_coil",
+        "get_recipes_by_part",
+        "get_template_detail",
+        "preview_profitability",
+        "preview_virtual_readiness",
+        "search_templates"
+      ],
+      "missingDomainApis": [],
+      "writeInDomainSet": [],
+      "invalidNotApplicable": [],
+      "applicableExecutionCoverage": 0.8181818181818182
+    },
+    "ragObservation": {
+      "ragSearchRequired": true,
+      "ragSearchExecuted": true,
+      "ragSearchTool": "search_factory_knowledge",
+      "ragReturnedCount": 0,
+      "ragEmpty": true,
+      "ragEvidenceFactIds": [
+        "F-126"
+      ],
+      "ragProvenance": "knowledge_snapshot"
+    },
+    "ragAuthorityScore": null,
+    "answerRelevance": null,
+    "semanticPass": true
+  },
+  "semanticPass": true,
+  "database": {
+    "beforeHash": "f51ff5d41161f2c5c93187b415bd4b7d65dfa019b10e4426f24005fd3955e80e",
+    "afterHash": "f51ff5d41161f2c5c93187b415bd4b7d65dfa019b10e4426f24005fd3955e80e",
+    "changedTables": [],
+    "mutations": 0
+  },
+  "durationMs": 31451,
+  "completedAt": "2026-10-05T03:59:29.359Z",
+  "secretScan": "PASS"
+}

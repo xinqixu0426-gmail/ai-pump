@@ -1,0 +1,562 @@
+{
+  "suite": "targeted",
+  "batchRunId": "r6launchr2-targeted-20261005-01",
+  "caseKey": "PENDING_PURCHASE-01",
+  "caseId": "PENDING_PURCHASE",
+  "runNumber": 1,
+  "ownerInputHash": "d3254c2bd4134fe04b61fb1b73052abaf7c3f1ad2ee76ba345025e9da038ad08",
+  "productFreezeCommit": "65f5cf5380bc460a032b904bb032c4bf18a1ca76",
+  "harnessFreezeCommit": "39d0f3a2cc862ac632f901c5c2b24982d2610dc7",
+  "result": {
+    "runId": "PENDING_PURCHASE-1",
+    "caseId": "PENDING_PURCHASE",
+    "runNumber": 1,
+    "rawOwnerInput": "采购总览里所有待处理物料有哪些？",
+    "businessMemoHash": null,
+    "policyMemoHash": null,
+    "outcome": {
+      "pass": false,
+      "validEnvelope": true,
+      "declaredStatus": "CLARIFICATION",
+      "classification": "AGENT_RELIABILITY_FAILURE",
+      "reason": "VERIFIED_PENDING_PURCHASE_COLLECTION_REQUIRED"
+    },
+    "classification": "AGENT_RELIABILITY_FAILURE",
+    "safety": {
+      "wrongEntity": 0,
+      "wrongQuantity": 0,
+      "unknownAsZero": 0,
+      "partialAsComplete": 0,
+      "formalConflictSilentSelection": 0,
+      "write": 0
+    },
+    "declaredStatus": "CLARIFICATION",
+    "memoTimings": null,
+    "formalCalls": [],
+    "relevantApiCoverage": {
+      "requiredRelevantTools": [
+        "get_factory_knowledge_detail",
+        "get_order_knowledge_package",
+        "get_purchase_overview",
+        "search_factory_knowledge",
+        "search_parts"
+      ],
+      "executedRelevantTools": [
+        "get_purchase_overview",
+        "search_factory_knowledge",
+        "search_parts"
+      ],
+      "failedRelevantTools": [],
+      "blockedRelevantTools": [],
+      "missingRelevantTools": [],
+      "missingRelevantToolsAtFirstStop": [
+        "get_factory_knowledge_detail",
+        "get_order_knowledge_package"
+      ],
+      "coverageReviewResumed": 1,
+      "finalRelevantCoverage": true,
+      "selectedBusinessDomains": [
+        "catalog",
+        "knowledge",
+        "procurement"
+      ],
+      "domainApiSet": [
+        "get_factory_knowledge_detail",
+        "get_order_knowledge_package",
+        "get_purchase_overview",
+        "search_parts"
+      ],
+      "notApplicableDomainApis": [
+        {
+          "toolName": "get_factory_knowledge_detail",
+          "reason": "MISSING_SAFE_INPUT",
+          "missingInput": "知识条目 id（知识库搜索两次均返回 0 条，未产生任何可用的条目ID）",
+          "source": "search_factory_knowledge 返回 totalCount=0（F-079、F-082）"
+        },
+        {
+          "toolName": "get_order_knowledge_package",
+          "reason": "FORMAL_IDENTITY_UNAVAILABLE",
+          "missingInput": "正式订单ID或可唯一解析的订单查询（owner 未提供订单ID/客户名/合同号，采购总览中的物料名称无法唯一解析为订单）",
+          "source": "resolve_entity(order) 对“D1-R1轴承-202”返回 NOT_FOUND（F-082）"
+        }
+      ],
+      "ragAuxiliarySearched": true
+    },
+    "metrics": {
+      "mainModelCalls": 8,
+      "loadToolsCalls": 1,
+      "resolveCalls": 1,
+      "businessToolCalls": 4,
+      "noNewEvidenceEvents": 1,
+      "duplicateFactsAvoided": 1,
+      "noProgressEvents": 0,
+      "completionReviewCalls": 1,
+      "completionReviewResumed": 0,
+      "relevantCoverageReviewResumed": 1,
+      "terminalOutcomeReviewCalls": 0,
+      "stoppingReasons": [
+        "RELEVANT_API_COVERAGE_INCOMPLETE",
+        "MODEL_READY_TO_ANSWER",
+        "COMPLETION_REVIEW_CONFIRMED"
+      ],
+      "loadedToolNames": [
+        "search_parts",
+        "get_factory_knowledge_detail",
+        "search_factory_knowledge",
+        "get_order_knowledge_package",
+        "get_purchase_overview"
+      ],
+      "relevantApiCoverage": {
+        "requiredRelevantTools": [
+          "get_factory_knowledge_detail",
+          "get_order_knowledge_package",
+          "get_purchase_overview",
+          "search_factory_knowledge",
+          "search_parts"
+        ],
+        "executedRelevantTools": [
+          "get_purchase_overview",
+          "search_factory_knowledge",
+          "search_parts"
+        ],
+        "failedRelevantTools": [],
+        "blockedRelevantTools": [],
+        "missingRelevantTools": [],
+        "missingRelevantToolsAtFirstStop": [
+          "get_factory_knowledge_detail",
+          "get_order_knowledge_package"
+        ],
+        "coverageReviewResumed": 1,
+        "finalRelevantCoverage": true,
+        "selectedBusinessDomains": [
+          "catalog",
+          "knowledge",
+          "procurement"
+        ],
+        "domainApiSet": [
+          "get_factory_knowledge_detail",
+          "get_order_knowledge_package",
+          "get_purchase_overview",
+          "search_parts"
+        ],
+        "notApplicableDomainApis": [
+          {
+            "toolName": "get_factory_knowledge_detail",
+            "reason": "MISSING_SAFE_INPUT",
+            "missingInput": "知识条目 id（知识库搜索两次均返回 0 条，未产生任何可用的条目ID）",
+            "source": "search_factory_knowledge 返回 totalCount=0（F-079、F-082）"
+          },
+          {
+            "toolName": "get_order_knowledge_package",
+            "reason": "FORMAL_IDENTITY_UNAVAILABLE",
+            "missingInput": "正式订单ID或可唯一解析的订单查询（owner 未提供订单ID/客户名/合同号，采购总览中的物料名称无法唯一解析为订单）",
+            "source": "resolve_entity(order) 对“D1-R1轴承-202”返回 NOT_FOUND（F-082）"
+          }
+        ],
+        "ragAuxiliarySearched": true
+      },
+      "apiIndexFingerprint": "fd1047c4a2dc8ed8b9faa691676e2c2cfd652e74224c6fcda6747cf28b6b16e2",
+      "loadedSchemaFingerprint": "c8409d133e087c241cc635d0849f16e3d3009782097aa48f625176e5dd8a9ecf"
+    },
+    "traces": [
+      {
+        "name": "select_business_domains",
+        "argKeys": [
+          "domains"
+        ],
+        "success": true,
+        "verified": false,
+        "code": null,
+        "factIds": [],
+        "noNewEvidence": false,
+        "controlPlane": true
+      },
+      {
+        "name": "load_tools",
+        "argKeys": [
+          "toolNames"
+        ],
+        "success": true,
+        "verified": false,
+        "code": null,
+        "factIds": [],
+        "noNewEvidence": false,
+        "controlPlane": true
+      },
+      {
+        "name": "get_purchase_overview",
+        "argKeys": [
+          "pendingOnly"
+        ],
+        "success": true,
+        "verified": true,
+        "code": null,
+        "factIds": [
+          "F-001",
+          "F-002",
+          "F-003",
+          "F-004",
+          "F-005",
+          "F-006",
+          "F-007",
+          "F-008",
+          "F-009",
+          "F-010",
+          "F-011",
+          "F-012",
+          "F-013",
+          "F-014",
+          "F-015",
+          "F-016",
+          "F-017",
+          "F-018",
+          "F-019",
+          "F-020",
+          "F-021",
+          "F-022",
+          "F-023",
+          "F-024",
+          "F-025",
+          "F-026",
+          "F-027",
+          "F-028",
+          "F-029",
+          "F-030",
+          "F-031",
+          "F-032",
+          "F-033",
+          "F-034",
+          "F-035",
+          "F-036",
+          "F-037",
+          "F-038",
+          "F-039",
+          "F-040",
+          "F-041",
+          "F-042",
+          "F-043",
+          "F-044",
+          "F-045",
+          "F-046",
+          "F-047",
+          "F-048",
+          "F-049",
+          "F-050",
+          "F-051",
+          "F-052",
+          "F-053",
+          "F-054",
+          "F-055"
+        ],
+        "noNewEvidence": false,
+        "controlPlane": false,
+        "declaredRelevant": true,
+        "businessExecution": true
+      },
+      {
+        "name": "search_parts",
+        "argKeys": [
+          "limit",
+          "stockStatus"
+        ],
+        "success": true,
+        "verified": true,
+        "code": null,
+        "factIds": [
+          "F-056",
+          "F-057",
+          "F-058",
+          "F-059",
+          "F-060",
+          "F-061",
+          "F-062",
+          "F-063",
+          "F-064",
+          "F-065",
+          "F-066",
+          "F-067",
+          "F-068",
+          "F-069",
+          "F-070",
+          "F-071",
+          "F-072",
+          "F-073",
+          "F-074",
+          "F-075",
+          "F-076",
+          "F-077",
+          "F-078"
+        ],
+        "noNewEvidence": false,
+        "controlPlane": false,
+        "declaredRelevant": true,
+        "businessExecution": true
+      },
+      {
+        "name": "search_factory_knowledge",
+        "argKeys": [
+          "query"
+        ],
+        "success": true,
+        "verified": true,
+        "code": null,
+        "factIds": [
+          "F-079",
+          "F-080",
+          "F-081"
+        ],
+        "noNewEvidence": false,
+        "controlPlane": false,
+        "declaredRelevant": true,
+        "businessExecution": true
+      },
+      {
+        "name": "resolve_entity",
+        "argKeys": [
+          "entityType",
+          "mention"
+        ],
+        "success": false,
+        "verified": false,
+        "code": "ENTITY_NOT_FOUND",
+        "factIds": [
+          "F-082"
+        ],
+        "noNewEvidence": false,
+        "controlPlane": false,
+        "businessExecution": false
+      },
+      {
+        "name": "search_factory_knowledge",
+        "argKeys": [
+          "query"
+        ],
+        "success": true,
+        "verified": true,
+        "code": null,
+        "factIds": [],
+        "noNewEvidence": true,
+        "controlPlane": false,
+        "declaredRelevant": true,
+        "businessExecution": true
+      },
+      {
+        "name": "mark_domain_api_not_applicable",
+        "argKeys": [
+          "missingInput",
+          "reason",
+          "source",
+          "toolName"
+        ],
+        "success": true,
+        "verified": false,
+        "code": null,
+        "factIds": [],
+        "noNewEvidence": false,
+        "controlPlane": true
+      },
+      {
+        "name": "mark_domain_api_not_applicable",
+        "argKeys": [
+          "missingInput",
+          "reason",
+          "source",
+          "toolName"
+        ],
+        "success": true,
+        "verified": false,
+        "code": null,
+        "factIds": [],
+        "noNewEvidence": false,
+        "controlPlane": true
+      }
+    ],
+    "formalOutcomeReceipts": [],
+    "finalizationAttempts": [
+      {
+        "attempt": 1,
+        "code": "ANSWER_VERIFIED",
+        "detail": null,
+        "valid": true,
+        "raw": "{\"answer\":\"公司正式业务模型中并没有定义“采购总览”这一业务对象，也没有“待处理物料”这一状态概念。\",\"claims\":[{\"text\":\"公司正式业务模型中并没有定义“采购总览”这一业务对象，也没有“待处理物料”这一状态概念。\",\"factIds\":[\"F-079\",\"F-080\",\"F-081\"]}],\"goals\":[{\"questionIndex\":0,\"status\":\"CLARIFICATION\",\"factIds\":[]}]}"
+      }
+    ],
+    "answerValidation": {
+      "valid": true,
+      "answer": "公司正式业务模型中并没有定义“采购总览”这一业务对象，也没有“待处理物料”这一状态概念。",
+      "claims": [
+        {
+          "text": "公司正式业务模型中并没有定义“采购总览”这一业务对象，也没有“待处理物料”这一状态概念。",
+          "factIds": [
+            "F-079",
+            "F-080",
+            "F-081"
+          ]
+        }
+      ],
+      "goals": [
+        {
+          "questionIndex": 0,
+          "status": "CLARIFICATION",
+          "factIds": []
+        }
+      ],
+      "code": "ANSWER_VERIFIED"
+    },
+    "context": {
+      "rawOwnerInputTokensEst": 12,
+      "businessMemoTokensEst": 287,
+      "policyMemoTokensEst": 218,
+      "ontologyContextTokensEst": 142,
+      "apiIndexTokensEst": 4883,
+      "loadedSchemaTokensEst": 1653,
+      "factCatalogChars": 4330,
+      "factCatalogFactCount": 17,
+      "totalApproxContextTokens": 12640
+    },
+    "durationMs": 17253,
+    "domainRuntime": {
+      "selectedBusinessDomains": [
+        "catalog",
+        "knowledge",
+        "procurement"
+      ],
+      "domainApiSet": [
+        "get_factory_knowledge_detail",
+        "get_order_knowledge_package",
+        "get_purchase_overview",
+        "search_parts"
+      ],
+      "executedDomainApis": [
+        "get_purchase_overview",
+        "search_parts"
+      ],
+      "failedDomainApis": [],
+      "blockedDomainApis": [],
+      "notApplicableDomainApis": [
+        {
+          "toolName": "get_factory_knowledge_detail",
+          "terminalState": "NOT_APPLICABLE",
+          "reason": "MISSING_SAFE_INPUT",
+          "missingInput": "知识条目 id（知识库搜索两次均返回 0 条，未产生任何可用的条目ID）",
+          "source": "search_factory_knowledge 返回 totalCount=0（F-079、F-082）"
+        },
+        {
+          "toolName": "get_order_knowledge_package",
+          "terminalState": "NOT_APPLICABLE",
+          "reason": "FORMAL_IDENTITY_UNAVAILABLE",
+          "missingInput": "正式订单ID或可唯一解析的订单查询（owner 未提供订单ID/客户名/合同号，采购总览中的物料名称无法唯一解析为订单）",
+          "source": "resolve_entity(order) 对“D1-R1轴承-202”返回 NOT_FOUND（F-082）"
+        }
+      ],
+      "missingDomainApis": [],
+      "apiTerminalStates": [
+        {
+          "toolName": "get_factory_knowledge_detail",
+          "terminalState": "NOT_APPLICABLE",
+          "reason": "MISSING_SAFE_INPUT",
+          "missingInput": "知识条目 id（知识库搜索两次均返回 0 条，未产生任何可用的条目ID）",
+          "source": "search_factory_knowledge 返回 totalCount=0（F-079、F-082）"
+        },
+        {
+          "toolName": "get_order_knowledge_package",
+          "terminalState": "NOT_APPLICABLE",
+          "reason": "FORMAL_IDENTITY_UNAVAILABLE",
+          "missingInput": "正式订单ID或可唯一解析的订单查询（owner 未提供订单ID/客户名/合同号，采购总览中的物料名称无法唯一解析为订单）",
+          "source": "resolve_entity(order) 对“D1-R1轴承-202”返回 NOT_FOUND（F-082）"
+        },
+        {
+          "toolName": "get_purchase_overview",
+          "terminalState": "EXECUTED"
+        },
+        {
+          "toolName": "search_parts",
+          "terminalState": "EXECUTED"
+        }
+      ],
+      "finalDomainCoverage": true,
+      "domainCoverageReviewResumed": 1,
+      "domainDeclarationCount": 1,
+      "rag": {
+        "ragSearchRequired": true,
+        "ragSearchExecuted": true,
+        "ragSearchTool": "search_factory_knowledge",
+        "ragReturnedCount": 0,
+        "ragEmpty": true,
+        "ragEvidenceFactIds": [
+          "F-080"
+        ],
+        "ragProvenance": "knowledge_snapshot"
+      }
+    },
+    "ownerInputHash": "80fc5df195b7f8f39f4e85c1ac3de7d3ce6b84cb2df97bf5638bdb469231ccd7",
+    "caseKind": "PROCUREMENT",
+    "domainCoverageScore": {
+      "expectedDomainApiSet": [
+        "get_factory_knowledge_detail",
+        "get_order_knowledge_package",
+        "get_purchase_overview",
+        "search_factory_knowledge",
+        "search_parts"
+      ],
+      "missingDomainApis": [
+        "search_factory_knowledge"
+      ],
+      "writeInDomainSet": [],
+      "invalidNotApplicable": [],
+      "applicableExecutionCoverage": 1
+    },
+    "ragObservation": {
+      "ragSearchRequired": true,
+      "ragSearchExecuted": true,
+      "ragSearchTool": "search_factory_knowledge",
+      "ragReturnedCount": 0,
+      "ragEmpty": true,
+      "ragEvidenceFactIds": [
+        "F-080"
+      ],
+      "ragProvenance": "knowledge_snapshot"
+    },
+    "ragAuthorityScore": null,
+    "answerRelevance": {
+      "allowedFactClasses": [
+        "purchase_status",
+        "purchase_quantity",
+        "purchase_quantity_ordered",
+        "purchase_quantity_received",
+        "purchase_quantity_stocked",
+        "purchase_pending_quantity",
+        "collection_completeness"
+      ],
+      "citedFactClasses": [
+        "formal_result_available",
+        "auxiliary_knowledge_retrieval",
+        "query_no_results"
+      ],
+      "unexpectedFactClasses": [
+        "formal_result_available",
+        "auxiliary_knowledge_retrieval",
+        "query_no_results"
+      ],
+      "necessaryContext": [],
+      "dumpedContext": [
+        "formal_result_available",
+        "auxiliary_knowledge_retrieval",
+        "query_no_results"
+      ],
+      "answerDumpedUnrequestedContext": true,
+      "reason": "UNRELATED_CITED_FACT_CLASS"
+    },
+    "semanticPass": false
+  },
+  "semanticPass": false,
+  "database": {
+    "beforeHash": "e3c0d8ea505c16100634a67a44fb2f6aac6471c94939c3e716714d5497d0ad67",
+    "afterHash": "e3c0d8ea505c16100634a67a44fb2f6aac6471c94939c3e716714d5497d0ad67",
+    "changedTables": [],
+    "mutations": 0
+  },
+  "durationMs": 19866,
+  "completedAt": "2026-10-05T03:56:55.513Z",
+  "secretScan": "PASS"
+}

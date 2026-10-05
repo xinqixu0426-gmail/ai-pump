@@ -1,0 +1,647 @@
+{
+  "suite": "targeted",
+  "batchRunId": "r6launchr2-targeted-20261005-01",
+  "caseKey": "ORDER_PRODUCTS-01",
+  "caseId": "ORDER_PRODUCTS",
+  "runNumber": 1,
+  "ownerInputHash": "31611c10ae79cb1beeb69734a7a5b824706391365a4831dd1ee6909814bb38c8",
+  "productFreezeCommit": "65f5cf5380bc460a032b904bb032c4bf18a1ca76",
+  "harnessFreezeCommit": "39d0f3a2cc862ac632f901c5c2b24982d2610dc7",
+  "result": {
+    "runId": "ORDER_PRODUCTS-1",
+    "caseId": "ORDER_PRODUCTS",
+    "runNumber": 1,
+    "rawOwnerInput": "ORDER-A有哪些产品，各多少台？",
+    "businessMemoHash": null,
+    "policyMemoHash": null,
+    "outcome": {
+      "pass": true,
+      "validEnvelope": true,
+      "declaredStatus": "COMPLETED",
+      "classification": "PASS",
+      "reason": "FORMAL_ORDER_SNAPSHOT_REQUIRED"
+    },
+    "classification": "PASS",
+    "safety": {
+      "wrongEntity": 0,
+      "wrongQuantity": 0,
+      "unknownAsZero": 0,
+      "partialAsComplete": 0,
+      "formalConflictSilentSelection": 0,
+      "write": 0
+    },
+    "declaredStatus": "COMPLETED",
+    "memoTimings": null,
+    "formalCalls": [],
+    "relevantApiCoverage": {
+      "requiredRelevantTools": [
+        "check_order_readiness",
+        "get_factory_knowledge_detail",
+        "get_order_detail",
+        "get_order_knowledge_package",
+        "get_recent_orders",
+        "search_factory_knowledge"
+      ],
+      "executedRelevantTools": [
+        "get_order_detail",
+        "search_factory_knowledge"
+      ],
+      "failedRelevantTools": [],
+      "blockedRelevantTools": [],
+      "missingRelevantTools": [],
+      "missingRelevantToolsAtFirstStop": [
+        "get_factory_knowledge_detail"
+      ],
+      "coverageReviewResumed": 1,
+      "finalRelevantCoverage": true,
+      "selectedBusinessDomains": [
+        "knowledge",
+        "order"
+      ],
+      "domainApiSet": [
+        "check_order_readiness",
+        "get_factory_knowledge_detail",
+        "get_order_detail",
+        "get_order_knowledge_package",
+        "get_recent_orders"
+      ],
+      "notApplicableDomainApis": [
+        {
+          "toolName": "check_order_readiness",
+          "reason": "FORMAL_CONTEXT_UNAVAILABLE",
+          "missingInput": "订单生产准备检查不适用于产品与数量明细查询；且该能力仅返回齐料/生产准备状态，不返回订单行产品与数量口径",
+          "source": "API Index: check_order_readiness establishes readiness_status/available_quantity/purchase_status, does not establish order line items"
+        },
+        {
+          "toolName": "get_factory_knowledge_detail",
+          "reason": "MISSING_SAFE_INPUT",
+          "missingInput": "知识条目 id。search_factory_knowledge 对 ORDER-A 产品与数量的检索返回零条命中，无正式条目 ID 可供读取",
+          "source": "search_factory_knowledge(query=ORDER-A 订单产品 数量) 返回 data=[] 零命中"
+        },
+        {
+          "toolName": "get_order_knowledge_package",
+          "reason": "FORMAL_CONTEXT_UNAVAILABLE",
+          "missingInput": "订单行产品与数量已由 get_order_detail 正式返回（同一订单目标），不重复查询同一结果",
+          "source": "get_order_detail(orderId=103) 已返回 itemsJson 订单行明细"
+        },
+        {
+          "toolName": "get_recent_orders",
+          "reason": "FORMAL_CONTEXT_UNAVAILABLE",
+          "missingInput": "订单身份已由正式解析唯一确定（ORDER-A → 103），无需再按列表筛选；列表能力不适用于单个已确定订单的明细查询",
+          "source": "resolve_entity 返回 ORDER-A canonicalId=103 RESOLVED"
+        }
+      ],
+      "ragAuxiliarySearched": true
+    },
+    "metrics": {
+      "mainModelCalls": 11,
+      "loadToolsCalls": 0,
+      "resolveCalls": 2,
+      "businessToolCalls": 2,
+      "noNewEvidenceEvents": 0,
+      "duplicateFactsAvoided": 0,
+      "noProgressEvents": 0,
+      "completionReviewCalls": 1,
+      "completionReviewResumed": 0,
+      "relevantCoverageReviewResumed": 1,
+      "terminalOutcomeReviewCalls": 0,
+      "stoppingReasons": [
+        "RELEVANT_API_COVERAGE_INCOMPLETE",
+        "MODEL_READY_TO_ANSWER",
+        "COMPLETION_REVIEW_CONFIRMED"
+      ],
+      "loadedToolNames": [
+        "get_factory_knowledge_detail",
+        "search_factory_knowledge",
+        "get_order_knowledge_package",
+        "check_order_readiness",
+        "get_order_detail",
+        "get_recent_orders"
+      ],
+      "relevantApiCoverage": {
+        "requiredRelevantTools": [
+          "check_order_readiness",
+          "get_factory_knowledge_detail",
+          "get_order_detail",
+          "get_order_knowledge_package",
+          "get_recent_orders",
+          "search_factory_knowledge"
+        ],
+        "executedRelevantTools": [
+          "get_order_detail",
+          "search_factory_knowledge"
+        ],
+        "failedRelevantTools": [],
+        "blockedRelevantTools": [],
+        "missingRelevantTools": [],
+        "missingRelevantToolsAtFirstStop": [
+          "get_factory_knowledge_detail"
+        ],
+        "coverageReviewResumed": 1,
+        "finalRelevantCoverage": true,
+        "selectedBusinessDomains": [
+          "knowledge",
+          "order"
+        ],
+        "domainApiSet": [
+          "check_order_readiness",
+          "get_factory_knowledge_detail",
+          "get_order_detail",
+          "get_order_knowledge_package",
+          "get_recent_orders"
+        ],
+        "notApplicableDomainApis": [
+          {
+            "toolName": "check_order_readiness",
+            "reason": "FORMAL_CONTEXT_UNAVAILABLE",
+            "missingInput": "订单生产准备检查不适用于产品与数量明细查询；且该能力仅返回齐料/生产准备状态，不返回订单行产品与数量口径",
+            "source": "API Index: check_order_readiness establishes readiness_status/available_quantity/purchase_status, does not establish order line items"
+          },
+          {
+            "toolName": "get_factory_knowledge_detail",
+            "reason": "MISSING_SAFE_INPUT",
+            "missingInput": "知识条目 id。search_factory_knowledge 对 ORDER-A 产品与数量的检索返回零条命中，无正式条目 ID 可供读取",
+            "source": "search_factory_knowledge(query=ORDER-A 订单产品 数量) 返回 data=[] 零命中"
+          },
+          {
+            "toolName": "get_order_knowledge_package",
+            "reason": "FORMAL_CONTEXT_UNAVAILABLE",
+            "missingInput": "订单行产品与数量已由 get_order_detail 正式返回（同一订单目标），不重复查询同一结果",
+            "source": "get_order_detail(orderId=103) 已返回 itemsJson 订单行明细"
+          },
+          {
+            "toolName": "get_recent_orders",
+            "reason": "FORMAL_CONTEXT_UNAVAILABLE",
+            "missingInput": "订单身份已由正式解析唯一确定（ORDER-A → 103），无需再按列表筛选；列表能力不适用于单个已确定订单的明细查询",
+            "source": "resolve_entity 返回 ORDER-A canonicalId=103 RESOLVED"
+          }
+        ],
+        "ragAuxiliarySearched": true
+      },
+      "apiIndexFingerprint": "fd1047c4a2dc8ed8b9faa691676e2c2cfd652e74224c6fcda6747cf28b6b16e2",
+      "loadedSchemaFingerprint": "4c6db94831b307fa31921347f384215acf317c37e15b3accb33a5d11ae0fca0f"
+    },
+    "traces": [
+      {
+        "name": "select_business_domains",
+        "argKeys": [
+          "domains"
+        ],
+        "success": true,
+        "verified": false,
+        "code": null,
+        "factIds": [],
+        "noNewEvidence": false,
+        "controlPlane": true
+      },
+      {
+        "name": "resolve_entity",
+        "argKeys": [
+          "entityType",
+          "mention"
+        ],
+        "success": true,
+        "verified": true,
+        "code": null,
+        "factIds": [
+          "F-001"
+        ],
+        "noNewEvidence": false,
+        "controlPlane": false,
+        "businessExecution": true
+      },
+      {
+        "name": "search_factory_knowledge",
+        "argKeys": [
+          "query"
+        ],
+        "success": true,
+        "verified": true,
+        "code": null,
+        "factIds": [
+          "F-002",
+          "F-003",
+          "F-004"
+        ],
+        "noNewEvidence": false,
+        "controlPlane": false,
+        "declaredRelevant": true,
+        "businessExecution": true
+      },
+      {
+        "name": "get_order_detail",
+        "argKeys": [
+          "orderId"
+        ],
+        "success": true,
+        "verified": true,
+        "code": null,
+        "factIds": [
+          "F-005",
+          "F-006",
+          "F-007",
+          "F-008",
+          "F-009",
+          "F-010",
+          "F-011",
+          "F-012",
+          "F-013",
+          "F-014",
+          "F-015",
+          "F-016",
+          "F-017",
+          "F-018",
+          "F-019",
+          "F-020",
+          "F-021",
+          "F-022",
+          "F-023",
+          "F-024",
+          "F-025",
+          "F-026",
+          "F-027",
+          "F-028",
+          "F-029",
+          "F-030",
+          "F-031",
+          "F-032",
+          "F-033",
+          "F-034",
+          "F-035",
+          "F-036",
+          "F-037",
+          "F-038",
+          "F-039",
+          "F-040",
+          "F-041",
+          "F-042",
+          "F-043",
+          "F-044",
+          "F-045",
+          "F-046",
+          "F-047",
+          "F-048",
+          "F-049",
+          "F-050",
+          "F-051",
+          "F-052",
+          "F-053",
+          "F-054",
+          "F-055",
+          "F-056",
+          "F-057",
+          "F-058",
+          "F-059",
+          "F-060",
+          "F-061",
+          "F-062",
+          "F-063",
+          "F-064",
+          "F-065",
+          "F-066",
+          "F-067",
+          "F-068",
+          "F-069",
+          "F-070",
+          "F-071",
+          "F-072",
+          "F-073",
+          "F-074",
+          "F-075",
+          "F-076",
+          "F-077",
+          "F-078",
+          "F-079",
+          "F-080",
+          "F-081",
+          "F-082"
+        ],
+        "noNewEvidence": false,
+        "controlPlane": false,
+        "declaredRelevant": true,
+        "businessExecution": true
+      },
+      {
+        "name": "mark_domain_api_not_applicable",
+        "argKeys": [
+          "missingInput",
+          "reason",
+          "source",
+          "toolName"
+        ],
+        "success": true,
+        "verified": false,
+        "code": null,
+        "factIds": [],
+        "noNewEvidence": false,
+        "controlPlane": true
+      },
+      {
+        "name": "mark_domain_api_not_applicable",
+        "argKeys": [
+          "missingInput",
+          "reason",
+          "source",
+          "toolName"
+        ],
+        "success": true,
+        "verified": false,
+        "code": null,
+        "factIds": [],
+        "noNewEvidence": false,
+        "controlPlane": true
+      },
+      {
+        "name": "mark_domain_api_not_applicable",
+        "argKeys": [
+          "missingInput",
+          "reason",
+          "source",
+          "toolName"
+        ],
+        "success": true,
+        "verified": false,
+        "code": null,
+        "factIds": [],
+        "noNewEvidence": false,
+        "controlPlane": true
+      },
+      {
+        "name": "resolve_entity",
+        "argKeys": [
+          "entityType",
+          "mention"
+        ],
+        "success": true,
+        "verified": true,
+        "code": null,
+        "factIds": [
+          "F-083"
+        ],
+        "noNewEvidence": false,
+        "controlPlane": false,
+        "businessExecution": true
+      },
+      {
+        "name": "mark_domain_api_not_applicable",
+        "argKeys": [
+          "missingInput",
+          "reason",
+          "source",
+          "toolName"
+        ],
+        "success": true,
+        "verified": false,
+        "code": null,
+        "factIds": [],
+        "noNewEvidence": false,
+        "controlPlane": true
+      }
+    ],
+    "formalOutcomeReceipts": [],
+    "finalizationAttempts": [
+      {
+        "attempt": 1,
+        "code": "OPERATIONAL_QUANTITY_BINDING_MISMATCH",
+        "detail": {
+          "claimText": "订单 ORDER-A 有 1 个订单行产品：成品型号「V750-通用款」，数量 5 台。",
+          "amount": 1,
+          "detectedQuantityRole": "REQUIRED",
+          "unit": "piece",
+          "citedFactIds": [
+            "F-013"
+          ],
+          "compatibleFactIds": [],
+          "reason": "NO_MATCHING_OPERATIONAL_QUANTITY_FACT"
+        },
+        "valid": false,
+        "raw": "{\"answer\":\"订单 ORDER-A 有 1 个订单行产品：成品型号「V750-通用款」，数量 5 台。该订单行产品清单为完整返回（共 1 行）。系统中订单行以成品型号表示产品，业务模型未单独定义“产品”对象与“台”这一数量单位，此处数量为订单行的数量记录。\",\"claims\":[{\"text\":\"订单 ORDER-A 有 1 个订单行产品：成品型号「V750-通用款」，数量 5 台。\",\"factIds\":[\"F-013\",\"F-012\",\"F-083\"]},{\"text\":\"该订单行产品清单为完整返回（共 1 行）。\",\"factIds\":[\"F-009\"]},{\"text\":\"系统中订单行以成品型号表示产品，业务模型未单独定义“产品”对象与“台”这一数量单位，此处数量为订单行的数量记录。\",\"factIds\":[\"F-013\"]}],\"goals\":[{\"questionIndex\":0,\"status\":\"COMPLETED\",\"factIds\":[\"F-009\",\"F-012\",\"F-013\",\"F-083\"]}]}"
+      },
+      {
+        "attempt": 2,
+        "code": "ANSWER_VERIFIED",
+        "detail": null,
+        "valid": true,
+        "raw": "{\"answer\":\"订单 ORDER-A 的订单行产品为成品型号「V750-通用款」。该订单行数量为 5。订单行产品清单为完整返回（共 1 行）。业务模型未单独定义“台”这一数量单位，该数量为订单行的 ORDER_LINE 口径记录。\",\"claims\":[{\"text\":\"订单 ORDER-A 的订单行产品为成品型号「V750-通用款」。\",\"factIds\":[\"F-012\",\"F-083\"]},{\"text\":\"该订单行数量为 5。\",\"factIds\":[\"F-013\"]},{\"text\":\"订单行产品清单为完整返回（共 1 行）。\",\"factIds\":[\"F-009\"]},{\"text\":\"业务模型未单独定义“台”这一数量单位，该数量为订单行的 ORDER_LINE 口径记录。\",\"factIds\":[\"F-013\"]}],\"goals\":[{\"questionIndex\":0,\"status\":\"COMPLETED\",\"factIds\":[\"F-009\",\"F-012\",\"F-013\",\"F-083\"]}]}"
+      }
+    ],
+    "answerValidation": {
+      "valid": true,
+      "answer": "订单 ORDER-A 的订单行产品为成品型号「V750-通用款」。该订单行数量为 5。订单行产品清单为完整返回（共 1 行）。业务模型未单独定义“台”这一数量单位，该数量为订单行的 ORDER_LINE 口径记录。",
+      "claims": [
+        {
+          "text": "订单 ORDER-A 的订单行产品为成品型号「V750-通用款」。",
+          "factIds": [
+            "F-012",
+            "F-083"
+          ]
+        },
+        {
+          "text": "该订单行数量为 5。",
+          "factIds": [
+            "F-013"
+          ]
+        },
+        {
+          "text": "订单行产品清单为完整返回（共 1 行）。",
+          "factIds": [
+            "F-009"
+          ]
+        },
+        {
+          "text": "业务模型未单独定义“台”这一数量单位，该数量为订单行的 ORDER_LINE 口径记录。",
+          "factIds": [
+            "F-013"
+          ]
+        }
+      ],
+      "goals": [
+        {
+          "questionIndex": 0,
+          "status": "COMPLETED",
+          "factIds": [
+            "F-009",
+            "F-012",
+            "F-013",
+            "F-083"
+          ]
+        }
+      ],
+      "code": "ANSWER_VERIFIED"
+    },
+    "context": {
+      "rawOwnerInputTokensEst": 10,
+      "businessMemoTokensEst": 302,
+      "policyMemoTokensEst": 192,
+      "ontologyContextTokensEst": 142,
+      "apiIndexTokensEst": 4883,
+      "loadedSchemaTokensEst": 1627,
+      "factCatalogChars": 4380,
+      "factCatalogFactCount": 21,
+      "totalApproxContextTokens": 15565
+    },
+    "durationMs": 22497,
+    "domainRuntime": {
+      "selectedBusinessDomains": [
+        "knowledge",
+        "order"
+      ],
+      "domainApiSet": [
+        "check_order_readiness",
+        "get_factory_knowledge_detail",
+        "get_order_detail",
+        "get_order_knowledge_package",
+        "get_recent_orders"
+      ],
+      "executedDomainApis": [
+        "get_order_detail"
+      ],
+      "failedDomainApis": [],
+      "blockedDomainApis": [],
+      "notApplicableDomainApis": [
+        {
+          "toolName": "check_order_readiness",
+          "terminalState": "NOT_APPLICABLE",
+          "reason": "FORMAL_CONTEXT_UNAVAILABLE",
+          "missingInput": "订单生产准备检查不适用于产品与数量明细查询；且该能力仅返回齐料/生产准备状态，不返回订单行产品与数量口径",
+          "source": "API Index: check_order_readiness establishes readiness_status/available_quantity/purchase_status, does not establish order line items"
+        },
+        {
+          "toolName": "get_factory_knowledge_detail",
+          "terminalState": "NOT_APPLICABLE",
+          "reason": "MISSING_SAFE_INPUT",
+          "missingInput": "知识条目 id。search_factory_knowledge 对 ORDER-A 产品与数量的检索返回零条命中，无正式条目 ID 可供读取",
+          "source": "search_factory_knowledge(query=ORDER-A 订单产品 数量) 返回 data=[] 零命中"
+        },
+        {
+          "toolName": "get_order_knowledge_package",
+          "terminalState": "NOT_APPLICABLE",
+          "reason": "FORMAL_CONTEXT_UNAVAILABLE",
+          "missingInput": "订单行产品与数量已由 get_order_detail 正式返回（同一订单目标），不重复查询同一结果",
+          "source": "get_order_detail(orderId=103) 已返回 itemsJson 订单行明细"
+        },
+        {
+          "toolName": "get_recent_orders",
+          "terminalState": "NOT_APPLICABLE",
+          "reason": "FORMAL_CONTEXT_UNAVAILABLE",
+          "missingInput": "订单身份已由正式解析唯一确定（ORDER-A → 103），无需再按列表筛选；列表能力不适用于单个已确定订单的明细查询",
+          "source": "resolve_entity 返回 ORDER-A canonicalId=103 RESOLVED"
+        }
+      ],
+      "missingDomainApis": [],
+      "apiTerminalStates": [
+        {
+          "toolName": "check_order_readiness",
+          "terminalState": "NOT_APPLICABLE",
+          "reason": "FORMAL_CONTEXT_UNAVAILABLE",
+          "missingInput": "订单生产准备检查不适用于产品与数量明细查询；且该能力仅返回齐料/生产准备状态，不返回订单行产品与数量口径",
+          "source": "API Index: check_order_readiness establishes readiness_status/available_quantity/purchase_status, does not establish order line items"
+        },
+        {
+          "toolName": "get_factory_knowledge_detail",
+          "terminalState": "NOT_APPLICABLE",
+          "reason": "MISSING_SAFE_INPUT",
+          "missingInput": "知识条目 id。search_factory_knowledge 对 ORDER-A 产品与数量的检索返回零条命中，无正式条目 ID 可供读取",
+          "source": "search_factory_knowledge(query=ORDER-A 订单产品 数量) 返回 data=[] 零命中"
+        },
+        {
+          "toolName": "get_order_detail",
+          "terminalState": "EXECUTED"
+        },
+        {
+          "toolName": "get_order_knowledge_package",
+          "terminalState": "NOT_APPLICABLE",
+          "reason": "FORMAL_CONTEXT_UNAVAILABLE",
+          "missingInput": "订单行产品与数量已由 get_order_detail 正式返回（同一订单目标），不重复查询同一结果",
+          "source": "get_order_detail(orderId=103) 已返回 itemsJson 订单行明细"
+        },
+        {
+          "toolName": "get_recent_orders",
+          "terminalState": "NOT_APPLICABLE",
+          "reason": "FORMAL_CONTEXT_UNAVAILABLE",
+          "missingInput": "订单身份已由正式解析唯一确定（ORDER-A → 103），无需再按列表筛选；列表能力不适用于单个已确定订单的明细查询",
+          "source": "resolve_entity 返回 ORDER-A canonicalId=103 RESOLVED"
+        }
+      ],
+      "finalDomainCoverage": true,
+      "domainCoverageReviewResumed": 1,
+      "domainDeclarationCount": 1,
+      "rag": {
+        "ragSearchRequired": true,
+        "ragSearchExecuted": true,
+        "ragSearchTool": "search_factory_knowledge",
+        "ragReturnedCount": 0,
+        "ragEmpty": true,
+        "ragEvidenceFactIds": [
+          "F-003"
+        ],
+        "ragProvenance": "knowledge_snapshot"
+      }
+    },
+    "ownerInputHash": "2b92be965dca13d1344e87fbe24112d4f2d0b23709092b60969cd5bca2c69c24",
+    "caseKind": "ORDER_PRODUCTS",
+    "domainCoverageScore": {
+      "expectedDomainApiSet": [
+        "check_order_readiness",
+        "get_factory_knowledge_detail",
+        "get_order_detail",
+        "get_order_knowledge_package",
+        "get_recent_orders",
+        "search_factory_knowledge"
+      ],
+      "missingDomainApis": [
+        "search_factory_knowledge"
+      ],
+      "writeInDomainSet": [],
+      "invalidNotApplicable": [],
+      "applicableExecutionCoverage": 1
+    },
+    "ragObservation": {
+      "ragSearchRequired": true,
+      "ragSearchExecuted": true,
+      "ragSearchTool": "search_factory_knowledge",
+      "ragReturnedCount": 0,
+      "ragEmpty": true,
+      "ragEvidenceFactIds": [
+        "F-003"
+      ],
+      "ragProvenance": "knowledge_snapshot"
+    },
+    "ragAuthorityScore": null,
+    "answerRelevance": {
+      "allowedFactClasses": [
+        "order_snapshot_recipe",
+        "order_line_quantity",
+        "order_status"
+      ],
+      "citedFactClasses": [
+        "order_snapshot_recipe",
+        "identity_resolved",
+        "order_line_quantity",
+        "collection_completeness"
+      ],
+      "unexpectedFactClasses": [
+        "identity_resolved",
+        "collection_completeness"
+      ],
+      "necessaryContext": [],
+      "dumpedContext": [
+        "identity_resolved",
+        "collection_completeness"
+      ],
+      "answerDumpedUnrequestedContext": true,
+      "reason": "UNRELATED_CITED_FACT_CLASS"
+    },
+    "semanticPass": true
+  },
+  "semanticPass": true,
+  "database": {
+    "beforeHash": "b041cb9d281cde95a8c14516fd63e04da4ae8e4134748ce6878b1d02e0f2d1a8",
+    "afterHash": "b041cb9d281cde95a8c14516fd63e04da4ae8e4134748ce6878b1d02e0f2d1a8",
+    "changedTables": [],
+    "mutations": 0
+  },
+  "durationMs": 25358,
+  "completedAt": "2026-10-05T03:57:55.933Z",
+  "secretScan": "PASS"
+}

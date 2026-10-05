@@ -1,0 +1,12 @@
+{
+  "suite": "targeted",
+  "batchRunId": "r6launchr2-targeted-20261005-01",
+  "caseKey": "W1-06-01",
+  "attemptNumber": 1,
+  "status": "PHASE",
+  "productFreezeCommit": "65f5cf5380bc460a032b904bb032c4bf18a1ca76",
+  "harnessFreezeCommit": "39d0f3a2cc862ac632f901c5c2b24982d2610dc7",
+  "startedAt": "2026-10-05T03:52:38.826Z",
+  "phase": "CASE_EXECUTION_START",
+  "observedAt": "2026-10-05T03:52:38.828Z"
+}

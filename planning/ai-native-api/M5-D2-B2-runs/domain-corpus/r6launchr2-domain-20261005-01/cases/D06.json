@@ -1,0 +1,519 @@
+{
+  "suite": "domain-corpus",
+  "batchRunId": "r6launchr2-domain-20261005-01",
+  "caseKey": "D06",
+  "caseId": "D06",
+  "runNumber": null,
+  "ownerInputHash": "239ac3d2b37cdeffc877b9d8f25dafc4470bcc276716fc6d5a276e4dfcd2e945",
+  "productFreezeCommit": "65f5cf5380bc460a032b904bb032c4bf18a1ca76",
+  "harnessFreezeCommit": "39d0f3a2cc862ac632f901c5c2b24982d2610dc7",
+  "result": {
+    "runId": "D06-1",
+    "caseId": "D06",
+    "runNumber": 1,
+    "rawOwnerInput": "查一下当前报价。",
+    "businessMemoHash": null,
+    "policyMemoHash": null,
+    "outcome": {
+      "pass": true
+    },
+    "classification": null,
+    "safety": {
+      "wrongEntity": 0,
+      "wrongQuantity": 0,
+      "unknownAsZero": 0,
+      "partialAsComplete": 0,
+      "formalConflictSilentSelection": 0,
+      "write": 0
+    },
+    "declaredStatus": null,
+    "memoTimings": null,
+    "formalCalls": [],
+    "relevantApiCoverage": {
+      "requiredRelevantTools": [
+        "explain_cost_change",
+        "get_quotation_detail",
+        "search_customer_history",
+        "search_customers",
+        "search_factory_knowledge",
+        "search_quotations"
+      ],
+      "executedRelevantTools": [
+        "get_quotation_detail",
+        "search_customers",
+        "search_factory_knowledge",
+        "search_quotations"
+      ],
+      "failedRelevantTools": [],
+      "blockedRelevantTools": [],
+      "missingRelevantTools": [],
+      "coverageReviewResumed": 0,
+      "finalRelevantCoverage": true,
+      "selectedBusinessDomains": [
+        "quotation"
+      ],
+      "domainApiSet": [
+        "explain_cost_change",
+        "get_quotation_detail",
+        "search_customer_history",
+        "search_customers",
+        "search_quotations"
+      ],
+      "notApplicableDomainApis": [
+        {
+          "toolName": "explain_cost_change",
+          "reason": "MISSING_SAFE_INPUT",
+          "missingInput": "需要对比的两个配方（基准配方与对比配方）",
+          "source": "Owner request: \"查一下当前报价\" — 未要求进行两个配方的成本差异解释"
+        },
+        {
+          "toolName": "search_customer_history",
+          "reason": "MISSING_SAFE_INPUT",
+          "missingInput": "具名客户（客户名称或本轮正式解析出的唯一客户ID）",
+          "source": "Owner request: \"查一下当前报价\" — 未指明任何客户"
+        }
+      ],
+      "ragAuxiliarySearched": true
+    },
+    "metrics": {
+      "mainModelCalls": 8,
+      "loadToolsCalls": 1,
+      "resolveCalls": 0,
+      "businessToolCalls": 4,
+      "noNewEvidenceEvents": 0,
+      "duplicateFactsAvoided": 0,
+      "noProgressEvents": 0,
+      "completionReviewCalls": 1,
+      "completionReviewResumed": 0,
+      "relevantCoverageReviewResumed": 0,
+      "terminalOutcomeReviewCalls": 0,
+      "stoppingReasons": [
+        "MODEL_READY_TO_ANSWER",
+        "COMPLETION_REVIEW_CONFIRMED"
+      ],
+      "loadedToolNames": [
+        "search_factory_knowledge",
+        "get_quotation_detail",
+        "search_customer_history",
+        "search_customers",
+        "search_quotations",
+        "explain_cost_change"
+      ],
+      "relevantApiCoverage": {
+        "requiredRelevantTools": [
+          "explain_cost_change",
+          "get_quotation_detail",
+          "search_customer_history",
+          "search_customers",
+          "search_factory_knowledge",
+          "search_quotations"
+        ],
+        "executedRelevantTools": [
+          "get_quotation_detail",
+          "search_customers",
+          "search_factory_knowledge",
+          "search_quotations"
+        ],
+        "failedRelevantTools": [],
+        "blockedRelevantTools": [],
+        "missingRelevantTools": [],
+        "coverageReviewResumed": 0,
+        "finalRelevantCoverage": true,
+        "selectedBusinessDomains": [
+          "quotation"
+        ],
+        "domainApiSet": [
+          "explain_cost_change",
+          "get_quotation_detail",
+          "search_customer_history",
+          "search_customers",
+          "search_quotations"
+        ],
+        "notApplicableDomainApis": [
+          {
+            "toolName": "explain_cost_change",
+            "reason": "MISSING_SAFE_INPUT",
+            "missingInput": "需要对比的两个配方（基准配方与对比配方）",
+            "source": "Owner request: \"查一下当前报价\" — 未要求进行两个配方的成本差异解释"
+          },
+          {
+            "toolName": "search_customer_history",
+            "reason": "MISSING_SAFE_INPUT",
+            "missingInput": "具名客户（客户名称或本轮正式解析出的唯一客户ID）",
+            "source": "Owner request: \"查一下当前报价\" — 未指明任何客户"
+          }
+        ],
+        "ragAuxiliarySearched": true
+      },
+      "apiIndexFingerprint": "fd1047c4a2dc8ed8b9faa691676e2c2cfd652e74224c6fcda6747cf28b6b16e2",
+      "loadedSchemaFingerprint": "873fd22ee841d9a85724c2dab822c86a48b568ed4b6742fc09610b8a0ae1c5a1"
+    },
+    "traces": [
+      {
+        "name": "select_business_domains",
+        "argKeys": [
+          "domains"
+        ],
+        "success": true,
+        "verified": false,
+        "code": null,
+        "factIds": [],
+        "noNewEvidence": false,
+        "controlPlane": true
+      },
+      {
+        "name": "load_tools",
+        "argKeys": [
+          "toolNames"
+        ],
+        "success": true,
+        "verified": false,
+        "code": null,
+        "factIds": [],
+        "noNewEvidence": false,
+        "controlPlane": true
+      },
+      {
+        "name": "search_quotations",
+        "argKeys": [],
+        "success": true,
+        "verified": true,
+        "code": null,
+        "factIds": [
+          "F-001",
+          "F-002",
+          "F-003",
+          "F-004",
+          "F-005",
+          "F-006",
+          "F-007",
+          "F-008",
+          "F-009",
+          "F-010"
+        ],
+        "noNewEvidence": false,
+        "controlPlane": false,
+        "declaredRelevant": true,
+        "businessExecution": true
+      },
+      {
+        "name": "search_factory_knowledge",
+        "argKeys": [
+          "query"
+        ],
+        "success": true,
+        "verified": true,
+        "code": null,
+        "factIds": [
+          "F-011",
+          "F-012",
+          "F-013"
+        ],
+        "noNewEvidence": false,
+        "controlPlane": false,
+        "declaredRelevant": true,
+        "businessExecution": true
+      },
+      {
+        "name": "get_quotation_detail",
+        "argKeys": [
+          "quotationId"
+        ],
+        "success": true,
+        "verified": true,
+        "code": null,
+        "factIds": [
+          "F-014",
+          "F-015",
+          "F-016",
+          "F-017",
+          "F-018",
+          "F-019",
+          "F-020",
+          "F-021",
+          "F-022",
+          "F-023",
+          "F-024",
+          "F-025",
+          "F-026",
+          "F-027",
+          "F-028",
+          "F-029",
+          "F-030"
+        ],
+        "noNewEvidence": false,
+        "controlPlane": false,
+        "declaredRelevant": true,
+        "businessExecution": true
+      },
+      {
+        "name": "search_customers",
+        "argKeys": [],
+        "success": true,
+        "verified": true,
+        "code": null,
+        "factIds": [
+          "F-031",
+          "F-032",
+          "F-033",
+          "F-034",
+          "F-035",
+          "F-036",
+          "F-037",
+          "F-038",
+          "F-039",
+          "F-040",
+          "F-041"
+        ],
+        "noNewEvidence": false,
+        "controlPlane": false,
+        "declaredRelevant": true,
+        "businessExecution": true
+      },
+      {
+        "name": "mark_domain_api_not_applicable",
+        "argKeys": [
+          "missingInput",
+          "reason",
+          "source",
+          "toolName"
+        ],
+        "success": true,
+        "verified": false,
+        "code": null,
+        "factIds": [],
+        "noNewEvidence": false,
+        "controlPlane": true
+      },
+      {
+        "name": "mark_domain_api_not_applicable",
+        "argKeys": [
+          "missingInput",
+          "reason",
+          "source",
+          "toolName"
+        ],
+        "success": true,
+        "verified": false,
+        "code": null,
+        "factIds": [],
+        "noNewEvidence": false,
+        "controlPlane": true
+      }
+    ],
+    "formalOutcomeReceipts": [],
+    "finalizationAttempts": [
+      {
+        "attempt": 1,
+        "code": "ANSWER_VERIFIED",
+        "detail": null,
+        "valid": true,
+        "raw": "{\"answer\":\"正式报价数据中目前只有 1 份报价。该报价的合计成本为 0 元。\",\"claims\":[{\"text\":\"正式报价数据中目前只有 1 份报价。\",\"factIds\":[\"F-001\"]},{\"text\":\"该报价的合计成本为 0 元。\",\"factIds\":[\"F-007\",\"F-021\"]}],\"goals\":[{\"questionIndex\":0,\"status\":\"COMPLETED\",\"factIds\":[\"F-001\",\"F-007\",\"F-021\"]}]}"
+      }
+    ],
+    "answerValidation": {
+      "valid": true,
+      "answer": "正式报价数据中目前只有 1 份报价。该报价的合计成本为 0 元。",
+      "claims": [
+        {
+          "text": "正式报价数据中目前只有 1 份报价。",
+          "factIds": [
+            "F-001"
+          ]
+        },
+        {
+          "text": "该报价的合计成本为 0 元。",
+          "factIds": [
+            "F-007",
+            "F-021"
+          ]
+        }
+      ],
+      "goals": [
+        {
+          "questionIndex": 0,
+          "status": "COMPLETED",
+          "factIds": [
+            "F-001",
+            "F-007",
+            "F-021"
+          ]
+        }
+      ],
+      "code": "ANSWER_VERIFIED"
+    },
+    "context": {
+      "rawOwnerInputTokensEst": 6,
+      "businessMemoTokensEst": 407,
+      "policyMemoTokensEst": 157,
+      "ontologyContextTokensEst": 142,
+      "apiIndexTokensEst": 4883,
+      "loadedSchemaTokensEst": 1415,
+      "factCatalogChars": 1489,
+      "factCatalogFactCount": 10,
+      "totalApproxContextTokens": 10500
+    },
+    "durationMs": 13922,
+    "domainRuntime": {
+      "selectedBusinessDomains": [
+        "quotation"
+      ],
+      "domainApiSet": [
+        "explain_cost_change",
+        "get_quotation_detail",
+        "search_customer_history",
+        "search_customers",
+        "search_quotations"
+      ],
+      "executedDomainApis": [
+        "get_quotation_detail",
+        "search_customers",
+        "search_quotations"
+      ],
+      "failedDomainApis": [],
+      "blockedDomainApis": [],
+      "notApplicableDomainApis": [
+        {
+          "toolName": "explain_cost_change",
+          "terminalState": "NOT_APPLICABLE",
+          "reason": "MISSING_SAFE_INPUT",
+          "missingInput": "需要对比的两个配方（基准配方与对比配方）",
+          "source": "Owner request: \"查一下当前报价\" — 未要求进行两个配方的成本差异解释"
+        },
+        {
+          "toolName": "search_customer_history",
+          "terminalState": "NOT_APPLICABLE",
+          "reason": "MISSING_SAFE_INPUT",
+          "missingInput": "具名客户（客户名称或本轮正式解析出的唯一客户ID）",
+          "source": "Owner request: \"查一下当前报价\" — 未指明任何客户"
+        }
+      ],
+      "missingDomainApis": [],
+      "apiTerminalStates": [
+        {
+          "toolName": "explain_cost_change",
+          "terminalState": "NOT_APPLICABLE",
+          "reason": "MISSING_SAFE_INPUT",
+          "missingInput": "需要对比的两个配方（基准配方与对比配方）",
+          "source": "Owner request: \"查一下当前报价\" — 未要求进行两个配方的成本差异解释"
+        },
+        {
+          "toolName": "get_quotation_detail",
+          "terminalState": "EXECUTED"
+        },
+        {
+          "toolName": "search_customer_history",
+          "terminalState": "NOT_APPLICABLE",
+          "reason": "MISSING_SAFE_INPUT",
+          "missingInput": "具名客户（客户名称或本轮正式解析出的唯一客户ID）",
+          "source": "Owner request: \"查一下当前报价\" — 未指明任何客户"
+        },
+        {
+          "toolName": "search_customers",
+          "terminalState": "EXECUTED"
+        },
+        {
+          "toolName": "search_quotations",
+          "terminalState": "EXECUTED"
+        }
+      ],
+      "finalDomainCoverage": true,
+      "domainCoverageReviewResumed": 0,
+      "domainDeclarationCount": 1,
+      "rag": {
+        "ragSearchRequired": true,
+        "ragSearchExecuted": true,
+        "ragSearchTool": "search_factory_knowledge",
+        "ragReturnedCount": 0,
+        "ragEmpty": true,
+        "ragEvidenceFactIds": [
+          "F-012"
+        ],
+        "ragProvenance": "knowledge_snapshot"
+      }
+    },
+    "ownerInputHash": "578f5ece525baa2fdec5d386b9121b318fdba4ea3a93faeb4f6cfb2b40d65d34",
+    "expectedDomains": [
+      "quotation"
+    ],
+    "selectedDomains": [
+      "quotation"
+    ],
+    "domainSelectionScore": {
+      "id": "D06",
+      "expectedDomains": [
+        "quotation"
+      ],
+      "selectedDomains": [
+        "quotation"
+      ],
+      "exactMatch": true,
+      "missingDomains": [],
+      "extraDomains": [],
+      "highRiskMiss": false
+    },
+    "domainSemanticScore": {
+      "version": "DOMAIN_REQUIRED_FACT_AUTHORITY_V2",
+      "profile": "QUOTATION_COLLECTION",
+      "semanticPass": true,
+      "classification": "FORMAL_REQUIRED_FACTS_COMPLETE",
+      "exactDomainDiagnostic": {
+        "id": "D06",
+        "expectedDomains": [
+          "quotation"
+        ],
+        "selectedDomains": [
+          "quotation"
+        ],
+        "exactMatch": true,
+        "missingDomains": [],
+        "extraDomains": [],
+        "highRiskMiss": false
+      },
+      "requiredFactCoverage": {
+        "complete": true,
+        "checks": [
+          {
+            "requirement": {
+              "anyOf": [
+                "quotation_status",
+                "quotation_collection"
+              ]
+            },
+            "satisfied": true,
+            "evidence": [
+              {
+                "predicate": "quotation_status",
+                "authority": "quotationService",
+                "toolName": "search_quotations",
+                "source": "VERIFIED_FORMAL_RESULT",
+                "factId": null
+              },
+              {
+                "predicate": "quotation_collection",
+                "authority": "quotationService",
+                "toolName": "search_quotations",
+                "source": "VERIFIED_FORMAL_RESULT",
+                "factId": null
+              }
+            ]
+          }
+        ],
+        "evidenceCount": 45
+      },
+      "extraDomainLabels": [],
+      "missingExpectedLabels": []
+    },
+    "semanticPass": true
+  },
+  "semanticPass": true,
+  "database": {
+    "beforeHash": "211341e128ea639722e9babf83a8e3b4b03831f87561dbf3e7c665de5f7cf06c",
+    "afterHash": "211341e128ea639722e9babf83a8e3b4b03831f87561dbf3e7c665de5f7cf06c",
+    "changedTables": [],
+    "mutations": 0
+  },
+  "durationMs": 17039,
+  "completedAt": "2026-10-05T03:37:32.225Z",
+  "secretScan": "PASS"
+}

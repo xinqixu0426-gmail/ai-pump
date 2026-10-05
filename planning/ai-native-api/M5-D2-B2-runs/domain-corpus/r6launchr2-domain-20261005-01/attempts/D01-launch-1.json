@@ -1,0 +1,23 @@
+{
+  "suite": "domain-corpus",
+  "batchRunId": "r6launchr2-domain-20261005-01",
+  "caseKey": "D01",
+  "productFreezeCommit": "65f5cf5380bc460a032b904bb032c4bf18a1ca76",
+  "harnessFreezeCommit": "39d0f3a2cc862ac632f901c5c2b24982d2610dc7",
+  "status": "COMPLETED",
+  "classification": "COMPLETED",
+  "parentPid": 88869,
+  "childPid": 88870,
+  "startedAt": "2026-10-05T03:34:01.115Z",
+  "endedAt": "2026-10-05T03:34:25.200Z",
+  "durationMs": 24085,
+  "exitCode": 0,
+  "signal": null,
+  "outerTimeout": false,
+  "lastPhase": "CHECKPOINT_WRITTEN",
+  "checkpointWritten": true,
+  "stdout": "[2026-10-05T03:34:01.413Z] [copper] [INFO] 下次铜价更新: 2026-10-05T07:00:00.000Z (3.4h 后)\n{\n  \"action\": \"CASE\",\n  \"suite\": \"domain-corpus\",\n  \"batchRunId\": \"r6launchr2-domain-20261005-01\",\n  \"caseKey\": \"D01\",\n  \"checkpointWritten\": true,\n  \"semanticPass\": true,\n  \"durationMs\": 23445,\n  \"databaseMutations\": 0\n}\n",
+  "stderr": "",
+  "recordedAt": "2026-10-05T03:34:25.202Z",
+  "secretScan": "PASS"
+}

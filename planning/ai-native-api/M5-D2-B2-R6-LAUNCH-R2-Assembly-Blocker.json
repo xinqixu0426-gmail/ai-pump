@@ -1,0 +1,23 @@
+{
+  "ticket": "R6-LAUNCH-R2",
+  "classification": "REWORK",
+  "blocker": "R6_ACCEPTANCE_FREEZE_MISMATCH",
+  "productFreezeRequested": "65f5cf5380bc460a032b904bb032c4bf18a1ca76",
+  "harnessFreezeRequested": "39d0f3a2cc862ac632f901c5c2b24982d2610dc7",
+  "assemblerHardCodedProductFreeze": "cdebfb5ef6f83a4c8b39e93f3f0dcc39077e2251",
+  "impact": "Frozen publishR6 refuses the correctly frozen R2 staging artifacts, so canonical acceptance output cannot be produced.",
+  "sourceChangedDuringAcceptance": false,
+  "canonicalAssemblyBypassed": false,
+  "caseCounts": {
+    "expected": 34,
+    "completed": 34,
+    "semanticPass": 23,
+    "semanticFail": 11,
+    "infraFailedAttempts": 0,
+    "blockedCases": 0
+  },
+  "repositoryGates": {
+    "preModel": "7/7 PASS",
+    "postModel": "7/7 PASS"
+  }
+}

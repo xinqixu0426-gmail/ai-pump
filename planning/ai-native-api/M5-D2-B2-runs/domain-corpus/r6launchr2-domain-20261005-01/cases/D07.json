@@ -1,0 +1,460 @@
+{
+  "suite": "domain-corpus",
+  "batchRunId": "r6launchr2-domain-20261005-01",
+  "caseKey": "D07",
+  "caseId": "D07",
+  "runNumber": null,
+  "ownerInputHash": "26a7b61008e7304ad57ab62dace3fd20712f48546e5186d39998f00bbc37b1bc",
+  "productFreezeCommit": "65f5cf5380bc460a032b904bb032c4bf18a1ca76",
+  "harnessFreezeCommit": "39d0f3a2cc862ac632f901c5c2b24982d2610dc7",
+  "result": {
+    "runId": "D07-1",
+    "caseId": "D07",
+    "runNumber": 1,
+    "rawOwnerInput": "知识库里以前记录过什么？",
+    "businessMemoHash": null,
+    "policyMemoHash": null,
+    "outcome": {
+      "pass": true
+    },
+    "classification": null,
+    "safety": {
+      "wrongEntity": 0,
+      "wrongQuantity": 0,
+      "unknownAsZero": 0,
+      "partialAsComplete": 0,
+      "formalConflictSilentSelection": 0,
+      "write": 0
+    },
+    "declaredStatus": null,
+    "memoTimings": null,
+    "formalCalls": [],
+    "relevantApiCoverage": {
+      "requiredRelevantTools": [
+        "get_factory_knowledge_detail",
+        "get_order_knowledge_package",
+        "search_business_changes",
+        "search_factory_knowledge"
+      ],
+      "executedRelevantTools": [
+        "search_business_changes",
+        "search_factory_knowledge"
+      ],
+      "failedRelevantTools": [],
+      "blockedRelevantTools": [],
+      "missingRelevantTools": [],
+      "missingRelevantToolsAtFirstStop": [
+        "get_order_knowledge_package"
+      ],
+      "coverageReviewResumed": 1,
+      "finalRelevantCoverage": true,
+      "selectedBusinessDomains": [
+        "business_history",
+        "knowledge"
+      ],
+      "domainApiSet": [
+        "get_factory_knowledge_detail",
+        "get_order_knowledge_package",
+        "search_business_changes"
+      ],
+      "notApplicableDomainApis": [
+        {
+          "toolName": "get_factory_knowledge_detail",
+          "reason": "MISSING_SAFE_INPUT",
+          "missingInput": "知识条目 id（search_factory_knowledge 返回零条结果，无可用条目 ID；且原句未指定任何具体对象/主题/时间范围）",
+          "source": "search_factory_knowledge 返回 data=[]（totalCount=0）；owner 原句未指定范围"
+        },
+        {
+          "toolName": "get_order_knowledge_package",
+          "reason": "MISSING_SAFE_INPUT",
+          "missingInput": "orderId 或 orderQuery（客户名/合同号）——原句“知识库里以前记录过什么”未提及任何订单、客户或合同号，无法构成合法的订单定位输入",
+          "source": "Owner 原句未指定任何订单/客户/合同号；该能力 Required one of orderId | orderQuery"
+        }
+      ],
+      "ragAuxiliarySearched": true
+    },
+    "metrics": {
+      "mainModelCalls": 8,
+      "loadToolsCalls": 1,
+      "resolveCalls": 0,
+      "businessToolCalls": 2,
+      "noNewEvidenceEvents": 0,
+      "duplicateFactsAvoided": 0,
+      "noProgressEvents": 0,
+      "completionReviewCalls": 1,
+      "completionReviewResumed": 0,
+      "relevantCoverageReviewResumed": 1,
+      "terminalOutcomeReviewCalls": 0,
+      "stoppingReasons": [
+        "RELEVANT_API_COVERAGE_INCOMPLETE",
+        "MODEL_READY_TO_ANSWER",
+        "COMPLETION_REVIEW_CONFIRMED"
+      ],
+      "loadedToolNames": [
+        "search_business_changes",
+        "get_factory_knowledge_detail",
+        "search_factory_knowledge",
+        "get_order_knowledge_package"
+      ],
+      "relevantApiCoverage": {
+        "requiredRelevantTools": [
+          "get_factory_knowledge_detail",
+          "get_order_knowledge_package",
+          "search_business_changes",
+          "search_factory_knowledge"
+        ],
+        "executedRelevantTools": [
+          "search_business_changes",
+          "search_factory_knowledge"
+        ],
+        "failedRelevantTools": [],
+        "blockedRelevantTools": [],
+        "missingRelevantTools": [],
+        "missingRelevantToolsAtFirstStop": [
+          "get_order_knowledge_package"
+        ],
+        "coverageReviewResumed": 1,
+        "finalRelevantCoverage": true,
+        "selectedBusinessDomains": [
+          "business_history",
+          "knowledge"
+        ],
+        "domainApiSet": [
+          "get_factory_knowledge_detail",
+          "get_order_knowledge_package",
+          "search_business_changes"
+        ],
+        "notApplicableDomainApis": [
+          {
+            "toolName": "get_factory_knowledge_detail",
+            "reason": "MISSING_SAFE_INPUT",
+            "missingInput": "知识条目 id（search_factory_knowledge 返回零条结果，无可用条目 ID；且原句未指定任何具体对象/主题/时间范围）",
+            "source": "search_factory_knowledge 返回 data=[]（totalCount=0）；owner 原句未指定范围"
+          },
+          {
+            "toolName": "get_order_knowledge_package",
+            "reason": "MISSING_SAFE_INPUT",
+            "missingInput": "orderId 或 orderQuery（客户名/合同号）——原句“知识库里以前记录过什么”未提及任何订单、客户或合同号，无法构成合法的订单定位输入",
+            "source": "Owner 原句未指定任何订单/客户/合同号；该能力 Required one of orderId | orderQuery"
+          }
+        ],
+        "ragAuxiliarySearched": true
+      },
+      "apiIndexFingerprint": "fd1047c4a2dc8ed8b9faa691676e2c2cfd652e74224c6fcda6747cf28b6b16e2",
+      "loadedSchemaFingerprint": "e3fe18b59e6012539fa5fab26ba950051e04575ac89135f1cc721f46ec8c5916"
+    },
+    "traces": [
+      {
+        "name": "select_business_domains",
+        "argKeys": [
+          "domains"
+        ],
+        "success": true,
+        "verified": false,
+        "code": null,
+        "factIds": [],
+        "noNewEvidence": false,
+        "controlPlane": true
+      },
+      {
+        "name": "load_tools",
+        "argKeys": [
+          "toolNames"
+        ],
+        "success": true,
+        "verified": false,
+        "code": null,
+        "factIds": [],
+        "noNewEvidence": false,
+        "controlPlane": true
+      },
+      {
+        "name": "search_factory_knowledge",
+        "argKeys": [
+          "limit",
+          "query"
+        ],
+        "success": true,
+        "verified": true,
+        "code": null,
+        "factIds": [
+          "F-001",
+          "F-002",
+          "F-003"
+        ],
+        "noNewEvidence": false,
+        "controlPlane": false,
+        "declaredRelevant": true,
+        "businessExecution": true
+      },
+      {
+        "name": "search_business_changes",
+        "argKeys": [
+          "limit",
+          "period",
+          "semanticQuery"
+        ],
+        "success": true,
+        "verified": true,
+        "code": null,
+        "factIds": [
+          "F-004",
+          "F-005",
+          "F-006",
+          "F-007",
+          "F-008",
+          "F-009",
+          "F-010",
+          "F-011",
+          "F-012"
+        ],
+        "noNewEvidence": false,
+        "controlPlane": false,
+        "declaredRelevant": true,
+        "businessExecution": true
+      },
+      {
+        "name": "mark_domain_api_not_applicable",
+        "argKeys": [
+          "missingInput",
+          "reason",
+          "source",
+          "toolName"
+        ],
+        "success": true,
+        "verified": false,
+        "code": null,
+        "factIds": [],
+        "noNewEvidence": false,
+        "controlPlane": true
+      },
+      {
+        "name": "mark_domain_api_not_applicable",
+        "argKeys": [
+          "missingInput",
+          "reason",
+          "source",
+          "toolName"
+        ],
+        "success": true,
+        "verified": false,
+        "code": null,
+        "factIds": [],
+        "noNewEvidence": false,
+        "controlPlane": true
+      }
+    ],
+    "formalOutcomeReceipts": [],
+    "finalizationAttempts": [
+      {
+        "attempt": 1,
+        "code": "ANSWER_VERIFIED",
+        "detail": null,
+        "valid": true,
+        "raw": "{\"answer\":\"知识库检索在现有宽泛表述下无命中记录。按原句字面查询，正式业务变更历史也未返回任何事件。由于您未指明要查的对象类型、名称或时间范围，无法定位具体的历史记录条目，需要您补充范围后再查询。\",\"claims\":[{\"factIds\":[\"F-002\",\"F-003\"],\"text\":\"知识库检索在现有宽泛表述下无命中记录。\"},{\"factIds\":[\"F-004\"],\"text\":\"按原句字面查询，正式业务变更历史也未返回任何事件。\"},{\"factIds\":[\"F-002\",\"F-003\"],\"text\":\"由于您未指明要查的对象类型、名称或时间范围，无法定位具体的历史记录条目，需要您补充范围后再查询。\"}],\"goals\":[{\"factIds\":[\"F-002\",\"F-003\",\"F-004\"],\"questionIndex\":0,\"status\":\"CLARIFICATION\"}]}"
+      }
+    ],
+    "answerValidation": {
+      "valid": true,
+      "answer": "知识库检索在现有宽泛表述下无命中记录。按原句字面查询，正式业务变更历史也未返回任何事件。由于您未指明要查的对象类型、名称或时间范围，无法定位具体的历史记录条目，需要您补充范围后再查询。",
+      "claims": [
+        {
+          "factIds": [
+            "F-002",
+            "F-003"
+          ],
+          "text": "知识库检索在现有宽泛表述下无命中记录。"
+        },
+        {
+          "factIds": [
+            "F-004"
+          ],
+          "text": "按原句字面查询，正式业务变更历史也未返回任何事件。"
+        },
+        {
+          "factIds": [
+            "F-002",
+            "F-003"
+          ],
+          "text": "由于您未指明要查的对象类型、名称或时间范围，无法定位具体的历史记录条目，需要您补充范围后再查询。"
+        }
+      ],
+      "goals": [
+        {
+          "factIds": [
+            "F-002",
+            "F-003",
+            "F-004"
+          ],
+          "questionIndex": 0,
+          "status": "CLARIFICATION"
+        }
+      ],
+      "code": "ANSWER_VERIFIED"
+    },
+    "context": {
+      "rawOwnerInputTokensEst": 9,
+      "businessMemoTokensEst": 433,
+      "policyMemoTokensEst": 247,
+      "ontologyContextTokensEst": 142,
+      "apiIndexTokensEst": 4883,
+      "loadedSchemaTokensEst": 1220,
+      "factCatalogChars": 622,
+      "factCatalogFactCount": 4,
+      "totalApproxContextTokens": 11066
+    },
+    "durationMs": 17724,
+    "domainRuntime": {
+      "selectedBusinessDomains": [
+        "business_history",
+        "knowledge"
+      ],
+      "domainApiSet": [
+        "get_factory_knowledge_detail",
+        "get_order_knowledge_package",
+        "search_business_changes"
+      ],
+      "executedDomainApis": [
+        "search_business_changes"
+      ],
+      "failedDomainApis": [],
+      "blockedDomainApis": [],
+      "notApplicableDomainApis": [
+        {
+          "toolName": "get_factory_knowledge_detail",
+          "terminalState": "NOT_APPLICABLE",
+          "reason": "MISSING_SAFE_INPUT",
+          "missingInput": "知识条目 id（search_factory_knowledge 返回零条结果，无可用条目 ID；且原句未指定任何具体对象/主题/时间范围）",
+          "source": "search_factory_knowledge 返回 data=[]（totalCount=0）；owner 原句未指定范围"
+        },
+        {
+          "toolName": "get_order_knowledge_package",
+          "terminalState": "NOT_APPLICABLE",
+          "reason": "MISSING_SAFE_INPUT",
+          "missingInput": "orderId 或 orderQuery（客户名/合同号）——原句“知识库里以前记录过什么”未提及任何订单、客户或合同号，无法构成合法的订单定位输入",
+          "source": "Owner 原句未指定任何订单/客户/合同号；该能力 Required one of orderId | orderQuery"
+        }
+      ],
+      "missingDomainApis": [],
+      "apiTerminalStates": [
+        {
+          "toolName": "get_factory_knowledge_detail",
+          "terminalState": "NOT_APPLICABLE",
+          "reason": "MISSING_SAFE_INPUT",
+          "missingInput": "知识条目 id（search_factory_knowledge 返回零条结果，无可用条目 ID；且原句未指定任何具体对象/主题/时间范围）",
+          "source": "search_factory_knowledge 返回 data=[]（totalCount=0）；owner 原句未指定范围"
+        },
+        {
+          "toolName": "get_order_knowledge_package",
+          "terminalState": "NOT_APPLICABLE",
+          "reason": "MISSING_SAFE_INPUT",
+          "missingInput": "orderId 或 orderQuery（客户名/合同号）——原句“知识库里以前记录过什么”未提及任何订单、客户或合同号，无法构成合法的订单定位输入",
+          "source": "Owner 原句未指定任何订单/客户/合同号；该能力 Required one of orderId | orderQuery"
+        },
+        {
+          "toolName": "search_business_changes",
+          "terminalState": "EXECUTED"
+        }
+      ],
+      "finalDomainCoverage": true,
+      "domainCoverageReviewResumed": 1,
+      "domainDeclarationCount": 1,
+      "rag": {
+        "ragSearchRequired": true,
+        "ragSearchExecuted": true,
+        "ragSearchTool": "search_factory_knowledge",
+        "ragReturnedCount": 0,
+        "ragEmpty": true,
+        "ragEvidenceFactIds": [
+          "F-002"
+        ],
+        "ragProvenance": "knowledge_snapshot"
+      }
+    },
+    "ownerInputHash": "dd02fbda5225bb5fe83c47175645c1bb0e524804b649621ef9895fd8f4597533",
+    "expectedDomains": [
+      "knowledge"
+    ],
+    "selectedDomains": [
+      "business_history",
+      "knowledge"
+    ],
+    "domainSelectionScore": {
+      "id": "D07",
+      "expectedDomains": [
+        "knowledge"
+      ],
+      "selectedDomains": [
+        "business_history",
+        "knowledge"
+      ],
+      "exactMatch": false,
+      "missingDomains": [],
+      "extraDomains": [
+        "business_history"
+      ],
+      "highRiskMiss": false
+    },
+    "domainSemanticScore": {
+      "version": "DOMAIN_REQUIRED_FACT_AUTHORITY_V2",
+      "profile": "KNOWLEDGE_HISTORY",
+      "semanticPass": true,
+      "classification": "FORMAL_REQUIRED_FACTS_COMPLETE",
+      "exactDomainDiagnostic": {
+        "id": "D07",
+        "expectedDomains": [
+          "knowledge"
+        ],
+        "selectedDomains": [
+          "business_history",
+          "knowledge"
+        ],
+        "exactMatch": false,
+        "missingDomains": [],
+        "extraDomains": [
+          "business_history"
+        ],
+        "highRiskMiss": false
+      },
+      "requiredFactCoverage": {
+        "complete": true,
+        "checks": [
+          {
+            "requirement": {
+              "anyOf": [
+                "auxiliary_knowledge_retrieval",
+                "knowledge_record"
+              ]
+            },
+            "satisfied": true,
+            "evidence": [
+              {
+                "predicate": "auxiliary_knowledge_retrieval",
+                "authority": "knowledgeIndex",
+                "toolName": "search_factory_knowledge",
+                "source": "FACT_LEDGER",
+                "factId": "F-002"
+              }
+            ]
+          }
+        ],
+        "evidenceCount": 12
+      },
+      "extraDomainLabels": [
+        "business_history"
+      ],
+      "missingExpectedLabels": []
+    },
+    "semanticPass": true
+  },
+  "semanticPass": true,
+  "database": {
+    "beforeHash": "64fd935737782de23bddda5774135686a3b55cda34b6f1aa0b79ef2fecd0557c",
+    "afterHash": "64fd935737782de23bddda5774135686a3b55cda34b6f1aa0b79ef2fecd0557c",
+    "changedTables": [],
+    "mutations": 0
+  },
+  "durationMs": 20902,
+  "completedAt": "2026-10-05T03:38:00.881Z",
+  "secretScan": "PASS"
+}
