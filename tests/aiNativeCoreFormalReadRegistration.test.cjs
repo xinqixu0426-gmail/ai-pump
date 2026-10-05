@@ -68,7 +68,7 @@ function assertReviewedPurchaseOverviewMetadataDelta() {
 }
 
 test('A3 FR-01..FR-10: six core formal read/preview capabilities are registered safely', () => {
-    assert.equal(listBusinessCapabilities().length, 153);
+    assert.equal(listBusinessCapabilities().length, 156);
     assert.equal(CORE_CAPABILITIES.length, 6);
     for (const expected of CORE_CAPABILITIES) {
         const capability = getBusinessCapability(expected.capabilityId);
@@ -112,7 +112,7 @@ test('A3 FR-11..FR-18: core AI actions declare only verified formal links', () =
 test('A3 registry audit aligns formal route contracts and preserves the existing execution boundary', () => {
     const audit = buildAudit();
     assert.equal(audit.aiActionCount, 84);
-    assert.equal(audit.formalCapabilityCount, 153);
+    assert.equal(audit.formalCapabilityCount, 156);
     assert.equal(audit.explicitFormalLinkedActions, 56);
     assert.equal(audit.remainingUnlinkedActions, 28);
     assert.deepEqual(audit.brokenDeclaredFormalLinks, []);

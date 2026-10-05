@@ -1,8 +1,8 @@
 'use client';
 
 import { memo, useEffect, useState, type RefObject } from 'react';
-import { Bot, BrainCircuit, Clock3, Gauge, Hash, Loader2, MessageSquareWarning, RotateCcw, ThumbsUp, UserRound, Wrench } from 'lucide-react';
-import type { AiAnswerFeedback, AiAttachment, AiTurnMetrics } from '@/lib/ai';
+import { Bot, BrainCircuit, Clock3, Gauge, Hash, Loader2, MessageSquareWarning, RotateCcw, ThumbsUp, UserRound, Wrench, BookmarkPlus } from 'lucide-react';
+import type { AiAnswerFeedback, AiAttachment, AiTurnMetrics, AiV2Finding } from '@/lib/ai';
 import { aiStarterSamples } from '@/components/ai/AiConversationSidebars';
 import { AiMessageAttachments } from '@/components/ai/AiAttachmentDisplays';
 import { AnswerProcess, type ChatItem } from '@/components/ai/AiAnswerProcess';
@@ -90,6 +90,8 @@ export const AiMessageList = memo(function AiMessageList({
   loading,
   feedbackByMessageId,
   feedbackSaving,
+  v2FindingByMessageId,
+  v2FindingSaving,
   scrollRef,
   contentRef,
   onRunSample,
@@ -99,6 +101,7 @@ export const AiMessageList = memo(function AiMessageList({
   onRetry,
   onMarkHelpful,
   onReportIssue,
+  onMarkForV2,
   onScroll,
 }: {
   items: ChatItem[];
@@ -106,6 +109,8 @@ export const AiMessageList = memo(function AiMessageList({
   loading: boolean;
   feedbackByMessageId: Record<number, AiAnswerFeedback>;
   feedbackSaving: boolean;
+  v2FindingByMessageId: Record<number, AiV2Finding>;
+  v2FindingSaving: boolean;
   scrollRef: RefObject<HTMLDivElement>;
   contentRef: RefObject<HTMLDivElement>;
   onRunSample: (prompt: string) => void;
@@ -115,6 +120,7 @@ export const AiMessageList = memo(function AiMessageList({
   onRetry: (item: ChatItem) => void;
   onMarkHelpful: (item: ChatItem) => void;
   onReportIssue: (item: ChatItem) => void;
+  onMarkForV2: (item: ChatItem) => void;
   onScroll: () => void;
 }) {
   return (
@@ -256,6 +262,16 @@ export const AiMessageList = memo(function AiMessageList({
                     disabled={feedbackSaving}
                   >
                     {answerFeedback && answerFeedback.rating !== 'helpful' ? '已报告问题' : '报告问题'}
+                  </Button>
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    className={`h-8 px-2 text-xs ${v2FindingByMessageId[item.persistedMessageId] ? 'bg-indigo-50 text-indigo-700' : ''}`}
+                    icon={<BookmarkPlus size={14} />}
+                    onClick={() => onMarkForV2(item)}
+                    disabled={v2FindingSaving}
+                  >
+                    {v2FindingByMessageId[item.persistedMessageId] ? '已记录给 V2' : '记录给 V2'}
                   </Button>
                 </div>
               ) : null}

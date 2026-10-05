@@ -752,6 +752,28 @@ const CANONICAL_TABLES_SQL = `
         FOREIGN KEY(message_id) REFERENCES ai_conversation_messages(id)
     );
 
+    CREATE TABLE IF NOT EXISTS ai_v2_findings (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        owner_key TEXT NOT NULL,
+        conversation_id INTEGER NOT NULL,
+        user_message_id INTEGER NOT NULL,
+        assistant_message_id INTEGER NOT NULL,
+        category TEXT CHECK(category IS NULL OR category IN (
+            'intent_understanding', 'api_capability_design', 'over_investigation',
+            'missing_capability', 'data_model', 'answer_presentation',
+            'performance', 'stability', 'other'
+        )),
+        note TEXT NOT NULL DEFAULT '' CHECK(length(note) <= 2000),
+        question_text TEXT NOT NULL CHECK(length(question_text) <= 100000),
+        answer_text TEXT NOT NULL CHECK(length(answer_text) <= 100000),
+        runtime_snapshot_json TEXT NOT NULL DEFAULT '{}' CHECK(json_valid(runtime_snapshot_json)),
+        status TEXT NOT NULL DEFAULT 'open'
+            CHECK(status IN ('open', 'reviewed', 'promoted', 'dismissed')),
+        created_at TEXT NOT NULL,
+        updated_at TEXT NOT NULL,
+        UNIQUE(owner_key, assistant_message_id)
+    );
+
     CREATE TABLE IF NOT EXISTS factory_ai_rules (
         id INTEGER PRIMARY KEY AUTOINCREMENT,
         source_feedback_id INTEGER UNIQUE,
@@ -968,6 +990,12 @@ const CANONICAL_INDEXES_SQL = `
         ON ai_answer_feedback(status, updated_at DESC);
     CREATE INDEX IF NOT EXISTS idx_ai_answer_feedback_conversation
         ON ai_answer_feedback(conversation_id, message_id);
+    CREATE INDEX IF NOT EXISTS idx_ai_v2_findings_owner_status
+        ON ai_v2_findings(owner_key, status, created_at DESC, id DESC);
+    CREATE INDEX IF NOT EXISTS idx_ai_v2_findings_owner_category
+        ON ai_v2_findings(owner_key, category, created_at DESC, id DESC);
+    CREATE INDEX IF NOT EXISTS idx_ai_v2_findings_owner_conversation
+        ON ai_v2_findings(owner_key, conversation_id, created_at DESC, id DESC);
     CREATE INDEX IF NOT EXISTS idx_ai_evaluation_runs_owner
         ON ai_evaluation_runs(owner_key, created_at DESC);
     CREATE INDEX IF NOT EXISTS idx_ai_evaluation_results_run
@@ -1310,6 +1338,7 @@ const APPLICATION_TABLES = Object.freeze([
     'ai_personal_memories',
     'ai_personal_memory_revisions',
     'ai_answer_feedback',
+    'ai_v2_findings',
     'ai_conversation_messages',
     'ai_conversations',
     'ai_evaluation_cases',

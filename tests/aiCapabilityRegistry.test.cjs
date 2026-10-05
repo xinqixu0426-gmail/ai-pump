@@ -228,6 +228,9 @@ test('AI 能力注册表：当日成本对比工具统一登记实时业务证�
 test('正式业务能力注册表：已迁移 query 和 command 统一登记完整契约', () => {
     const expectedIds = [
         'ai.personal_memory.list',
+        'ai.v2_findings.list',
+        'ai.v2_findings.create',
+        'ai.v2_findings.update',
         'ai.personal_memory.change',
         'entities.coil_span_candidates',
         'entities.lookup_batch',
@@ -408,6 +411,15 @@ test('正式业务能力注册表：已迁移 query 和 command 统一登记完�
             }
             assert.ok(capability.outputSchema);
             assert.ok(capability.sourceOfTruth);
+            continue;
+        }
+        if (capabilityId.startsWith('ai.v2_findings.')) {
+            assert.equal(capability.access, 'write');
+            assert.equal(capability.operation, 'maintenance');
+            assert.equal(capability.requiresConfirmation, false);
+            assert.equal(capability.recordsBusinessChange, false);
+            assert.deepEqual(capability.callers, ['web', 'internal']);
+            assert.ok(capability.sourceOfTruth.includes('ai_v2_findings'));
             continue;
         }
         if (capability.access === 'preview') {

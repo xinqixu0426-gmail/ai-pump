@@ -156,6 +156,24 @@ export type AiConversationDetail = AiConversationSummary & {
 
 export type AiAnswerFeedbackRating = 'helpful' | 'incorrect' | 'outdated' | 'missing_source';
 export type AiAnswerFeedbackStatus = 'open' | 'resolved';
+export type AiV2FindingCategory = 'intent_understanding' | 'api_capability_design' | 'over_investigation' | 'missing_capability' | 'data_model' | 'answer_presentation' | 'performance' | 'stability' | 'other';
+export type AiV2FindingStatus = 'open' | 'reviewed' | 'promoted' | 'dismissed';
+export type AiV2Finding = {
+  id: number;
+  conversationId: number;
+  userMessageId: number;
+  assistantMessageId: number;
+  category: AiV2FindingCategory | null;
+  note: string;
+  questionText: string;
+  answerText: string;
+  runtimeSnapshot: Record<string, unknown>;
+  status: AiV2FindingStatus;
+  createdAt: string;
+  updatedAt: string;
+  conversationDeleted: boolean;
+};
+export type AiV2FindingList = { items: AiV2Finding[]; limit: number };
 export type FactoryAiRuleStatus = 'active' | 'disabled';
 export type FactoryAiRuleScopeType = 'global' | 'domain' | 'object';
 export type FactoryAiRuleType = 'answer_correction' | 'terminology' | 'fact_authority' | 'classification' | 'calculation' | 'workflow' | 'tool_selection' | 'answer_style';
@@ -940,6 +958,57 @@ export async function submitAiAnswerFeedback(input: {
   });
   if (!result.success || !result.data) throw new Error(result.error || '保存 AI 回答反馈失败');
   return rememberAiAnswerFeedbackVersion(result.data);
+}
+
+export async function listV2Findings(filters: {
+  status?: AiV2FindingStatus;
+  category?: AiV2FindingCategory;
+  conversationId?: number;
+  limit?: number;
+} = {}): Promise<AiV2FindingList> {
+  const params = new URLSearchParams();
+  if (filters.status) params.set('status', filters.status);
+  if (filters.category) params.set('category', filters.category);
+  if (filters.conversationId) params.set('conversationId', String(filters.conversationId));
+  params.set('limit', String(filters.limit || 50));
+  const result = await proxyRequest<ApiResponse<AiV2FindingList>>(`/api/ai/v2-findings?${params}`);
+  if (!result.success || !result.data) throw new Error(result.error || '读取 V2 记录失败');
+  return result.data;
+}
+
+export async function getV2FindingDetail(id: number): Promise<AiV2Finding> {
+  const result = await proxyRequest<ApiResponse<AiV2Finding>>(`/api/ai/v2-findings/${id}`);
+  if (!result.success || !result.data) throw new Error(result.error || '读取 V2 记录失败');
+  return result.data;
+}
+
+export async function saveV2Finding(input: {
+  assistantMessageId: number;
+  category?: AiV2FindingCategory | null;
+  note?: string;
+}): Promise<AiV2Finding> {
+  const result = await proxyRequest<ApiResponse<AiV2Finding>>('/api/ai/v2-findings', {
+    method: 'POST',
+    headers: { 'Idempotency-Key': createIdempotencyKey(`ai-v2-finding:${input.assistantMessageId}`) },
+    body: JSON.stringify(input),
+  });
+  if (!result.success || !result.data) throw new Error(result.error || '记录给 V2 失败');
+  return result.data;
+}
+
+export async function updateV2Finding(id: number, input: {
+  category?: AiV2FindingCategory | null;
+  note?: string;
+  status?: AiV2FindingStatus;
+  expectedUpdatedAt?: string;
+}): Promise<AiV2Finding> {
+  const result = await proxyRequest<ApiResponse<AiV2Finding>>(`/api/ai/v2-findings/${id}`, {
+    method: 'PATCH',
+    headers: { 'Idempotency-Key': createIdempotencyKey(`ai-v2-finding-update:${id}`) },
+    body: JSON.stringify(input),
+  });
+  if (!result.success || !result.data) throw new Error(result.error || '更新 V2 记录失败');
+  return result.data;
 }
 
 export async function listFactoryAiRules(filters: {

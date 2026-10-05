@@ -459,6 +459,31 @@ function aiAnswerFeedbackRow(r) {
         updatedAt: r.updated_at,
     };
 }
+function aiV2FindingRow(r) {
+    if (!r) return r;
+    let runtimeSnapshot = {};
+    try {
+        runtimeSnapshot = JSON.parse(r.runtime_snapshot_json || '{}');
+    } catch {
+        throw new Error('V2 运行快照无效');
+    }
+    return {
+        id: r.id,
+        ownerKey: r.owner_key,
+        conversationId: r.conversation_id,
+        userMessageId: r.user_message_id,
+        assistantMessageId: r.assistant_message_id,
+        category: r.category || null,
+        note: r.note || '',
+        questionText: r.question_text || '',
+        answerText: r.answer_text || '',
+        runtimeSnapshot,
+        status: r.status,
+        createdAt: r.created_at,
+        updatedAt: r.updated_at,
+        conversationDeleted: Boolean(r.conversation_deleted_at),
+    };
+}
 function aiEvaluationCaseRow(r) {
     if (!r) return r;
     return {
@@ -701,7 +726,7 @@ function setConfig(key, value, options = {}) {
  * @param {number} id - 记录 ID
  * @param {Record<string, any>} updates - { column_name: value }，undefined 值自动跳过
  */
-const SAFE_TABLES = new Set(['catalog_identity_profiles', 'catalog_name_aliases', 'catalog_reference_bindings', 'catalog_template_shell_bindings', 'ai_personal_memories', 'ai_personal_memory_revisions', 'parts', 'recipes', 'orders', 'order_requirement_summaries', 'order_execution_records', 'coils', 'coil_stock_movements', 'stator_variants', 'pump_shell_templates', 'pump_model_variants', 'system_settings', 'runtime_settings', 'rotor_drawings', 'customers', 'quotations', 'quotation_attachment_summaries', 'factory_files', 'factory_file_links', 'knowledge_entries', 'knowledge_embeddings', 'knowledge_documents', 'knowledge_sync_runs', 'knowledge_vector_sync_runs', 'management_action_lifecycles', 'management_action_events', 'factory_workflow_runs', 'factory_ai_rules', 'ai_conversations', 'ai_conversation_messages', 'ai_answer_feedback', 'ai_evaluation_cases', 'ai_evaluation_runs', 'ai_evaluation_results', 'recipe_technical_files', 'recipe_analysis_feedback', 'factory_rule_candidates', 'factory_rule_events', 'ai_tasks', 'ai_task_steps', 'ai_task_evidence', 'ai_task_events', 'domain_policy_versions', 'domain_policy_drafts', 'domain_policy_audit']);
+const SAFE_TABLES = new Set(['catalog_identity_profiles', 'catalog_name_aliases', 'catalog_reference_bindings', 'catalog_template_shell_bindings', 'ai_personal_memories', 'ai_personal_memory_revisions', 'parts', 'recipes', 'orders', 'order_requirement_summaries', 'order_execution_records', 'coils', 'coil_stock_movements', 'stator_variants', 'pump_shell_templates', 'pump_model_variants', 'system_settings', 'runtime_settings', 'rotor_drawings', 'customers', 'quotations', 'quotation_attachment_summaries', 'factory_files', 'factory_file_links', 'knowledge_entries', 'knowledge_embeddings', 'knowledge_documents', 'knowledge_sync_runs', 'knowledge_vector_sync_runs', 'management_action_lifecycles', 'management_action_events', 'factory_workflow_runs', 'factory_ai_rules', 'ai_conversations', 'ai_conversation_messages', 'ai_answer_feedback', 'ai_v2_findings', 'ai_evaluation_cases', 'ai_evaluation_runs', 'ai_evaluation_results', 'recipe_technical_files', 'recipe_analysis_feedback', 'factory_rule_candidates', 'factory_rule_events', 'ai_tasks', 'ai_task_steps', 'ai_task_evidence', 'ai_task_events', 'domain_policy_versions', 'domain_policy_drafts', 'domain_policy_audit']);
 const SAFE_INSERT_TABLES = new Set([...SAFE_TABLES, 'order_revisions']);
 const SAFE_COL_RE = /^[a-z][a-z0-9_]*$/;
 
@@ -1002,7 +1027,7 @@ if (!process.env.NODE_TEST_CONTEXT) {
 
 module.exports = {
     db,
-    partRow, recipeRow, templateRow, modelVariantRow, orderRow, coilRow, statorVariantRow, customerRow, quotationRow, knowledgeEntryRow, knowledgeDocumentRow, knowledgeSyncRunRow, knowledgeVectorSyncRunRow, managementActionLifecycleRow, managementActionEventRow, aiConversationRow, aiConversationMessageRow, aiAnswerFeedbackRow, aiEvaluationCaseRow, aiEvaluationRunRow, aiEvaluationResultRow, recipeTechnicalFileRow, recipeAnalysisFeedbackRow, factoryRuleCandidateRow,
+    partRow, recipeRow, templateRow, modelVariantRow, orderRow, coilRow, statorVariantRow, customerRow, quotationRow, knowledgeEntryRow, knowledgeDocumentRow, knowledgeSyncRunRow, knowledgeVectorSyncRunRow, managementActionLifecycleRow, managementActionEventRow, aiConversationRow, aiConversationMessageRow, aiAnswerFeedbackRow, aiV2FindingRow, aiEvaluationCaseRow, aiEvaluationRunRow, aiEvaluationResultRow, recipeTechnicalFileRow, recipeAnalysisFeedbackRow, factoryRuleCandidateRow,
     dbGetAllParts, dbGetAllRecipes, dbGetAllOrders, dbGetAllCoils, dbGetAllStatorVariants, dbGetAllTemplates, dbGetAllModelVariants, dbGetAllCustomers, dbGetAllQuotations, dbGetAllRecipeTechnicalFiles, dbGetAllKnowledgeDocuments, dbGetRecipeAnalysisFeedback, dbGetFactoryRuleCandidates,
     extractPartFields, loadPartsData, calculateRecipeCost,
     getSetting, setSetting, getConfig, setConfig,

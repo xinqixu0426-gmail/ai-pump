@@ -11,7 +11,7 @@
 - [当前技术债](./technical-debt.md)：尚未完成的正确性、测试、维护性和条件触发项。
 - Git 历史：保存实施过程，不作为当前接口契约。
 
-当前源码共有 269 个 Express 路由声明。表内出现不代表推荐新调用：标为兼容或观察的入口仅供现有调用方迁移，新增页面、AI 工具和内部服务必须使用标准入口。
+当前源码共有 273 个 Express 路由声明。表内出现不代表推荐新调用：标为兼容或观察的入口仅供现有调用方迁移，新增页面、AI 工具和内部服务必须使用标准入口。
 
 ## 1. 通用约定
 
@@ -603,7 +603,7 @@ MCP 写目录、确认协议、executor 或正式 command 变更还必须运行 
 
 工具结果、资料和记忆作为不可信数据处理，不能获得写权限。新运行器记录工具耗时、结果状态和提供商 usage；观测数据不是业务事实来源。当前默认链不产生旧两阶段意图信封。
 
-注册表共登记 84 个 AI 工具、当前 153 个已迁移正式业务能力；登记总数不代表当前聊天全部开放。AI 工具名称、displayName、读写属性、风险、来源、executorKey 和 resultProvenance 统一在 `api/capabilities/registry.cjs` 登记。正式工具 schema 位于 `api/services/aiFormalToolDefinitions.cjs`，并复用同一注册表、validator 与 executor。`WRITE_TOOLS` 是注册表投影。新助手只暴露允许的只读/预览工具，持久化修改只能通过受保护提案与 Owner 确认；未登记、schema 不匹配、标识无依据或不在 allowlist 的调用在 API 前拒绝。
+注册表共登记 84 个 AI 工具、当前 156 个已迁移正式业务能力；登记总数不代表当前聊天全部开放。AI 工具名称、displayName、读写属性、风险、来源、executorKey 和 resultProvenance 统一在 `api/capabilities/registry.cjs` 登记。正式工具 schema 位于 `api/services/aiFormalToolDefinitions.cjs`，并复用同一注册表、validator 与 executor。`WRITE_TOOLS` 是注册表投影。新助手只暴露允许的只读/预览工具，持久化修改只能通过受保护提案与 Owner 确认；未登记、schema 不匹配、标识无依据或不在 allowlist 的调用在 API 前拒绝。
 
 已迁移能力契约摘要（完整机器事实以 `api/capabilities/registry.cjs` 为准）：
 
@@ -777,6 +777,19 @@ AI 工作台会把会话和消息保存到 SQLite。所有接口均需登录，�
 | `PATCH` | `/api/ai/learning-rules/:id` | `{ status?, title?, triggerText?, instruction?, scopeType?, domains?, objectType?, objectRef?, ruleType?, conflictGroup?, priority?, effectiveFrom?, expiresAt?, expectedUpdatedAt?, idempotencyKey? }`；推荐请求头 `Idempotency-Key` | 能力 `ai.learning_rules.update`。更新结构化规则或启停；正文、示例、范围、类型或规则主题变化会升高规则版本、重建回归候选并恢复为待人工审核，批准前不生效 |
 
 同一 `messageId` 只保留一条最新判断；`helpful` 自动设为 `resolved`，其余三类问题设为 `open`。同一反馈最多生成一条纠正规则，再次提交会更新原规则，不会重复堆积。改判为非内容错误或取消长期记住会停用已有关联规则。反馈、规则、回归候选绑定和处理写入均通过 `safeInsert/safeUpdate` 并进入审计日志。删除原 AI 会话只隐藏聊天历史，不删除已经提交的反馈快照、纠正规则、回归案例、诊断或复测记录；这些记录继续按原会话 owner 隔离并可治理，但已删除会话不能再新增或改判反馈。
+
+### V2 Findings（研究记录）
+
+“记录给 V2”是独立于回答反馈的研究标记。它保存 Owner 问题、已交付回答和当轮已有运行元数据的有界脱敏快照，不会创建学习规则、回归用例、知识条目或业务变更事件，也不进入 RAG、Main Agent/API Index 或当前回答上下文。记录按 owner 隔离；来源会话删除后，研究快照仍可读取。默认分类为空、状态为 `open`，同一助手消息重复标记会更新原记录。
+
+| 方法 | 路径 | 请求 | 说明 |
+|---|---|---|---|
+| `GET` | `/api/ai/v2-findings?status=&category=&conversationId=&limit=50` | 无 | 能力 `ai.v2_findings.list`。按当前登录身份读取，按创建时间倒序；`status` 为 `open/reviewed/promoted/dismissed`，分类使用下方稳定枚举，最大 100 条 |
+| `GET` | `/api/ai/v2-findings/:id` | 无 | 能力 `ai.v2_findings.list`。读取当前 owner 的快照、分类、备注、状态、脱敏运行证据和原会话可用状态 |
+| `POST` | `/api/ai/v2-findings` | `{ assistantMessageId, category?, note? }` | 能力 `ai.v2_findings.create`。服务端读取该助手消息、同会话前序 Owner 问题及已保存 metadata；客户端不能提交权威问答快照。`note` 最大 2000 字符；同一 Owner/助手消息更新原记录 |
+| `PATCH` | `/api/ai/v2-findings/:id` | `{ category?, note?, status?, expectedUpdatedAt? }` | 能力 `ai.v2_findings.update`。仅更新当前 owner 记录；支持分类/备注/状态，状态为 `open/reviewed/promoted/dismissed`，可用 `expectedUpdatedAt` 做并发保护 |
+
+`category` 可空，枚举为 `intent_understanding/api_capability_design/over_investigation/missing_capability/data_model/answer_presentation/performance/stability/other`。运行快照按字段白名单投影并限制体积，过滤凭据、认证头、cookie、密钥及确认 token；无法安全解析或发现疑似凭据时拒绝保存。列表/详情服务 `listV2Findings` 与 `getV2FindingDetail` 为只读；外部 ChatGPT Supervisor/MCP 直连本系统本票未实现，保留为后续集成。
 
 运行时先排除停用、未审批、未到生效时间、已过期和范围不匹配的规则。对象规则必须同时匹配本轮规划的 `objectType` 和问题中的 `objectRef`；无法确认对象类型时不生效。同一规则主题和结构化范围才进入同一冲突组：同一正确做法只保留最高版本/优先级；不同做法由更高优先级胜出；最高优先级相同则整组标记冲突并暂停。随后按本轮问题和结构化业务域评分，最多将 8 条规则加入系统上下文。纠错规则不作为 RAG 知识条目检索；自由文本规则仍由模型执行，且低于核心安全和正式领域规则。
 

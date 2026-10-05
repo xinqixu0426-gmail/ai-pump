@@ -6,6 +6,7 @@ import { useCallback, useEffect, useRef, useState, type ReactNode } from 'react'
 import { useRouter } from 'next/navigation';
 import {
   ArrowDown,
+  BookmarkPlus,
   Database,
   Maximize2,
   PanelLeft,
@@ -60,6 +61,8 @@ import { AiAttachmentArchiveController } from '@/components/ai/AiAttachmentArchi
 import { AiComposer, type AiComposerHandle } from '@/components/ai/AiComposer';
 import { AiMessageList } from '@/components/ai/AiMessageList';
 import { useAiAnswerFeedback } from '@/components/ai/useAiAnswerFeedback';
+import { useAiV2Findings } from '@/components/ai/useAiV2Findings';
+import { AiV2FindingDialog } from '@/components/ai/AiV2FindingDialog';
 
 function makeId() {
   return `${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 8)}`;
@@ -214,6 +217,12 @@ export function AiView({
     resetFeedback,
     closeFeedbackDialog,
   } = useAiAnswerFeedback(setHistoryError);
+  const v2Findings = useAiV2Findings(setHistoryError);
+  const refreshV2FindingsForConversation = v2Findings.refreshForConversation;
+
+  useEffect(() => {
+    void refreshV2FindingsForConversation(activeConversationId);
+  }, [activeConversationId, refreshV2FindingsForConversation]);
 
   const scheduleScrollToLatest = useCallback((behavior: ScrollBehavior = 'auto') => {
     if (!autoFollowRef.current) return;
@@ -805,6 +814,17 @@ export function AiView({
               onClick={startNewConversation}
               disabled={loading}
             />
+            {!isPanel ? (
+              <Button
+                variant="ghost"
+                size="sm"
+                className="h-9 w-9 px-0"
+                icon={<BookmarkPlus size={16} />}
+                aria-label="V2 记录"
+                title="V2 记录"
+                onClick={() => router.push('/ai/v2-findings')}
+              />
+            ) : null}
             {isPanel && onClose && !panelControls ? (
               <Button
                 variant="ghost"
@@ -836,6 +856,9 @@ export function AiView({
             </div>
             <Button variant="secondary" size="sm" icon={<Plus size={15} />} onClick={startNewConversation} disabled={loading}>
               新会话
+            </Button>
+            <Button variant="ghost" size="sm" icon={<BookmarkPlus size={15} />} onClick={() => router.push('/ai/v2-findings')}>
+              V2 记录
             </Button>
           </div>
         </div>
@@ -876,6 +899,8 @@ export function AiView({
               loading={loading}
               feedbackByMessageId={feedbackByMessageId}
               feedbackSaving={feedbackSaving}
+              v2FindingByMessageId={v2Findings.byMessageId}
+              v2FindingSaving={v2Findings.saving || !v2Findings.loaded}
               scrollRef={scrollRef}
               contentRef={scrollContentRef}
               onRunSample={runMessageSample}
@@ -885,6 +910,7 @@ export function AiView({
               onRetry={retryMessage}
               onMarkHelpful={markMessageHelpful}
               onReportIssue={reportMessageIssue}
+              onMarkForV2={(item) => void v2Findings.markOrEdit(item)}
               onScroll={scrollMessages}
             />
 
@@ -975,6 +1001,18 @@ export function AiView({
           onLearnFromCorrectionChange={setFeedbackLearn}
           onSave={saveAnswerIssue}
           onClose={closeFeedbackDialog}
+        />
+      ) : null}
+      {v2Findings.target ? (
+        <AiV2FindingDialog
+          target={v2Findings.target}
+          category={v2Findings.category}
+          note={v2Findings.note}
+          saving={v2Findings.saving}
+          onCategoryChange={v2Findings.setCategory}
+          onNoteChange={v2Findings.setNote}
+          onSave={() => void v2Findings.saveEdits()}
+          onClose={v2Findings.closeDialog}
         />
       ) : null}
 

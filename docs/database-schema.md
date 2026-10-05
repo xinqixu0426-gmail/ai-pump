@@ -20,12 +20,13 @@
 
 ## 当前版本
 
-代码定义的当前版本为 `90`；具体环境以 `schema_migrations` 为准。版本 68 对应的 WPS 集成功能已经弃用，但迁移记录和表结构作为历史兼容墓碑永久保留，确保已升级数据库无需降级或恢复旧备份即可继续运行；当前业务代码不读取或写入该表。
+代码定义的当前版本为 `91`；具体环境以 `schema_migrations` 为准。版本 68 对应的 WPS 集成功能已经弃用，但迁移记录和表结构作为历史兼容墓碑永久保留，确保已升级数据库无需降级或恢复旧备份即可继续运行；当前业务代码不读取或写入该表。
 
 | 版本 | 名称 | 作用 |
 |---|---|---|
 | 89 | `recipe_canonical_technical_storage` | 新增 Recipe 功能技术档案和技术资料两张一对一空表及索引；只增加 Schema，不回填、不读取旧 `technical_data_json`、不改变既有 Recipe 读写或 Rotor 运行时 |
 | 90 | `ai_assistant_domain_policy_versions` | 新增独立的 Domain Policy 不可变发布版本、单一草稿和审计表；不改变 Business API、成本、库存或历史 Task 表 |
+| 91 | `ai_v2_findings_snapshots` | 新增 Owner 隔离的 V2 架构研究证据快照；不进入 AI 工具、RAG、学习规则或业务事实 |
 | 88 | `ai_native_durable_task_persistence` | 新增 AI Native V2 的任务、步骤、证据和事件四张持久化表；仅保存服务端任务状态、可核验证据和有序生命周期事件，不启动后台 Worker、不开放公共任务 API，也不改写业务数据 |
 | 87 | `recipes_name_identity_lookup` | 为 `recipes(name)` 增加非删除行的部分索引，使正式有界身份读（`recipes.resolve_identity`）按配方名解析唯一身份时保持有界；只建索引，不修改任何业务数据 |
 | 86 | `retire_legacy_ai_release_cases` | 删除九条旧核心 AI 发布用例及其运行结果（引用实体已随数据库清理不存在，负责人 2026-09-19 决定退役）；不修改业务数据，重复执行安全 |
